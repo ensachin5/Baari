@@ -1,0 +1,12 @@
+{
+  "name": "baari-workspace",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "dev:backend": "npm --prefix baari-backend run dev",
+    "dev:app": "npm --prefix baari-app start",
+    "start:app": "npm --prefix baari-app start",
+    "build:backend": "npm --prefix baari-backend run build",
+    "build:app": "npm --prefix baari-app run build"
+  }
+}

@@ -1,0 +1,22 @@
+# Environment & Local Configuration (root and all subdirectories)
+.env
+.env.*
+**/.env
+**/.env.*
+!.env.example
+!**/.env.example
+
+# Customization & Documentation ignored from Git
+.agents/
+**/.agents/
+docs/
+**/docs/
+skills-lock.json
+
+# Node Modules & Build Outputs across all subdirectories
+node_modules/
+**/node_modules/
+dist/
+**/dist/
+.expo/
+**/.expo/

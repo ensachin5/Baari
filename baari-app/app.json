@@ -1,0 +1,33 @@
+{
+  "expo": {
+    "name": "Baari",
+    "slug": "baari",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "scheme": "baari",
+    "userInterfaceStyle": "light",
+    "newArchEnabled": true,
+    "splash": {
+      "backgroundColor": "#0A2540"
+    },
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "app.baari.mobile"
+    },
+    "android": {
+      "adaptiveIcon": {
+        "backgroundColor": "#0A2540"
+      },
+      "package": "app.baari.mobile"
+    },
+    "web": {
+      "bundler": "metro",
+      "output": "single"
+    },
+    "plugins": [
+      "expo-router",
+      "expo-secure-store",
+      "expo-font"
+    ]
+  }
+}
