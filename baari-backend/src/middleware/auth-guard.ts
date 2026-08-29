@@ -2,6 +2,25 @@ import { Request, Response, NextFunction } from 'express';
 import { auth } from '../auth.js';
 import { fromNodeHeaders } from 'better-auth/node';
 
+declare global {
+  namespace Express {
+    interface Request {
+      user?: {
+        id: string;
+        name: string;
+        email: string;
+        image?: string | null;
+      };
+      session?: {
+        id: string;
+        userId: string;
+        token: string;
+        expiresAt: Date;
+      };
+    }
+  }
+}
+
 export interface AuthenticatedRequest extends Request {
   user?: {
     id: string;
@@ -18,7 +37,7 @@ export interface AuthenticatedRequest extends Request {
 }
 
 export const requireAuth = async (
-  req: AuthenticatedRequest,
+  req: Request,
   res: Response,
   next: NextFunction
 ): Promise<void> => {

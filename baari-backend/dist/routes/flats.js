@@ -139,7 +139,7 @@ exports.flatsRouter.post('/join', auth_guard_js_1.requireAuth, (0, validate_js_1
 });
 // Get members of a flat
 exports.flatsRouter.get('/:id/members', auth_guard_js_1.requireAuth, async (req, res) => {
-    const flatId = req.params.id;
+    const flatId = String(req.params.id);
     const members = await index_js_1.db
         .select({
         id: schema_js_1.flatMembers.id,
@@ -158,7 +158,7 @@ exports.flatsRouter.get('/:id/members', auth_guard_js_1.requireAuth, async (req,
 });
 // Get single flat details
 exports.flatsRouter.get('/:id', auth_guard_js_1.requireAuth, async (req, res) => {
-    const flatId = req.params.id;
+    const flatId = String(req.params.id);
     const [foundFlat] = await index_js_1.db.select().from(schema_js_1.flats).where((0, drizzle_orm_1.eq)(schema_js_1.flats.id, flatId));
     if (!foundFlat) {
         res.status(404).json({ error: 'Flat not found' });

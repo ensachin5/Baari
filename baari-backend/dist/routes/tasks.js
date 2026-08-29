@@ -160,7 +160,7 @@ exports.tasksRouter.post('/', auth_guard_js_1.requireAuth, (0, validate_js_1.val
 });
 // Complete an occurrence for the authenticated user
 exports.tasksRouter.patch('/occurrences/:id/complete', auth_guard_js_1.requireAuth, async (req, res) => {
-    const occurrenceId = req.params.id;
+    const occurrenceId = String(req.params.id);
     const userId = req.user.id;
     // Find occurrence and task
     const [occ] = await index_js_1.db

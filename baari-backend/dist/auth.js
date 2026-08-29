@@ -67,7 +67,4 @@ exports.auth = (0, better_auth_1.betterAuth)({
         'baari://',
         'exp://',
     ],
-    advanced: {
-        generateId: false, // PostgreSQL defaultRandom() handles UUIDs
-    },
 });
