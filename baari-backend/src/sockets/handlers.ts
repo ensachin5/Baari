@@ -1,25 +1,48 @@
-import { Server as SocketIOServer, Socket } from 'socket.io';
+import { Server as SocketIOServer } from 'socket.io';
+import { AuthenticatedSocket } from './index.js';
 import { db } from '../db/index.js';
-import { messages, user } from '../db/schema.js';
+import { messages, user, flatMembers } from '../db/schema.js';
+import { sendMessageSchema } from '../schemas/chat.js';
 import { logger } from '../middleware/error-handler.js';
-import { eq } from 'drizzle-orm';
+import { sendPushNotification } from '../services/push.js';
+import { eq, and } from 'drizzle-orm';
 
-export const registerSocketHandlers = (io: SocketIOServer, socket: Socket) => {
-  // Realtime Chat Message Sending
-  socket.on('send_message', async (data: { flatId: string; senderId: string; content: string }) => {
+export const registerSocketHandlers = (io: SocketIOServer, socket: AuthenticatedSocket) => {
+  // Realtime Chat Message Handler
+  socket.on('send_message', async (data: { flatId: string; content: string }, callback?: (res: any) => void) => {
     try {
-      if (!data.flatId || !data.senderId || !data.content?.trim()) return;
+      const parsed = sendMessageSchema.safeParse(data);
+      if (!parsed.success) {
+        const errorMsg = parsed.error.issues[0]?.message || 'Invalid message payload';
+        if (callback) callback({ error: errorMsg });
+        return;
+      }
 
+      const { flatId, content } = parsed.data;
+      const senderId = socket.data.user.id;
+
+      // Verify sender is a member of the flat
+      const [membership] = await db
+        .select()
+        .from(flatMembers)
+        .where(and(eq(flatMembers.flatId, flatId), eq(flatMembers.userId, senderId)));
+
+      if (!membership) {
+        if (callback) callback({ error: 'You are not a member of this flat' });
+        return;
+      }
+
+      // Save message to DB
       const [newMessage] = await db
         .insert(messages)
         .values({
-          flatId: data.flatId,
-          senderId: data.senderId,
-          content: data.content.trim(),
+          flatId,
+          senderId,
+          content: content.trim(),
         })
         .returning();
 
-      // Fetch sender details
+      // Fetch sender info for frontend rendering
       const [sender] = await db
         .select({
           id: user.id,
@@ -27,18 +50,55 @@ export const registerSocketHandlers = (io: SocketIOServer, socket: Socket) => {
           image: user.image,
         })
         .from(user)
-        .where(eq(user.id, data.senderId));
+        .where(eq(user.id, senderId));
 
       const messagePayload = {
         ...newMessage,
-        sender: sender || { id: data.senderId, name: 'Flatmate', image: null },
+        sender: sender || { id: senderId, name: socket.data.user.name, image: socket.data.user.image },
       };
 
-      // Broadcast to flat room
-      io.to(data.flatId).emit('new_message', { message: messagePayload });
+      // Broadcast new message to everyone in the flat room (including sender)
+      io.to(flatId).emit('new_message', { message: messagePayload });
+
+      // Send push notification to offline/disconnected members
+      try {
+        const allMembers = await db
+          .select({ userId: flatMembers.userId })
+          .from(flatMembers)
+          .where(eq(flatMembers.flatId, flatId));
+
+        const roomSockets = await io.in(flatId).fetchSockets();
+        const activeUserIdsInRoom = new Set(roomSockets.map((s) => (s as any).data?.user?.id));
+
+        const offlineUserIds = allMembers
+          .map((m) => m.userId)
+          .filter((uid) => uid !== senderId && !activeUserIdsInRoom.has(uid));
+
+        if (offlineUserIds.length > 0) {
+          const truncated = content.length > 50 ? `${content.substring(0, 47)}...` : content;
+          sendPushNotification(offlineUserIds, {
+            title: socket.data.user.name || 'Flatmate',
+            body: truncated,
+            data: { type: 'chat', flatId },
+          });
+        }
+      } catch (_) {}
+
+      if (callback) callback({ success: true, message: messagePayload });
     } catch (error) {
-      logger.error({ error }, 'Error in send_message socket handler');
+      logger.error({ error, socketId: socket.id }, 'Error in send_message socket handler');
+      if (callback) callback({ error: 'Failed to send message' });
     }
+  });
+
+  // Typing Indicator Handler
+  socket.on('typing', (data: { flatId: string; isTyping: boolean }) => {
+    if (!data?.flatId) return;
+    socket.to(data.flatId).emit('user_typing', {
+      userId: socket.data.user.id,
+      userName: socket.data.user.name,
+      isTyping: !!data.isTyping,
+    });
   });
 };
 

@@ -1,82 +1,67 @@
-import { api, API_BASE_URL } from './api';
+import { createAuthClient } from 'better-auth/client';
+import { expoClient } from '@better-auth/expo/client';
+import * as SecureStore from 'expo-secure-store';
+import { api } from './api';
 import { useSession, UserProfile, ActiveFlat } from '../store/session';
-import * as Linking from 'expo-linking';
 
-export interface AuthResponse {
-  user: UserProfile;
-  session: {
-    token: string;
-    expiresAt: string;
-  };
+const baseURL = (process.env.EXPO_PUBLIC_API_URL || 'http://localhost:3000').replace(/\/+$/, '');
+
+export const authClient = createAuthClient({
+  baseURL,
+  plugins: [
+    expoClient({
+      scheme: 'baari',
+      storagePrefix: 'baari',
+      storage: SecureStore,
+    }),
+  ],
+});
+
+/**
+ * Fetch the current user's profile and active flat membership from the backend.
+ * Uses the Zustand session token for auth (via the api wrapper).
+ */
+export async function fetchUserProfile(): Promise<{ user: UserProfile; activeFlat: ActiveFlat | null }> {
+  const data = await api.get<{ user: UserProfile; activeFlat: ActiveFlat | null }>('/api/profile');
+  if (data.user) {
+    useSession.getState().setUser(data.user);
+  }
+  useSession.getState().setActiveFlat(data.activeFlat || null);
+  return data;
 }
 
-export const authClient = {
-  // Email & Password Sign In
-  signInWithEmail: async (email: string, password: string): Promise<UserProfile> => {
-    const data = await api.post<AuthResponse>('/api/auth/sign-in/email', {
-      email,
-      password,
+/**
+ * After a successful Better Auth sign-in/sign-up, sync the session token
+ * into the Zustand store so the rest of the app (api.ts, socket.ts) can use it.
+ */
+export async function syncSessionToStore(authResultData?: any): Promise<void> {
+  // If result data was passed directly from signIn/signUp, use it first
+  if (authResultData?.token || authResultData?.session?.token) {
+    const token = authResultData.token || authResultData.session?.token;
+    await useSession.getState().setToken(token);
+  }
+  if (authResultData?.user) {
+    useSession.getState().setUser({
+      id: authResultData.user.id,
+      name: authResultData.user.name,
+      email: authResultData.user.email,
+      image: authResultData.user.image ?? null,
     });
+  }
 
-    if (data.session?.token) {
-      await useSession.getState().setToken(data.session.token);
+  // Also query getSession() to ensure storage sync
+  try {
+    const session = await authClient.getSession();
+    if (session.data?.session?.token) {
+      await useSession.getState().setToken(session.data.session.token);
     }
-    useSession.getState().setUser(data.user);
-
-    // Fetch user profile and active flat
-    await authClient.refreshProfile();
-
-    return data.user;
-  },
-
-  // Email & Password Sign Up
-  signUpWithEmail: async (name: string, email: string, password: string): Promise<UserProfile> => {
-    const data = await api.post<AuthResponse>('/api/auth/sign-up/email', {
-      name,
-      email,
-      password,
-    });
-
-    if (data.session?.token) {
-      await useSession.getState().setToken(data.session.token);
+    if (session.data?.user) {
+      useSession.getState().setUser({
+        id: session.data.user.id,
+        name: session.data.user.name,
+        email: session.data.user.email,
+        image: session.data.user.image ?? null,
+      });
     }
-    useSession.getState().setUser(data.user);
-
-    // Refresh profile
-    await authClient.refreshProfile();
-
-    return data.user;
-  },
-
-  // Sign In with Google
-  signInWithGoogle: async () => {
-    const callbackUrl = Linking.createURL('/(auth)/google-callback');
-    const authUrl = `${API_BASE_URL}/api/auth/sign-in/social?provider=google&callbackURL=${encodeURIComponent(callbackUrl)}`;
-    await Linking.openURL(authUrl);
-  },
-
-  // Refresh Profile & Active Flat
-  refreshProfile: async (): Promise<{ user: UserProfile; activeFlat: ActiveFlat | null }> => {
-    try {
-      const data = await api.get<{ user: UserProfile; activeFlat: ActiveFlat | null }>('/api/profile');
-      if (data.user) {
-        useSession.getState().setUser(data.user);
-      }
-      useSession.getState().setActiveFlat(data.activeFlat || null);
-      return data;
-    } catch (error) {
-      return {
-        user: useSession.getState().user!,
-        activeFlat: useSession.getState().activeFlat,
-      };
-    }
-  },
-
-  // Sign Out
-  signOut: async () => {
-    try {
-      await api.post('/api/auth/sign-out', {});
-    } catch (_) {}
-    await useSession.getState().logout();
-  },
-};
+  } catch (_) {}
+}

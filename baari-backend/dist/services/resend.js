@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.sendEmail = void 0;
+exports.sendDigestEmail = exports.sendEmail = void 0;
 const error_handler_js_1 = require("../middleware/error-handler.js");
 const sendEmail = async (payload) => {
     const apiKey = process.env.RESEND_API_KEY;
@@ -35,3 +35,23 @@ const sendEmail = async (payload) => {
     }
 };
 exports.sendEmail = sendEmail;
+const sendDigestEmail = async (user, summary) => {
+    const html = `
+    <div style="font-family: Arial, sans-serif; color: #0A2540; max-width: 600px; margin: 0 auto;">
+      <h2 style="color: #0A2540;">Weekly Baari Summary for ${user.name}</h2>
+      <p>Here is your household activity digest for the week:</p>
+      <ul>
+        <li><strong>Tasks Completed:</strong> ${summary.completedTasks}</li>
+        <li><strong>Pending Tasks:</strong> ${summary.pendingTasks}</li>
+        <li><strong>Total Expenses Logged:</strong> ₹${summary.totalExpenses}</li>
+      </ul>
+      <p>Keep your flat running smoothly with <a href="https://baari.app" style="color: #5AC8FA;">Baari</a>!</p>
+    </div>
+  `;
+    return (0, exports.sendEmail)({
+        to: user.email,
+        subject: 'Your Weekly Household Digest — Baari',
+        html,
+    });
+};
+exports.sendDigestEmail = sendDigestEmail;

@@ -10,6 +10,7 @@ const flats_js_1 = require("../schemas/flats.js");
 const drizzle_orm_1 = require("drizzle-orm");
 const index_js_2 = require("../sockets/index.js");
 const handlers_js_1 = require("../sockets/handlers.js");
+const streaks_js_1 = require("../services/streaks.js");
 exports.flatsRouter = (0, express_1.Router)();
 // Helper to generate a 6-character clean alphanumeric invite code
 function generateInviteCode() {
@@ -21,7 +22,7 @@ function generateInviteCode() {
     return code;
 }
 // Get user's current flat
-exports.flatsRouter.get('/my-flat', auth_guard_js_1.requireAuth, async (req, res) => {
+exports.flatsRouter.get(['/my-flat', '/me'], auth_guard_js_1.requireAuth, async (req, res) => {
     const userId = req.user.id;
     const membership = await index_js_1.db
         .select({
@@ -153,8 +154,17 @@ exports.flatsRouter.get('/:id/members', auth_guard_js_1.requireAuth, async (req,
     })
         .from(schema_js_1.flatMembers)
         .innerJoin(schema_js_1.user, (0, drizzle_orm_1.eq)(schema_js_1.flatMembers.userId, schema_js_1.user.id))
-        .where((0, drizzle_orm_1.eq)(schema_js_1.flatMembers.flatId, flatId));
-    res.json({ members });
+        .where((0, drizzle_orm_1.eq)(schema_js_1.flatMembers.flatId, flatId))
+        .orderBy((0, drizzle_orm_1.asc)(schema_js_1.flatMembers.joinedAt));
+    const membersWithStreaks = await Promise.all(members.map(async (m) => {
+        const streak = await (0, streaks_js_1.calculateUserStreak)(m.userId);
+        return {
+            ...m,
+            currentStreak: streak.currentStreak,
+            longestStreak: streak.longestStreak,
+        };
+    }));
+    res.json({ members: membersWithStreaks });
 });
 // Get single flat details
 exports.flatsRouter.get('/:id', auth_guard_js_1.requireAuth, async (req, res) => {
@@ -165,4 +175,55 @@ exports.flatsRouter.get('/:id', auth_guard_js_1.requireAuth, async (req, res) =>
         return;
     }
     res.json({ flat: foundFlat });
+});
+// Admin-only remove member from flat
+exports.flatsRouter.delete('/:id/members/:userId', auth_guard_js_1.requireAuth, async (req, res) => {
+    const flatId = String(req.params.id);
+    const targetUserId = String(req.params.userId);
+    const currentUserId = req.user.id;
+    // Check if current user is admin of this flat
+    const [currentMembership] = await index_js_1.db
+        .select()
+        .from(schema_js_1.flatMembers)
+        .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(schema_js_1.flatMembers.flatId, flatId), (0, drizzle_orm_1.eq)(schema_js_1.flatMembers.userId, currentUserId)));
+    if (!currentMembership || currentMembership.role !== 'admin') {
+        res.status(403).json({ error: 'Forbidden. Only flat admins can remove members.' });
+        return;
+    }
+    // Remove target user
+    await index_js_1.db
+        .delete(schema_js_1.flatMembers)
+        .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(schema_js_1.flatMembers.flatId, flatId), (0, drizzle_orm_1.eq)(schema_js_1.flatMembers.userId, targetUserId)));
+    res.json({ message: 'Member removed successfully' });
+});
+// Leave flat
+exports.flatsRouter.post('/:id/leave', auth_guard_js_1.requireAuth, async (req, res) => {
+    const flatId = String(req.params.id);
+    const currentUserId = req.user.id;
+    const [currentMembership] = await index_js_1.db
+        .select()
+        .from(schema_js_1.flatMembers)
+        .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(schema_js_1.flatMembers.flatId, flatId), (0, drizzle_orm_1.eq)(schema_js_1.flatMembers.userId, currentUserId)));
+    if (!currentMembership) {
+        res.status(404).json({ error: 'You are not a member of this flat.' });
+        return;
+    }
+    // Check if user is the only admin while other members exist
+    if (currentMembership.role === 'admin') {
+        const allMembers = await index_js_1.db
+            .select()
+            .from(schema_js_1.flatMembers)
+            .where((0, drizzle_orm_1.eq)(schema_js_1.flatMembers.flatId, flatId));
+        const otherAdmins = allMembers.filter((m) => m.role === 'admin' && m.userId !== currentUserId);
+        const otherMembers = allMembers.filter((m) => m.userId !== currentUserId);
+        if (otherAdmins.length === 0 && otherMembers.length > 0) {
+            res.status(400).json({ error: 'Please assign another admin before leaving the flat.' });
+            return;
+        }
+    }
+    // Remove current user from flat_members
+    await index_js_1.db
+        .delete(schema_js_1.flatMembers)
+        .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(schema_js_1.flatMembers.flatId, flatId), (0, drizzle_orm_1.eq)(schema_js_1.flatMembers.userId, currentUserId)));
+    res.json({ message: 'Successfully left the flat' });
 });

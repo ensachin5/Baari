@@ -7,6 +7,7 @@ const schema_js_1 = require("../db/schema.js");
 const auth_guard_js_1 = require("../middleware/auth-guard.js");
 const validate_js_1 = require("../middleware/validate.js");
 const profile_js_1 = require("../schemas/profile.js");
+const streaks_js_1 = require("../services/streaks.js");
 const drizzle_orm_1 = require("drizzle-orm");
 exports.profileRouter = (0, express_1.Router)();
 // Get profile & flat status
@@ -38,8 +39,13 @@ exports.profileRouter.get('/', auth_guard_js_1.requireAuth, async (req, res) => 
         .innerJoin(schema_js_1.flats, (0, drizzle_orm_1.eq)(schema_js_1.flatMembers.flatId, schema_js_1.flats.id))
         .where((0, drizzle_orm_1.eq)(schema_js_1.flatMembers.userId, userId))
         .limit(1);
+    const streak = await (0, streaks_js_1.calculateUserStreak)(userId);
     res.json({
-        user: currentUser,
+        user: {
+            ...currentUser,
+            currentStreak: streak.currentStreak,
+            longestStreak: streak.longestStreak,
+        },
         activeFlat: membership[0] || null,
     });
 });

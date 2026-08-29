@@ -1,10 +1,26 @@
-import React from 'react';
-import { Tabs } from 'expo-router';
-import { Colors, Typography, Spacing } from '../../lib/theme';
+import React, { useEffect } from 'react';
+import { Tabs, useRouter } from 'expo-router';
+import { Colors, Typography } from '../../lib/theme';
 import { CheckSquare, Receipt, Activity, User } from 'lucide-react-native';
 import { Platform } from 'react-native';
+import { useSession } from '../../store/session';
 
 export default function TabsLayout() {
+  const router = useRouter();
+  const token = useSession((state) => state.token);
+  const activeFlat = useSession((state) => state.activeFlat);
+  const isHydrated = useSession((state) => state.isHydrated);
+
+  useEffect(() => {
+    if (!isHydrated) return;
+
+    if (!token) {
+      router.replace('/(auth)/sign-in');
+    } else if (!activeFlat) {
+      router.replace('/(onboarding)/choose');
+    }
+  }, [isHydrated, token, activeFlat]);
+
   return (
     <Tabs
       screenOptions={{

@@ -10,6 +10,7 @@ import {
   jsonb,
   pgEnum,
   index,
+  uniqueIndex,
 } from 'drizzle-orm/pg-core';
 import { relations } from 'drizzle-orm';
 import { user } from './auth-schema.js';
@@ -126,6 +127,25 @@ export const messages = pgTable(
     createdAt: timestamp('created_at').defaultNow().notNull(),
   },
   (table) => [index('idx_messages_flat_id').on(table.flatId)]
+);
+
+// 6b. message_reads
+export const messageReads = pgTable(
+  'message_reads',
+  {
+    id: uuid('id').defaultRandom().primaryKey(),
+    messageId: uuid('message_id')
+      .references(() => messages.id, { onDelete: 'cascade' })
+      .notNull(),
+    userId: uuid('user_id')
+      .references(() => user.id, { onDelete: 'cascade' })
+      .notNull(),
+    readAt: timestamp('read_at').defaultNow().notNull(),
+  },
+  (table) => [
+    index('idx_message_reads_message_id').on(table.messageId),
+    uniqueIndex('idx_message_reads_message_user').on(table.messageId, table.userId),
+  ]
 );
 
 // 7. expenses

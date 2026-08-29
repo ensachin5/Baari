@@ -10,7 +10,15 @@ const tasks_js_1 = require("../schemas/tasks.js");
 const drizzle_orm_1 = require("drizzle-orm");
 const index_js_2 = require("../sockets/index.js");
 const handlers_js_1 = require("../sockets/handlers.js");
+const push_js_1 = require("../services/push.js");
+const streaks_js_1 = require("../services/streaks.js");
 exports.tasksRouter = (0, express_1.Router)();
+// GET /api/tasks/streaks?userId=
+exports.tasksRouter.get('/streaks', auth_guard_js_1.requireAuth, async (req, res) => {
+    const userId = req.query.userId || req.user.id;
+    const streaks = await (0, streaks_js_1.calculateUserStreak)(userId);
+    res.json(streaks);
+});
 // Get tasks for a flat
 exports.tasksRouter.get('/', auth_guard_js_1.requireAuth, async (req, res) => {
     const flatId = req.query.flatId;
@@ -153,6 +161,14 @@ exports.tasksRouter.post('/', auth_guard_js_1.requireAuth, (0, validate_js_1.val
         });
     }
     catch (_) { }
+    // Send push notification to assignees
+    if (assigneeIds && assigneeIds.length > 0) {
+        (0, push_js_1.sendPushNotification)(assigneeIds, {
+            title: `Task Duty: ${newTask.title}`,
+            body: `You're on ${newTask.category} duty today!`,
+            data: { type: 'task', taskId: newTask.id },
+        });
+    }
     res.status(201).json({
         task: newTask,
         occurrence: newOccurrence,

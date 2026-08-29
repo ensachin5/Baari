@@ -1,5 +1,6 @@
 import { betterAuth } from 'better-auth';
 import { drizzleAdapter } from 'better-auth/adapters/drizzle';
+import { expo } from '@better-auth/expo';
 import { db } from './db/index.js';
 import * as authSchema from './db/auth-schema.js';
 import * as dotenv from 'dotenv';
@@ -25,6 +26,7 @@ export const auth = betterAuth({
         }
       : {}),
   },
+  plugins: [expo()],
   trustedOrigins: [
     'http://localhost:8081',
     'http://localhost:3000',

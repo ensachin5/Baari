@@ -4,6 +4,7 @@ import { user, pushTokens, flatMembers, flats } from '../db/schema.js';
 import { requireAuth, AuthenticatedRequest } from '../middleware/auth-guard.js';
 import { validate } from '../middleware/validate.js';
 import { updateProfileSchema, registerPushTokenSchema } from '../schemas/profile.js';
+import { calculateUserStreak } from '../services/streaks.js';
 import { eq, and } from 'drizzle-orm';
 
 export const profileRouter = Router();
@@ -41,8 +42,14 @@ profileRouter.get('/', requireAuth, async (req: AuthenticatedRequest, res: Respo
     .where(eq(flatMembers.userId, userId))
     .limit(1);
 
+  const streak = await calculateUserStreak(userId);
+
   res.json({
-    user: currentUser,
+    user: {
+      ...currentUser,
+      currentStreak: streak.currentStreak,
+      longestStreak: streak.longestStreak,
+    },
     activeFlat: membership[0] || null,
   });
 });

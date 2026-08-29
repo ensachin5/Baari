@@ -11,14 +11,23 @@ import { Send } from 'lucide-react-native';
 
 interface ChatInputProps {
   onSend: (text: string) => void;
+  onTyping?: (isTyping: boolean) => void;
   disabled?: boolean;
 }
 
-export const ChatInput: React.FC<ChatInputProps> = ({ onSend, disabled = false }) => {
+export const ChatInput: React.FC<ChatInputProps> = ({ onSend, onTyping, disabled = false }) => {
   const [text, setText] = useState('');
+
+  const handleChangeText = (val: string) => {
+    setText(val);
+    if (onTyping) {
+      onTyping(val.length > 0);
+    }
+  };
 
   const handleSend = () => {
     if (!text.trim() || disabled) return;
+    if (onTyping) onTyping(false);
     onSend(text.trim());
     setText('');
   };
@@ -31,7 +40,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({ onSend, disabled = false }
           placeholder="Message flatmates..."
           placeholderTextColor={Colors.grayBlack}
           value={text}
-          onChangeText={setText}
+          onChangeText={handleChangeText}
           multiline
           maxLength={1000}
         />

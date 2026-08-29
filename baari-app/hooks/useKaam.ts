@@ -6,6 +6,7 @@ import { KaamTask } from '../components/kaam/KaamCard';
 
 export const useKaam = () => {
   const activeFlat = useSession((state) => state.activeFlat);
+  const currentUser = useSession((state) => state.user);
   const [tasks, setTasks] = useState<KaamTask[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -39,7 +40,6 @@ export const useKaam = () => {
       userId: string;
       isFullyDone: boolean;
     }) => {
-      // Optimistically update local task state
       setTasks((prevTasks) =>
         prevTasks.map((t) => {
           if (t.currentOccurrence?.id === data.occurrenceId) {
@@ -68,13 +68,41 @@ export const useKaam = () => {
   }, []);
 
   const completeTask = async (occurrenceId: string) => {
+    if (!currentUser?.id) return;
+
+    // Save previous snapshot for rollback
+    const previousTasks = [...tasks];
+
+    // Optimistically update local task state immediately
+    setTasks((prevTasks) =>
+      prevTasks.map((t) => {
+        if (t.currentOccurrence?.id === occurrenceId) {
+          const updatedMembers = t.currentOccurrence.members.map((m) =>
+            m.userId === currentUser.id ? { ...m, status: 'completed' as const } : m
+          );
+          const allDone = updatedMembers.every((m) => m.status === 'completed');
+          return {
+            ...t,
+            currentOccurrence: {
+              ...t.currentOccurrence,
+              status: allDone ? 'done' : 'in_progress',
+              members: updatedMembers,
+            },
+          };
+        }
+        return t;
+      })
+    );
+
     try {
       setCompletingId(occurrenceId);
       await api.patch(`/api/tasks/occurrences/${occurrenceId}/complete`);
-      // Refetch to sync state
+      // Sync with server state
       await fetchTasks();
     } catch (error) {
-      console.error('Error completing task:', error);
+      console.error('Error completing task, reverting state:', error);
+      // Revert optimistic update on failure
+      setTasks(previousTasks);
       throw error;
     } finally {
       setCompletingId(null);

@@ -1,7 +1,8 @@
 import React from 'react';
-import { View, Text, StyleSheet } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { Avatar } from '../ui/Avatar';
 import { Colors, Typography, BorderRadius, Spacing } from '../../lib/theme';
+import { RefreshCw } from 'lucide-react-native';
 
 export interface ChatMessage {
   id: string;
@@ -9,6 +10,8 @@ export interface ChatMessage {
   senderId: string;
   content: string;
   createdAt: string;
+  status?: 'sending' | 'sent' | 'failed';
+  reads?: any[];
   sender?: {
     id: string;
     name: string;
@@ -19,11 +22,15 @@ export interface ChatMessage {
 interface MessageBubbleProps {
   message: ChatMessage;
   isCurrentUser: boolean;
+  showSenderHeader?: boolean;
+  onRetry?: (message: ChatMessage) => void;
 }
 
 export const MessageBubble: React.FC<MessageBubbleProps> = ({
   message,
   isCurrentUser,
+  showSenderHeader = true,
+  onRetry,
 }) => {
   const formatTime = (iso: string) => {
     try {
@@ -34,12 +41,26 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
     }
   };
 
+  const isSending = message.status === 'sending';
+  const isFailed = message.status === 'failed';
+
   if (isCurrentUser) {
     return (
-      <View style={[styles.container, styles.currentUserContainer]}>
-        <View style={[styles.bubble, styles.currentUserBubble]}>
+      <View style={[styles.container, styles.currentUserContainer, isSending && { opacity: 0.65 }]}>
+        {isFailed && onRetry && (
+          <TouchableOpacity
+            onPress={() => onRetry(message)}
+            style={styles.retryBtn}
+            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+          >
+            <RefreshCw size={14} color="#DC2626" />
+          </TouchableOpacity>
+        )}
+        <View style={[styles.bubble, styles.currentUserBubble, isFailed && styles.failedBubble]}>
           <Text style={styles.currentUserText}>{message.content}</Text>
-          <Text style={styles.currentUserTime}>{formatTime(message.createdAt)}</Text>
+          <Text style={styles.currentUserTime}>
+            {isSending ? 'Sending...' : isFailed ? 'Failed' : formatTime(message.createdAt)}
+          </Text>
         </View>
       </View>
     );
@@ -47,14 +68,20 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
 
   return (
     <View style={[styles.container, styles.otherUserContainer]}>
-      <Avatar
-        name={message.sender?.name || 'Flatmate'}
-        image={message.sender?.image}
-        size="xs"
-        style={styles.avatar}
-      />
+      {showSenderHeader ? (
+        <Avatar
+          name={message.sender?.name || 'Flatmate'}
+          image={message.sender?.image}
+          size="xs"
+          style={styles.avatar}
+        />
+      ) : (
+        <View style={styles.avatarPlaceholder} />
+      )}
       <View style={[styles.bubble, styles.otherUserBubble]}>
-        <Text style={styles.senderName}>{message.sender?.name || 'Flatmate'}</Text>
+        {showSenderHeader && (
+          <Text style={styles.senderName}>{message.sender?.name || 'Flatmate'}</Text>
+        )}
         <Text style={styles.otherUserText}>{message.content}</Text>
         <Text style={styles.otherUserTime}>{formatTime(message.createdAt)}</Text>
       </View>
@@ -64,9 +91,10 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
 
 const styles = StyleSheet.create({
   container: {
-    marginVertical: 4,
+    marginVertical: 3,
     paddingHorizontal: Spacing.md,
     flexDirection: 'row',
+    alignItems: 'flex-end',
   },
   currentUserContainer: {
     justifyContent: 'flex-end',
@@ -79,6 +107,10 @@ const styles = StyleSheet.create({
     marginRight: Spacing.xs,
     marginBottom: 2,
   },
+  avatarPlaceholder: {
+    width: 28,
+    marginRight: Spacing.xs,
+  },
   bubble: {
     maxWidth: '78%',
     paddingVertical: Spacing.sm,
@@ -86,33 +118,38 @@ const styles = StyleSheet.create({
     borderRadius: BorderRadius.lg,
   },
   currentUserBubble: {
-    backgroundColor: Colors.paleSky,
+    backgroundColor: Colors.sky,
     borderBottomRightRadius: 2,
   },
   otherUserBubble: {
-    backgroundColor: Colors.white,
+    backgroundColor: Colors.offWhite,
     borderWidth: 1,
     borderColor: Colors.border,
     borderBottomLeftRadius: 2,
   },
+  failedBubble: {
+    backgroundColor: '#FEE2E2',
+    borderWidth: 1,
+    borderColor: '#FCA5A5',
+  },
   senderName: {
     ...Typography.Caption,
-    color: Colors.mutedNavy,
+    color: Colors.navy,
     fontWeight: '700',
     marginBottom: 2,
   },
   currentUserText: {
     ...Typography.Body,
-    color: Colors.deepNavy,
+    color: Colors.white,
   },
   otherUserText: {
     ...Typography.Body,
-    color: Colors.black,
+    color: Colors.navy,
   },
   currentUserTime: {
     ...Typography.Caption,
     fontSize: 10,
-    color: Colors.mutedNavy,
+    color: Colors.paleSky,
     alignSelf: 'flex-end',
     marginTop: 2,
   },
@@ -122,5 +159,9 @@ const styles = StyleSheet.create({
     color: Colors.grayBlack,
     alignSelf: 'flex-end',
     marginTop: 2,
+  },
+  retryBtn: {
+    marginRight: Spacing.xs,
+    padding: Spacing.xs,
   },
 });

@@ -55,6 +55,8 @@ const tasks_js_1 = require("./routes/tasks.js");
 const expenses_js_1 = require("./routes/expenses.js");
 const activity_js_1 = require("./routes/activity.js");
 const profile_js_1 = require("./routes/profile.js");
+const messages_js_1 = require("./routes/messages.js");
+const dev_js_1 = require("./routes/dev.js");
 dotenv.config();
 const app = (0, express_1.default)();
 exports.app = app;
@@ -66,7 +68,7 @@ app.use((0, helmet_1.default)({
 }));
 // 2. CORS
 app.use((0, cors_1.default)({
-    origin: '*',
+    origin: true,
     credentials: true,
 }));
 // 3. Body parsers
@@ -102,8 +104,10 @@ app.get('/health', async (_req, res) => {
         });
     }
 });
-// 6. Better Auth Handler
-app.all('/api/auth/*', rate_limit_js_1.authRateLimiter, (0, node_1.toNodeHandler)(auth_js_1.auth));
+// 6. Better Auth Rate Limiting & Handler
+app.use('/api/auth/sign-in/email', rate_limit_js_1.strictAuthRateLimiter);
+app.use('/api/auth/sign-up/email', rate_limit_js_1.strictAuthRateLimiter);
+app.all('/api/auth/*', rate_limit_js_1.lenientAuthRateLimiter, (0, node_1.toNodeHandler)(auth_js_1.auth));
 // 7. API Routes with general rate limiting
 app.use('/api', rate_limit_js_1.generalRateLimiter);
 app.use('/api/flats', flats_js_1.flatsRouter);
@@ -111,6 +115,13 @@ app.use('/api/tasks', tasks_js_1.tasksRouter);
 app.use('/api/expenses', expenses_js_1.expensesRouter);
 app.use('/api/activity', activity_js_1.activityRouter);
 app.use('/api/profile', profile_js_1.profileRouter);
+app.use('/api/messages', messages_js_1.messagesRouter);
+app.use('/api/dev', dev_js_1.devRouter);
+// Alias route for POST /api/push-tokens
+app.post('/api/push-tokens', (req, res, next) => {
+    req.url = '/push-token';
+    (0, profile_js_1.profileRouter)(req, res, next);
+});
 // 8. Global Error Handler
 app.use(error_handler_js_1.errorHandler);
 // 9. Initialize Socket.io

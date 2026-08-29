@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.verification = exports.account = exports.session = exports.user = exports.activityLogRelations = exports.settlementsRelations = exports.expenseSplitsRelations = exports.expensesRelations = exports.messagesRelations = exports.taskOccurrenceMembersRelations = exports.taskOccurrencesRelations = exports.tasksRelations = exports.flatMembersRelations = exports.flatsRelations = exports.pushTokens = exports.activityLog = exports.settlements = exports.expenseSplits = exports.expenses = exports.messages = exports.taskOccurrenceMembers = exports.taskOccurrences = exports.tasks = exports.flatMembers = exports.flats = exports.pushDeviceType = exports.activityType = exports.occurrenceMemberStatus = exports.occurrenceStatus = exports.taskRecurrence = exports.taskCategory = exports.flatMemberRole = void 0;
+exports.verification = exports.account = exports.session = exports.user = exports.activityLogRelations = exports.settlementsRelations = exports.expenseSplitsRelations = exports.expensesRelations = exports.messagesRelations = exports.taskOccurrenceMembersRelations = exports.taskOccurrencesRelations = exports.tasksRelations = exports.flatMembersRelations = exports.flatsRelations = exports.pushTokens = exports.activityLog = exports.settlements = exports.expenseSplits = exports.expenses = exports.messageReads = exports.messages = exports.taskOccurrenceMembers = exports.taskOccurrences = exports.tasks = exports.flatMembers = exports.flats = exports.pushDeviceType = exports.activityType = exports.occurrenceMemberStatus = exports.occurrenceStatus = exports.taskRecurrence = exports.taskCategory = exports.flatMemberRole = void 0;
 const pg_core_1 = require("drizzle-orm/pg-core");
 const drizzle_orm_1 = require("drizzle-orm");
 const auth_schema_js_1 = require("./auth-schema.js");
@@ -95,6 +95,20 @@ exports.messages = (0, pg_core_1.pgTable)('messages', {
     content: (0, pg_core_1.text)('content').notNull(),
     createdAt: (0, pg_core_1.timestamp)('created_at').defaultNow().notNull(),
 }, (table) => [(0, pg_core_1.index)('idx_messages_flat_id').on(table.flatId)]);
+// 6b. message_reads
+exports.messageReads = (0, pg_core_1.pgTable)('message_reads', {
+    id: (0, pg_core_1.uuid)('id').defaultRandom().primaryKey(),
+    messageId: (0, pg_core_1.uuid)('message_id')
+        .references(() => exports.messages.id, { onDelete: 'cascade' })
+        .notNull(),
+    userId: (0, pg_core_1.uuid)('user_id')
+        .references(() => auth_schema_js_1.user.id, { onDelete: 'cascade' })
+        .notNull(),
+    readAt: (0, pg_core_1.timestamp)('read_at').defaultNow().notNull(),
+}, (table) => [
+    (0, pg_core_1.index)('idx_message_reads_message_id').on(table.messageId),
+    (0, pg_core_1.uniqueIndex)('idx_message_reads_message_user').on(table.messageId, table.userId),
+]);
 // 7. expenses
 exports.expenses = (0, pg_core_1.pgTable)('expenses', {
     id: (0, pg_core_1.uuid)('id').defaultRandom().primaryKey(),

@@ -9,7 +9,7 @@ import { toNodeHandler } from 'better-auth/node';
 import { db, pool } from './db/index.js';
 import { initSocket } from './sockets/index.js';
 import { logger, errorHandler } from './middleware/error-handler.js';
-import { authRateLimiter, generalRateLimiter } from './middleware/rate-limit.js';
+import { strictAuthRateLimiter, lenientAuthRateLimiter, generalRateLimiter } from './middleware/rate-limit.js';
 
 // Route imports
 import { flatsRouter } from './routes/flats.js';
@@ -17,6 +17,8 @@ import { tasksRouter } from './routes/tasks.js';
 import { expensesRouter } from './routes/expenses.js';
 import { activityRouter } from './routes/activity.js';
 import { profileRouter } from './routes/profile.js';
+import { messagesRouter } from './routes/messages.js';
+import { devRouter } from './routes/dev.js';
 
 dotenv.config();
 
@@ -33,7 +35,7 @@ app.use(
 // 2. CORS
 app.use(
   cors({
-    origin: '*',
+    origin: true,
     credentials: true,
   })
 );
@@ -75,8 +77,10 @@ app.get('/health', async (_req, res) => {
   }
 });
 
-// 6. Better Auth Handler
-app.all('/api/auth/*', authRateLimiter, toNodeHandler(auth));
+// 6. Better Auth Rate Limiting & Handler
+app.use('/api/auth/sign-in/email', strictAuthRateLimiter);
+app.use('/api/auth/sign-up/email', strictAuthRateLimiter);
+app.all('/api/auth/*', lenientAuthRateLimiter, toNodeHandler(auth));
 
 // 7. API Routes with general rate limiting
 app.use('/api', generalRateLimiter);
@@ -85,6 +89,14 @@ app.use('/api/tasks', tasksRouter);
 app.use('/api/expenses', expensesRouter);
 app.use('/api/activity', activityRouter);
 app.use('/api/profile', profileRouter);
+app.use('/api/messages', messagesRouter);
+app.use('/api/dev', devRouter);
+
+// Alias route for POST /api/push-tokens
+app.post('/api/push-tokens', (req, res, next) => {
+  req.url = '/push-token';
+  profileRouter(req, res, next);
+});
 
 // 8. Global Error Handler
 app.use(errorHandler);

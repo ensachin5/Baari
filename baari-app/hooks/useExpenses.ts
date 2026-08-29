@@ -89,12 +89,45 @@ export const useExpenses = () => {
     amount: number;
     note?: string;
   }) => {
-    if (!activeFlat?.id) return;
-    await api.post('/api/expenses/settle', {
-      ...payload,
-      flatId: activeFlat.id,
+    if (!activeFlat?.id || !currentUser?.id) return;
+
+    // Save previous snapshot for rollback
+    const prevBalances = { ...balances };
+
+    // Optimistically update balances locally
+    setBalances((prev) => {
+      const updatedMembers = prev.memberBalances.map((m) => {
+        if (m.userId === currentUser.id) {
+          return { ...m, netBalance: m.netBalance + payload.amount };
+        }
+        if (m.userId === payload.paidTo) {
+          return { ...m, netBalance: m.netBalance - payload.amount };
+        }
+        return m;
+      });
+
+      const newNet = prev.summary.netBalance + payload.amount;
+      const youAreOwed = newNet > 0 ? Math.round(newNet * 100) / 100 : 0;
+      const youOwe = newNet < 0 ? Math.round(-newNet * 100) / 100 : 0;
+
+      return {
+        ...prev,
+        summary: { youAreOwed, youOwe, netBalance: newNet },
+        memberBalances: updatedMembers,
+      };
     });
-    await fetchExpensesData();
+
+    try {
+      await api.post('/api/expenses/settle', {
+        ...payload,
+        flatId: activeFlat.id,
+      });
+      await fetchExpensesData();
+    } catch (error) {
+      console.error('Error recording settlement, reverting state:', error);
+      setBalances(prevBalances);
+      throw error;
+    }
   };
 
   const onRefresh = () => {

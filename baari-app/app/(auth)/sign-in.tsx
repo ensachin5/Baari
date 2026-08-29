@@ -12,18 +12,29 @@ import { useRouter } from 'expo-router';
 import { Input } from '../../components/ui/Input';
 import { Button } from '../../components/ui/Button';
 import { Colors, Typography, Spacing, BorderRadius } from '../../lib/theme';
-import { authClient } from '../../lib/auth-client';
+import { authClient, syncSessionToStore, fetchUserProfile } from '../../lib/auth-client';
 import { useSession } from '../../store/session';
 
 export default function SignInScreen() {
   const router = useRouter();
-  const activeFlat = useSession((state) => state.activeFlat);
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
   const [error, setError] = useState('');
+
+  const handlePostAuth = async (data?: any) => {
+    // Sync the Better Auth session into Zustand store
+    await syncSessionToStore(data);
+    // Fetch profile + flat membership
+    const { activeFlat } = await fetchUserProfile();
+    if (activeFlat) {
+      router.replace('/(tabs)/home');
+    } else {
+      router.replace('/(onboarding)/choose');
+    }
+  };
 
   const handleSignIn = async () => {
     if (!email.trim() || !password.trim()) {
@@ -34,14 +45,17 @@ export default function SignInScreen() {
     try {
       setLoading(true);
       setError('');
-      await authClient.signInWithEmail(email.trim(), password);
+      const result = await authClient.signIn.email({
+        email: email.trim(),
+        password,
+      });
 
-      const flat = useSession.getState().activeFlat;
-      if (flat) {
-        router.replace('/(tabs)/home');
-      } else {
-        router.replace('/(onboarding)/choose');
+      if (result.error) {
+        setError(result.error.message || 'Invalid email or password');
+        return;
       }
+
+      await handlePostAuth(result.data);
     } catch (err: any) {
       setError(err.message || 'Invalid email or password');
     } finally {
@@ -53,9 +67,14 @@ export default function SignInScreen() {
     try {
       setGoogleLoading(true);
       setError('');
-      await authClient.signInWithGoogle();
+      await authClient.signIn.social({
+        provider: 'google',
+      });
+      // After OAuth redirect returns, sync session
+      await handlePostAuth();
     } catch (err: any) {
       setError(err.message || 'Google sign-in failed');
+    } finally {
       setGoogleLoading(false);
     }
   };
@@ -86,6 +105,7 @@ export default function SignInScreen() {
           variant="outline"
           onPress={handleGoogleSignIn}
           loading={googleLoading}
+          disabled={loading}
           style={styles.googleButton}
         />
 
@@ -96,12 +116,19 @@ export default function SignInScreen() {
           <View style={styles.dividerLine} />
         </View>
 
+        {/* Error message */}
+        {error ? (
+          <View style={styles.errorContainer}>
+            <Text style={styles.errorText}>{error}</Text>
+          </View>
+        ) : null}
+
         {/* Form */}
         <Input
           label="Email Address"
           placeholder="your.email@example.com"
           value={email}
-          onChangeText={setEmail}
+          onChangeText={(text) => { setEmail(text); setError(''); }}
           keyboardType="email-address"
           autoCapitalize="none"
         />
@@ -110,22 +137,22 @@ export default function SignInScreen() {
           label="Password"
           placeholder="••••••••"
           value={password}
-          onChangeText={setPassword}
+          onChangeText={(text) => { setPassword(text); setError(''); }}
           isPassword
-          error={error}
         />
 
         <Button
           title="Sign In"
           onPress={handleSignIn}
           loading={loading}
+          disabled={googleLoading}
           style={styles.signInButton}
         />
 
         {/* Switch to Sign Up */}
         <View style={styles.footerRow}>
           <Text style={Typography.BodySmall}>New to Baari? </Text>
-          <TouchableOpacity onPress={() => router.push('/(auth)/sign-up')}>
+          <TouchableOpacity onPress={() => router.push('/(auth)/sign-up')} disabled={loading || googleLoading}>
             <Text style={[Typography.BodySmallMedium, styles.signUpLink]}>
               Create an account
             </Text>
@@ -192,6 +219,21 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.md,
     color: Colors.grayBlack,
     letterSpacing: 0.5,
+  },
+  errorContainer: {
+    backgroundColor: '#FEF2F2',
+    borderRadius: BorderRadius.sm,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.sm,
+    marginBottom: Spacing.md,
+    borderWidth: 1,
+    borderColor: '#FECACA',
+  },
+  errorText: {
+    fontFamily: 'Inter_500Medium',
+    fontSize: 13,
+    color: '#DC2626',
+    lineHeight: 18,
   },
   signInButton: {
     marginTop: Spacing.sm,

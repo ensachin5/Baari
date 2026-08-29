@@ -8,7 +8,9 @@ import {
   RefreshControl,
   SafeAreaView,
   FlatList,
+  KeyboardAvoidingView,
   Platform,
+  ActivityIndicator,
 } from 'react-native';
 import { Colors, Typography, Spacing, BorderRadius } from '../../lib/theme';
 import { useSession } from '../../store/session';
@@ -17,7 +19,7 @@ import { useChat } from '../../hooks/useChat';
 import { useExpenses } from '../../hooks/useExpenses';
 import { KaamCard } from '../../components/kaam/KaamCard';
 import { CreateKaamModal } from '../../components/kaam/CreateKaamModal';
-import { MessageBubble } from '../../components/chat/MessageBubble';
+import { MessageBubble, ChatMessage } from '../../components/chat/MessageBubble';
 import { ChatInput } from '../../components/chat/ChatInput';
 import { SegmentedControl } from '../../components/ui/SegmentedControl';
 import { Card } from '../../components/ui/Card';
@@ -27,6 +29,21 @@ import {
   CheckSquare,
   Sparkles,
 } from 'lucide-react-native';
+
+function formatDateDivider(isoString: string): string {
+  try {
+    const d = new Date(isoString);
+    const today = new Date();
+    const yesterday = new Date(today);
+    yesterday.setDate(yesterday.getDate() - 1);
+
+    if (d.toDateString() === today.toDateString()) return 'Today';
+    if (d.toDateString() === yesterday.toDateString()) return 'Yesterday';
+    return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+  } catch {
+    return '';
+  }
+}
 
 export default function HomeScreen() {
   const activeFlat = useSession((state) => state.activeFlat);
@@ -49,17 +66,32 @@ export default function HomeScreen() {
     onRefresh: onKaamRefresh,
   } = useKaam();
 
-  const { messages, sendMessage } = useChat();
+  const {
+    messages,
+    loading: chatLoading,
+    loadingMore,
+    hasMore,
+    typingUsers,
+    sendMessage,
+    retryMessage,
+    emitTyping,
+    markReadUpTo,
+    loadMore,
+  } = useChat();
   const { members } = useExpenses();
 
-  // Scroll chat to bottom on new message
+  // Scroll chat to bottom on new messages and mark read
   useEffect(() => {
     if (messages.length > 0 && activePage === 1) {
       setTimeout(() => {
         chatFlatListRef.current?.scrollToEnd({ animated: true });
-      }, 100);
+      }, 150);
+      const lastMsg = messages[messages.length - 1];
+      if (lastMsg?.id) {
+        markReadUpTo(lastMsg.id);
+      }
     }
-  }, [messages.length, activePage]);
+  }, [messages.length, activePage, markReadUpTo]);
 
   // Filter tasks
   const filteredTasks = tasks.filter((t) => {
@@ -87,6 +119,7 @@ export default function HomeScreen() {
         {/* 2-Page Indicator Switcher */}
         <View style={styles.indicatorContainer}>
           <TouchableOpacity
+            activeOpacity={0.8}
             onPress={() => setActivePage(0)}
             style={[styles.indicatorDotBtn, activePage === 0 && styles.indicatorActive]}
           >
@@ -96,6 +129,7 @@ export default function HomeScreen() {
             />
           </TouchableOpacity>
           <TouchableOpacity
+            activeOpacity={0.8}
             onPress={() => setActivePage(1)}
             style={[styles.indicatorDotBtn, activePage === 1 && styles.indicatorActive]}
           >
@@ -188,39 +222,96 @@ export default function HomeScreen() {
         </View>
       )}
 
-      {/* PAGE 1: FLAT GROUP CHAT */}
+      {/* PAGE 1: REALTIME GROUP CHAT */}
       {activePage === 1 && (
-        <View style={styles.page}>
+        <KeyboardAvoidingView
+          style={styles.page}
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+          keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
+        >
           <View style={styles.chatHeader}>
             <Text style={Typography.H2}>Flat Group Chat</Text>
             <Text style={[Typography.Caption, styles.chatSubtext]}>
-              Tap the task icon to return to Kaam list
+              Realtime chat with flatmates
             </Text>
           </View>
 
-          <FlatList
-            ref={chatFlatListRef}
-            data={messages}
-            keyExtractor={(item) => item.id}
-            renderItem={({ item }) => (
-              <MessageBubble
-                message={item}
-                isCurrentUser={item.senderId === currentUser?.id}
-              />
-            )}
-            contentContainerStyle={styles.chatListContent}
-            ListEmptyComponent={
-              <View style={styles.emptyChat}>
-                <MessageSquare size={36} color={Colors.sky} />
-                <Text style={[Typography.BodyMedium, styles.emptyChatText]}>
-                  No messages yet. Say hello to your flatmates!
-                </Text>
-              </View>
-            }
-          />
+          {chatLoading && messages.length === 0 ? (
+            <View style={styles.chatLoadingContainer}>
+              <ActivityIndicator size="large" color={Colors.navy} />
+            </View>
+          ) : (
+            <FlatList
+              ref={chatFlatListRef}
+              data={messages}
+              keyExtractor={(item) => item.id}
+              contentContainerStyle={styles.chatListContent}
+              onScroll={({ nativeEvent }) => {
+                // Fetch older messages when scrolled near top
+                if (nativeEvent.contentOffset.y < 40 && hasMore && !loadingMore) {
+                  loadMore();
+                }
+              }}
+              scrollEventThrottle={200}
+              ListHeaderComponent={
+                loadingMore ? (
+                  <View style={styles.loadMoreIndicator}>
+                    <ActivityIndicator size="small" color={Colors.navy} />
+                  </View>
+                ) : null
+              }
+              renderItem={({ item, index }) => {
+                const prevMsg = index > 0 ? messages[index - 1] : null;
+                const isDifferentSender = !prevMsg || prevMsg.senderId !== item.senderId;
+                const currentDate = formatDateDivider(item.createdAt);
+                const prevDate = prevMsg ? formatDateDivider(prevMsg.createdAt) : null;
+                const showDateDivider = currentDate && currentDate !== prevDate;
 
-          <ChatInput onSend={sendMessage} />
-        </View>
+                return (
+                  <View key={item.id}>
+                    {showDateDivider && (
+                      <View style={styles.dateDivider}>
+                        <Text style={styles.dateDividerText}>{currentDate}</Text>
+                      </View>
+                    )}
+                    <MessageBubble
+                      message={item}
+                      isCurrentUser={item.senderId === currentUser?.id}
+                      showSenderHeader={isDifferentSender}
+                      onRetry={retryMessage}
+                    />
+                  </View>
+                );
+              }}
+              ListEmptyComponent={
+                <View style={styles.emptyChat}>
+                  <MessageSquare size={44} color={Colors.sky} />
+                  <Text style={[Typography.H2, styles.emptyChatTitle]}>
+                    No messages yet
+                  </Text>
+                  <Text style={[Typography.BodySmall, styles.emptyChatText]}>
+                    Say hi to your flatmates to kick off the conversation!
+                  </Text>
+                </View>
+              }
+            />
+          )}
+
+          {/* Typing Indicator Bar */}
+          {typingUsers.length > 0 && (
+            <View style={styles.typingBar}>
+              <Text style={styles.typingText}>
+                {typingUsers.length === 1
+                  ? `${typingUsers[0].userName} is typing...`
+                  : typingUsers.length === 2
+                  ? `${typingUsers[0].userName} and ${typingUsers[1].userName} are typing...`
+                  : `${typingUsers.length} people are typing...`}
+              </Text>
+            </View>
+          )}
+
+          <ChatInput onSend={sendMessage} onTyping={emitTyping} />
+        </KeyboardAvoidingView>
       )}
 
       {/* Create Kaam Sheet */}
@@ -354,18 +445,59 @@ const styles = StyleSheet.create({
     color: Colors.grayBlack,
     marginTop: 2,
   },
+  chatLoadingContainer: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  loadMoreIndicator: {
+    paddingVertical: Spacing.sm,
+    alignItems: 'center',
+  },
   chatListContent: {
     paddingVertical: Spacing.md,
     flexGrow: 1,
+  },
+  dateDivider: {
+    alignSelf: 'center',
+    backgroundColor: Colors.offWhite,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: 3,
+    borderRadius: BorderRadius.full,
+    marginVertical: Spacing.sm,
+    borderWidth: 1,
+    borderColor: Colors.border,
+  },
+  dateDividerText: {
+    ...Typography.Caption,
+    color: Colors.grayBlack,
+    fontSize: 11,
+    fontWeight: '600',
   },
   emptyChat: {
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
     paddingVertical: Spacing.xxxl,
+    paddingHorizontal: Spacing.xl,
+  },
+  emptyChatTitle: {
+    marginTop: Spacing.md,
+    marginBottom: Spacing.xs,
   },
   emptyChatText: {
-    marginTop: Spacing.md,
+    textAlign: 'center',
     color: Colors.grayBlack,
+    maxWidth: 240,
+  },
+  typingBar: {
+    paddingHorizontal: Spacing.xl,
+    paddingVertical: 4,
+    backgroundColor: Colors.white,
+  },
+  typingText: {
+    ...Typography.Caption,
+    color: Colors.mutedNavy,
+    fontStyle: 'italic',
   },
 });

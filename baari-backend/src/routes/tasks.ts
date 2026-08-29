@@ -13,8 +13,17 @@ import { createTaskSchema, completeOccurrenceSchema } from '../schemas/tasks.js'
 import { eq, and, desc, inArray } from 'drizzle-orm';
 import { getIO } from '../sockets/index.js';
 import { broadcastTaskCompleted, broadcastActivityEvent } from '../sockets/handlers.js';
+import { sendPushNotification } from '../services/push.js';
+import { calculateUserStreak } from '../services/streaks.js';
 
 export const tasksRouter = Router();
+
+// GET /api/tasks/streaks?userId=
+tasksRouter.get('/streaks', requireAuth, async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+  const userId = (req.query.userId as string) || req.user!.id;
+  const streaks = await calculateUserStreak(userId);
+  res.json(streaks);
+});
 
 // Get tasks for a flat
 tasksRouter.get('/', requireAuth, async (req: AuthenticatedRequest, res: Response): Promise<void> => {
@@ -188,6 +197,15 @@ tasksRouter.post(
         actor: { id: req.user!.id, name: req.user!.name, image: req.user!.image },
       });
     } catch (_) {}
+
+    // Send push notification to assignees
+    if (assigneeIds && assigneeIds.length > 0) {
+      sendPushNotification(assigneeIds, {
+        title: `Task Duty: ${newTask.title}`,
+        body: `You're on ${newTask.category} duty today!`,
+        data: { type: 'task', taskId: newTask.id },
+      });
+    }
 
     res.status(201).json({
       task: newTask,

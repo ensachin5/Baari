@@ -36,6 +36,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.auth = void 0;
 const better_auth_1 = require("better-auth");
 const drizzle_1 = require("better-auth/adapters/drizzle");
+const expo_1 = require("@better-auth/expo");
 const index_js_1 = require("./db/index.js");
 const authSchema = __importStar(require("./db/auth-schema.js"));
 const dotenv = __importStar(require("dotenv"));
@@ -59,6 +60,7 @@ exports.auth = (0, better_auth_1.betterAuth)({
             }
             : {}),
     },
+    plugins: [(0, expo_1.expo)()],
     trustedOrigins: [
         'http://localhost:8081',
         'http://localhost:3000',

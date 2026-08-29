@@ -10,6 +10,7 @@ const expenses_js_1 = require("../schemas/expenses.js");
 const drizzle_orm_1 = require("drizzle-orm");
 const index_js_2 = require("../sockets/index.js");
 const handlers_js_1 = require("../sockets/handlers.js");
+const push_js_1 = require("../services/push.js");
 exports.expensesRouter = (0, express_1.Router)();
 // Get expenses for a flat
 exports.expensesRouter.get('/', auth_guard_js_1.requireAuth, async (req, res) => {
@@ -125,6 +126,17 @@ exports.expensesRouter.post('/', auth_guard_js_1.requireAuth, (0, validate_js_1.
         });
     }
     catch (_) { }
+    // Send push notification to participants (excluding paidBy creator)
+    const participantUserIds = splits
+        .map((s) => s.userId)
+        .filter((id) => id !== userId);
+    if (participantUserIds.length > 0) {
+        (0, push_js_1.sendPushNotification)(participantUserIds, {
+            title: 'New Expense Added',
+            body: `${req.user.name} added an expense: ${newExpense.title} (₹${newExpense.amount})`,
+            data: { type: 'expense', expenseId: newExpense.id },
+        });
+    }
     res.status(201).json({
         expense: newExpense,
         splits: splitRecords,
@@ -256,7 +268,7 @@ exports.expensesRouter.get('/balances', auth_guard_js_1.requireAuth, async (req,
     });
 });
 // Record a settlement
-exports.expensesRouter.post('/settle', auth_guard_js_1.requireAuth, (0, validate_js_1.validate)(expenses_js_1.createSettlementSchema), async (req, res) => {
+exports.expensesRouter.post(['/settle', '/settlements'], auth_guard_js_1.requireAuth, (0, validate_js_1.validate)(expenses_js_1.createSettlementSchema), async (req, res) => {
     const { flatId, paidTo, amount, note } = req.body;
     const paidBy = req.user.id;
     // Insert settlement

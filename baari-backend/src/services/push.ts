@@ -16,16 +16,16 @@ export const sendPushNotification = async (
   try {
     if (!userIds || userIds.length === 0) return;
 
-    const tokens = await db
-      .select({ token: pushTokens.token })
+    const tokenRecords = await db
+      .select({ id: pushTokens.id, token: pushTokens.token })
       .from(pushTokens)
       .where(inArray(pushTokens.userId, userIds));
 
-    if (tokens.length === 0) return;
+    if (tokenRecords.length === 0) return;
 
-    const messages = tokens.map((t) => ({
+    const messages = tokenRecords.map((t) => ({
       to: t.token,
-      sound: 'default',
+      sound: 'default' as const,
       title: message.title,
       body: message.body,
       data: message.data || {},
@@ -37,7 +37,8 @@ export const sendPushNotification = async (
       chunks.push(messages.slice(i, i + 100));
     }
 
-    for (const chunk of chunks) {
+    for (let i = 0; i < chunks.length; i++) {
+      const chunk = chunks[i];
       const response = await fetch('https://exp.host/--/api/v2/push/send', {
         method: 'POST',
         headers: {
@@ -49,9 +50,42 @@ export const sendPushNotification = async (
 
       if (!response.ok) {
         logger.error({ status: response.status }, 'Expo push notification batch failed');
+        continue;
+      }
+
+      const resData = (await response.json()) as { data: any[] };
+
+      // Identify invalid/expired tokens and remove them
+      if (resData?.data && Array.isArray(resData.data)) {
+        const invalidTokenIds: string[] = [];
+        resData.data.forEach((ticket, idx) => {
+          if (
+            ticket.status === 'error' &&
+            ticket.details?.error === 'DeviceNotRegistered'
+          ) {
+            const tokenRecordIndex = i * 100 + idx;
+            if (tokenRecords[tokenRecordIndex]) {
+              invalidTokenIds.push(tokenRecords[tokenRecordIndex].id);
+            }
+          }
+        });
+
+        if (invalidTokenIds.length > 0) {
+          logger.info({ invalidTokenIds }, 'Removing expired/unregistered push tokens');
+          await db.delete(pushTokens).where(inArray(pushTokens.id, invalidTokenIds));
+        }
       }
     }
   } catch (error) {
     logger.error({ error }, 'Error sending push notifications');
   }
+};
+
+export const sendPushToUser = async (
+  userId: string,
+  title: string,
+  body: string,
+  data?: Record<string, any>
+): Promise<void> => {
+  return sendPushNotification([userId], { title, body, data });
 };

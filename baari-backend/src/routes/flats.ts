@@ -4,9 +4,10 @@ import { flats, flatMembers, user, activityLog } from '../db/schema.js';
 import { requireAuth, AuthenticatedRequest } from '../middleware/auth-guard.js';
 import { validate } from '../middleware/validate.js';
 import { createFlatSchema, joinFlatSchema } from '../schemas/flats.js';
-import { eq, and } from 'drizzle-orm';
+import { eq, and, asc } from 'drizzle-orm';
 import { getIO } from '../sockets/index.js';
 import { broadcastActivityEvent } from '../sockets/handlers.js';
+import { calculateUserStreak } from '../services/streaks.js';
 
 export const flatsRouter = Router();
 
@@ -21,7 +22,7 @@ function generateInviteCode(): string {
 }
 
 // Get user's current flat
-flatsRouter.get('/my-flat', requireAuth, async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+flatsRouter.get(['/my-flat', '/me'], requireAuth, async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   const userId = req.user!.id;
 
   const membership = await db
@@ -182,9 +183,21 @@ flatsRouter.get('/:id/members', requireAuth, async (req: AuthenticatedRequest, r
     })
     .from(flatMembers)
     .innerJoin(user, eq(flatMembers.userId, user.id))
-    .where(eq(flatMembers.flatId, flatId));
+    .where(eq(flatMembers.flatId, flatId))
+    .orderBy(asc(flatMembers.joinedAt));
 
-  res.json({ members });
+  const membersWithStreaks = await Promise.all(
+    members.map(async (m) => {
+      const streak = await calculateUserStreak(m.userId);
+      return {
+        ...m,
+        currentStreak: streak.currentStreak,
+        longestStreak: streak.longestStreak,
+      };
+    })
+  );
+
+  res.json({ members: membersWithStreaks });
 });
 
 // Get single flat details
@@ -199,4 +212,68 @@ flatsRouter.get('/:id', requireAuth, async (req: AuthenticatedRequest, res: Resp
   }
 
   res.json({ flat: foundFlat });
+});
+
+// Admin-only remove member from flat
+flatsRouter.delete('/:id/members/:userId', requireAuth, async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+  const flatId = String(req.params.id);
+  const targetUserId = String(req.params.userId);
+  const currentUserId = req.user!.id;
+
+  // Check if current user is admin of this flat
+  const [currentMembership] = await db
+    .select()
+    .from(flatMembers)
+    .where(and(eq(flatMembers.flatId, flatId), eq(flatMembers.userId, currentUserId)));
+
+  if (!currentMembership || currentMembership.role !== 'admin') {
+    res.status(403).json({ error: 'Forbidden. Only flat admins can remove members.' });
+    return;
+  }
+
+  // Remove target user
+  await db
+    .delete(flatMembers)
+    .where(and(eq(flatMembers.flatId, flatId), eq(flatMembers.userId, targetUserId)));
+
+  res.json({ message: 'Member removed successfully' });
+});
+
+// Leave flat
+flatsRouter.post('/:id/leave', requireAuth, async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+  const flatId = String(req.params.id);
+  const currentUserId = req.user!.id;
+
+  const [currentMembership] = await db
+    .select()
+    .from(flatMembers)
+    .where(and(eq(flatMembers.flatId, flatId), eq(flatMembers.userId, currentUserId)));
+
+  if (!currentMembership) {
+    res.status(404).json({ error: 'You are not a member of this flat.' });
+    return;
+  }
+
+  // Check if user is the only admin while other members exist
+  if (currentMembership.role === 'admin') {
+    const allMembers = await db
+      .select()
+      .from(flatMembers)
+      .where(eq(flatMembers.flatId, flatId));
+
+    const otherAdmins = allMembers.filter((m) => m.role === 'admin' && m.userId !== currentUserId);
+    const otherMembers = allMembers.filter((m) => m.userId !== currentUserId);
+
+    if (otherAdmins.length === 0 && otherMembers.length > 0) {
+      res.status(400).json({ error: 'Please assign another admin before leaving the flat.' });
+      return;
+    }
+  }
+
+  // Remove current user from flat_members
+  await db
+    .delete(flatMembers)
+    .where(and(eq(flatMembers.flatId, flatId), eq(flatMembers.userId, currentUserId)));
+
+  res.json({ message: 'Successfully left the flat' });
 });

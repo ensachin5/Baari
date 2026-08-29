@@ -40,3 +40,27 @@ export const sendEmail = async (payload: EmailPayload): Promise<boolean> => {
     return false;
   }
 };
+
+export const sendDigestEmail = async (
+  user: { name: string; email: string },
+  summary: { completedTasks: number; totalExpenses: number; pendingTasks: number }
+): Promise<boolean> => {
+  const html = `
+    <div style="font-family: Arial, sans-serif; color: #0A2540; max-width: 600px; margin: 0 auto;">
+      <h2 style="color: #0A2540;">Weekly Baari Summary for ${user.name}</h2>
+      <p>Here is your household activity digest for the week:</p>
+      <ul>
+        <li><strong>Tasks Completed:</strong> ${summary.completedTasks}</li>
+        <li><strong>Pending Tasks:</strong> ${summary.pendingTasks}</li>
+        <li><strong>Total Expenses Logged:</strong> ₹${summary.totalExpenses}</li>
+      </ul>
+      <p>Keep your flat running smoothly with <a href="https://baari.app" style="color: #5AC8FA;">Baari</a>!</p>
+    </div>
+  `;
+
+  return sendEmail({
+    to: user.email,
+    subject: 'Your Weekly Household Digest — Baari',
+    html,
+  });
+};

@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.sendPushNotification = void 0;
+exports.sendPushToUser = exports.sendPushNotification = void 0;
 const index_js_1 = require("../db/index.js");
 const schema_js_1 = require("../db/schema.js");
 const drizzle_orm_1 = require("drizzle-orm");
@@ -9,13 +9,13 @@ const sendPushNotification = async (userIds, message) => {
     try {
         if (!userIds || userIds.length === 0)
             return;
-        const tokens = await index_js_1.db
-            .select({ token: schema_js_1.pushTokens.token })
+        const tokenRecords = await index_js_1.db
+            .select({ id: schema_js_1.pushTokens.id, token: schema_js_1.pushTokens.token })
             .from(schema_js_1.pushTokens)
             .where((0, drizzle_orm_1.inArray)(schema_js_1.pushTokens.userId, userIds));
-        if (tokens.length === 0)
+        if (tokenRecords.length === 0)
             return;
-        const messages = tokens.map((t) => ({
+        const messages = tokenRecords.map((t) => ({
             to: t.token,
             sound: 'default',
             title: message.title,
@@ -27,7 +27,8 @@ const sendPushNotification = async (userIds, message) => {
         for (let i = 0; i < messages.length; i += 100) {
             chunks.push(messages.slice(i, i + 100));
         }
-        for (const chunk of chunks) {
+        for (let i = 0; i < chunks.length; i++) {
+            const chunk = chunks[i];
             const response = await fetch('https://exp.host/--/api/v2/push/send', {
                 method: 'POST',
                 headers: {
@@ -38,6 +39,25 @@ const sendPushNotification = async (userIds, message) => {
             });
             if (!response.ok) {
                 error_handler_js_1.logger.error({ status: response.status }, 'Expo push notification batch failed');
+                continue;
+            }
+            const resData = (await response.json());
+            // Identify invalid/expired tokens and remove them
+            if (resData?.data && Array.isArray(resData.data)) {
+                const invalidTokenIds = [];
+                resData.data.forEach((ticket, idx) => {
+                    if (ticket.status === 'error' &&
+                        ticket.details?.error === 'DeviceNotRegistered') {
+                        const tokenRecordIndex = i * 100 + idx;
+                        if (tokenRecords[tokenRecordIndex]) {
+                            invalidTokenIds.push(tokenRecords[tokenRecordIndex].id);
+                        }
+                    }
+                });
+                if (invalidTokenIds.length > 0) {
+                    error_handler_js_1.logger.info({ invalidTokenIds }, 'Removing expired/unregistered push tokens');
+                    await index_js_1.db.delete(schema_js_1.pushTokens).where((0, drizzle_orm_1.inArray)(schema_js_1.pushTokens.id, invalidTokenIds));
+                }
             }
         }
     }
@@ -46,3 +66,7 @@ const sendPushNotification = async (userIds, message) => {
     }
 };
 exports.sendPushNotification = sendPushNotification;
+const sendPushToUser = async (userId, title, body, data) => {
+    return (0, exports.sendPushNotification)([userId], { title, body, data });
+};
+exports.sendPushToUser = sendPushToUser;

@@ -14,6 +14,7 @@ import { createExpenseSchema, createSettlementSchema } from '../schemas/expenses
 import { eq, and, desc, inArray } from 'drizzle-orm';
 import { getIO } from '../sockets/index.js';
 import { broadcastActivityEvent } from '../sockets/handlers.js';
+import { sendPushNotification } from '../services/push.js';
 
 export const expensesRouter = Router();
 
@@ -149,6 +150,19 @@ expensesRouter.post(
         actor: { id: req.user!.id, name: req.user!.name, image: req.user!.image },
       });
     } catch (_) {}
+
+    // Send push notification to participants (excluding paidBy creator)
+    const participantUserIds = splits
+      .map((s: { userId: string }) => s.userId)
+      .filter((id: string) => id !== userId);
+
+    if (participantUserIds.length > 0) {
+      sendPushNotification(participantUserIds, {
+        title: 'New Expense Added',
+        body: `${req.user!.name} added an expense: ${newExpense.title} (₹${newExpense.amount})`,
+        data: { type: 'expense', expenseId: newExpense.id },
+      });
+    }
 
     res.status(201).json({
       expense: newExpense,
@@ -308,7 +322,7 @@ expensesRouter.get('/balances', requireAuth, async (req: AuthenticatedRequest, r
 
 // Record a settlement
 expensesRouter.post(
-  '/settle',
+  ['/settle', '/settlements'],
   requireAuth,
   validate(createSettlementSchema),
   async (req: AuthenticatedRequest, res: Response): Promise<void> => {
