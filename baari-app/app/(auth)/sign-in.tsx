@@ -13,6 +13,7 @@ import { Input } from '../../components/ui/Input';
 import { Button } from '../../components/ui/Button';
 import { Colors, Typography, Spacing, BorderRadius } from '../../lib/theme';
 import { authClient, syncSessionToStore, fetchUserProfile } from '../../lib/auth-client';
+import * as Linking from 'expo-linking';
 import { useSession } from '../../store/session';
 
 export default function SignInScreen() {
@@ -67,8 +68,10 @@ export default function SignInScreen() {
     try {
       setGoogleLoading(true);
       setError('');
+      const callbackURL = Linking.createURL('/');
       await authClient.signIn.social({
         provider: 'google',
+        callbackURL,
       });
       // After OAuth redirect returns, sync session
       await handlePostAuth();
