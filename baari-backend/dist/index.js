@@ -70,6 +70,8 @@ app.use((0, helmet_1.default)({
 app.use((0, cors_1.default)({
     origin: true,
     credentials: true,
+    allowedHeaders: ['Content-Type', 'Authorization', 'Cookie', 'expo-origin', 'x-skip-oauth-proxy'],
+    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
 }));
 // 3. Body parsers
 app.use(express_1.default.json());

@@ -36,18 +36,36 @@ export async function fetchUserProfile(): Promise<{ user: UserProfile; activeFla
  */
 export async function syncSessionToStore(authResultData?: any): Promise<void> {
   // If result data was passed directly from signIn/signUp, use it first
-  if (authResultData?.token || authResultData?.session?.token) {
-    const token = authResultData.token || authResultData.session?.token;
-    await useSession.getState().setToken(token);
+  const rawToken =
+    authResultData?.token ||
+    authResultData?.session?.token ||
+    authResultData?.data?.token ||
+    authResultData?.data?.session?.token;
+
+  if (rawToken) {
+    await useSession.getState().setToken(rawToken);
   }
-  if (authResultData?.user) {
+
+  const rawUser = authResultData?.user || authResultData?.data?.user;
+  if (rawUser) {
     useSession.getState().setUser({
-      id: authResultData.user.id,
-      name: authResultData.user.name,
-      email: authResultData.user.email,
-      image: authResultData.user.image ?? null,
+      id: rawUser.id,
+      name: rawUser.name,
+      email: rawUser.email,
+      image: rawUser.image ?? null,
     });
   }
+
+  // Try extracting token from expoClient cookie storage
+  try {
+    const cookie = await (authClient as any).getCookie?.();
+    if (cookie) {
+      const match = cookie.match(/session_token=([^;]+)/);
+      if (match?.[1] && !useSession.getState().token) {
+        await useSession.getState().setToken(match[1]);
+      }
+    }
+  } catch (_) {}
 
   // Also query getSession() to ensure storage sync
   try {

@@ -1,4 +1,7 @@
+import { Platform } from 'react-native';
+import * as SecureStore from 'expo-secure-store';
 import { useSession } from '../store/session';
+import { authClient } from './auth-client';
 
 export const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL || 'http://localhost:3000';
 
@@ -20,7 +23,31 @@ export class ApiError extends Error {
 
 export async function apiRequest<T = any>(endpoint: string, options: RequestOptions = {}): Promise<T> {
   const { params, headers, ...customConfig } = options;
-  const token = useSession.getState().token;
+
+  // 1. Resolve session token from store or SecureStore fallback
+  let token = useSession.getState().token;
+  if (!token && Platform.OS !== 'web') {
+    try {
+      token = await SecureStore.getItemAsync('baari_session_token');
+    } catch (_) {}
+  }
+
+  // 2. Resolve Better Auth cookie from expoClient plugin
+  let cookie: string | null = null;
+  try {
+    if ((authClient as any).getCookie) {
+      cookie = await (authClient as any).getCookie();
+    }
+  } catch (_) {}
+
+  // 3. If token is still missing, extract from the cookie string
+  if (!token && cookie) {
+    const match = cookie.match(/session_token=([^;]+)/);
+    if (match?.[1]) {
+      token = match[1];
+      useSession.getState().setToken(token).catch(() => {});
+    }
+  }
 
   let url = `${API_BASE_URL}${endpoint}`;
   if (params) {
@@ -42,8 +69,12 @@ export async function apiRequest<T = any>(endpoint: string, options: RequestOpti
   if (token) {
     defaultHeaders['Authorization'] = `Bearer ${token}`;
   }
+  if (cookie) {
+    defaultHeaders['Cookie'] = cookie;
+  }
 
   const response = await fetch(url, {
+    credentials: 'include',
     ...customConfig,
     headers: {
       ...defaultHeaders,
