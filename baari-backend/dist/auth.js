@@ -41,11 +41,21 @@ const index_js_1 = require("./db/index.js");
 const authSchema = __importStar(require("./db/auth-schema.js"));
 const dotenv = __importStar(require("dotenv"));
 dotenv.config();
+// Safely resolve the base URL to prevent mismatches between baari-backend.onrender.com and baari-wkqq.onrender.com
+const getBaseURL = () => {
+    const envUrl = process.env.BETTER_AUTH_URL;
+    if (envUrl && envUrl.includes('baari-backend.onrender.com')) {
+        return 'https://baari-wkqq.onrender.com';
+    }
+    return envUrl || 'http://localhost:3000';
+};
+const resolvedBaseURL = getBaseURL();
 exports.auth = (0, better_auth_1.betterAuth)({
     database: (0, drizzle_1.drizzleAdapter)(index_js_1.db, {
         provider: 'pg',
         schema: authSchema,
     }),
+    baseURL: resolvedBaseURL,
     emailAndPassword: {
         enabled: true,
         autoSignIn: true,
@@ -66,6 +76,8 @@ exports.auth = (0, better_auth_1.betterAuth)({
         'http://localhost:3000',
         'http://localhost:19000',
         'http://localhost:19006',
+        'https://baari-wkqq.onrender.com',
+        'https://baari-backend.onrender.com',
         'baari://',
         'exp://',
     ],
