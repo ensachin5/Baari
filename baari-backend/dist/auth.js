@@ -79,6 +79,8 @@ exports.auth = (0, better_auth_1.betterAuth)({
         'https://baari-wkqq.onrender.com',
         'https://baari-backend.onrender.com',
         'baari://',
+        'baari://*',
         'exp://',
+        'exp://*',
     ],
 });

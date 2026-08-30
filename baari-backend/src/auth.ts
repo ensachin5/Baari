@@ -47,6 +47,8 @@ export const auth = betterAuth({
     'https://baari-wkqq.onrender.com',
     'https://baari-backend.onrender.com',
     'baari://',
+    'baari://*',
     'exp://',
+    'exp://*',
   ],
 });
