@@ -150,6 +150,10 @@ export async function apiRequest<T = any>(endpoint: string, options: RequestOpti
   const data = isJson ? await response.json() : null;
 
   if (!response.ok) {
+    if (response.status === 401) {
+      // Clear invalid/stale local session state so app safely returns to sign-in
+      useSession.getState().logout().catch(() => {});
+    }
     const errorMessage = data?.error || data?.message || `Request failed with status ${response.status}`;
     throw new ApiError(errorMessage, response.status, data);
   }
