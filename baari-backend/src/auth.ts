@@ -24,6 +24,11 @@ export const auth = betterAuth({
     schema: authSchema,
   }),
   baseURL: resolvedBaseURL,
+  advanced: {
+    database: {
+      generateId: 'uuid',
+    },
+  },
   emailAndPassword: {
     enabled: true,
     autoSignIn: true,

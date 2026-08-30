@@ -56,6 +56,11 @@ exports.auth = (0, better_auth_1.betterAuth)({
         schema: authSchema,
     }),
     baseURL: resolvedBaseURL,
+    advanced: {
+        database: {
+            generateId: 'uuid',
+        },
+    },
     emailAndPassword: {
         enabled: true,
         autoSignIn: true,
