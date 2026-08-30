@@ -21,26 +21,75 @@ export class ApiError extends Error {
   }
 }
 
-export async function apiRequest<T = any>(endpoint: string, options: RequestOptions = {}): Promise<T> {
-  const { params, headers, ...customConfig } = options;
+/**
+ * Ensures that session state is hydrated before firing authenticated requests,
+ * preventing race conditions on app startup.
+ */
+async function ensureHydrated(timeoutMs = 1500): Promise<void> {
+  if (useSession.getState().isHydrated) return;
 
-  // 1. Resolve session token from store or SecureStore fallback
+  await new Promise<void>((resolve) => {
+    let resolved = false;
+    const unsubscribe = useSession.subscribe((state) => {
+      if (state.isHydrated && !resolved) {
+        resolved = true;
+        unsubscribe();
+        resolve();
+      }
+    });
+
+    setTimeout(() => {
+      if (!resolved) {
+        resolved = true;
+        unsubscribe();
+        resolve();
+      }
+    }, timeoutMs);
+  });
+}
+
+/**
+ * Resolves the active session token and cookie through all available channels.
+ */
+async function resolveAuthCredentials(): Promise<{ token: string | null; cookie: string | null }> {
+  // 1. Check in-memory Zustand store
   let token = useSession.getState().token;
+
+  // 2. Fallback: check SecureStore dedicated session key
   if (!token && Platform.OS !== 'web') {
     try {
       token = await SecureStore.getItemAsync('baari_session_token');
     } catch (_) {}
   }
 
-  // 2. Resolve Better Auth cookie from expoClient plugin
+  // 3. Fallback: check expoClient SecureStore cookie file ('baari_cookie')
   let cookie: string | null = null;
+  if (Platform.OS !== 'web') {
+    try {
+      const rawCookie = await SecureStore.getItemAsync('baari_cookie');
+      if (rawCookie) {
+        const parsed = JSON.parse(rawCookie);
+        for (const key of Object.keys(parsed)) {
+          if (key.includes('session_token') && parsed[key]?.value) {
+            if (!token) {
+              token = parsed[key].value;
+              useSession.getState().setToken(token).catch(() => {});
+            }
+            break;
+          }
+        }
+      }
+    } catch (_) {}
+  }
+
+  // 4. Resolve cookie from Better Auth expo client getCookie()
   try {
     if ((authClient as any).getCookie) {
       cookie = await (authClient as any).getCookie();
     }
   } catch (_) {}
 
-  // 3. If token is still missing, extract from the cookie string
+  // 5. If token is still missing but cookie string is available, parse it
   if (!token && cookie) {
     const match = cookie.match(/session_token=([^;]+)/);
     if (match?.[1]) {
@@ -48,6 +97,18 @@ export async function apiRequest<T = any>(endpoint: string, options: RequestOpti
       useSession.getState().setToken(token).catch(() => {});
     }
   }
+
+  return { token, cookie };
+}
+
+export async function apiRequest<T = any>(endpoint: string, options: RequestOptions = {}): Promise<T> {
+  const { params, headers, ...customConfig } = options;
+
+  // Wait for session hydration to avoid startup race conditions
+  await ensureHydrated();
+
+  // Resolve session credentials
+  const { token, cookie } = await resolveAuthCredentials();
 
   let url = `${API_BASE_URL}${endpoint}`;
   if (params) {
@@ -66,9 +127,12 @@ export async function apiRequest<T = any>(endpoint: string, options: RequestOpti
     Accept: 'application/json',
   };
 
+  // Attach Authorization Bearer token
   if (token) {
     defaultHeaders['Authorization'] = `Bearer ${token}`;
   }
+
+  // Attach Cookie header for Better Auth session verification
   if (cookie) {
     defaultHeaders['Cookie'] = cookie;
   }

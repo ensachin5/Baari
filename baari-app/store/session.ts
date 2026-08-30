@@ -71,9 +71,28 @@ export const useSession = create<SessionState>((set, get) => ({
   hydrate: async () => {
     try {
       if (Platform.OS !== 'web') {
-        const token = await SecureStore.getItemAsync(TOKEN_KEY);
+        let token = await SecureStore.getItemAsync(TOKEN_KEY);
         const userStr = await SecureStore.getItemAsync(USER_KEY);
         const flatStr = await SecureStore.getItemAsync(FLAT_KEY);
+
+        // Fallback: check Better Auth expoClient storage if TOKEN_KEY is empty
+        if (!token) {
+          try {
+            const rawCookie = await SecureStore.getItemAsync('baari_cookie');
+            if (rawCookie) {
+              const parsed = JSON.parse(rawCookie);
+              for (const key of Object.keys(parsed)) {
+                if (key.includes('session_token') && parsed[key]?.value) {
+                  token = parsed[key].value;
+                  if (token) {
+                    await SecureStore.setItemAsync(TOKEN_KEY, token);
+                  }
+                  break;
+                }
+              }
+            }
+          } catch (_) {}
+        }
 
         set({
           token,
