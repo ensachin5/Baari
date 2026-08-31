@@ -42,7 +42,15 @@ app.use(
   })
 );
 
-// 3. Body parsers
+// 3. Normalize multiple consecutive slashes in request URLs (e.g. //api/flats -> /api/flats)
+app.use((req, _res, next) => {
+  if (req.url.includes('//')) {
+    req.url = req.url.replace(/\/{2,}/g, '/');
+  }
+  next();
+});
+
+// 4. Body parsers
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 

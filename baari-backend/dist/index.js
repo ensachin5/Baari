@@ -73,7 +73,14 @@ app.use((0, cors_1.default)({
     allowedHeaders: ['Content-Type', 'Authorization', 'Cookie', 'expo-origin', 'x-skip-oauth-proxy'],
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
 }));
-// 3. Body parsers
+// 3. Normalize multiple consecutive slashes in request URLs (e.g. //api/flats -> /api/flats)
+app.use((req, _res, next) => {
+    if (req.url.includes('//')) {
+        req.url = req.url.replace(/\/{2,}/g, '/');
+    }
+    next();
+});
+// 4. Body parsers
 app.use(express_1.default.json());
 app.use(express_1.default.urlencoded({ extended: true }));
 // 4. Pino HTTP Logger
