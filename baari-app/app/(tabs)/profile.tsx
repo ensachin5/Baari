@@ -196,11 +196,12 @@ export default function ProfileScreen() {
     setLoading(true);
     try {
       await authClient.signOut();
-      router.replace('/(auth)/sign-in');
     } catch (error) {
-      console.error(error);
+      console.warn('authClient.signOut error:', error);
     } finally {
+      await useSession.getState().logout();
       setLoading(false);
+      router.replace('/(auth)/sign-in');
     }
   };
 

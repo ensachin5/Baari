@@ -111,9 +111,13 @@ export const useSession = create<SessionState>((set, get) => ({
   logout: async () => {
     set({ user: null, activeFlat: null, token: null });
     if (Platform.OS !== 'web') {
-      await SecureStore.deleteItemAsync(TOKEN_KEY).catch(() => {});
-      await SecureStore.deleteItemAsync(USER_KEY).catch(() => {});
-      await SecureStore.deleteItemAsync(FLAT_KEY).catch(() => {});
+      await Promise.all([
+        SecureStore.deleteItemAsync(TOKEN_KEY).catch(() => {}),
+        SecureStore.deleteItemAsync(USER_KEY).catch(() => {}),
+        SecureStore.deleteItemAsync(FLAT_KEY).catch(() => {}),
+        SecureStore.deleteItemAsync('baari_cookie').catch(() => {}),
+        SecureStore.deleteItemAsync('baari_session_data').catch(() => {}),
+      ]);
     }
   },
 }));

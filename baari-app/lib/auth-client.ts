@@ -83,3 +83,12 @@ export async function syncSessionToStore(authResultData?: any): Promise<void> {
     }
   } catch (_) {}
 }
+import { useSyncExternalStore } from 'react';
+
+export function useAuthSession() {
+  return useSyncExternalStore(
+    (callback) => authClient.useSession.subscribe(callback),
+    () => authClient.useSession.get(),
+    () => authClient.useSession.get()
+  );
+}

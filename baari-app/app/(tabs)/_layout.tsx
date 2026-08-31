@@ -1,15 +1,26 @@
 import React, { useEffect } from 'react';
-import { Tabs, useRouter } from 'expo-router';
+import { Tabs, useRouter, Redirect } from 'expo-router';
 import { Colors, Typography } from '../../lib/theme';
 import { CheckSquare, Receipt, Activity, User } from 'lucide-react-native';
 import { Platform } from 'react-native';
 import { useSession } from '../../store/session';
+import { useAuthSession } from '../../lib/auth-client';
 
 export default function TabsLayout() {
   const router = useRouter();
   const token = useSession((state) => state.token);
   const activeFlat = useSession((state) => state.activeFlat);
   const isHydrated = useSession((state) => state.isHydrated);
+  const { data: authSession, isPending: isAuthPending } = useAuthSession();
+
+  // Reactive guard: if signed out, immediately return Redirect
+  if (isHydrated && !token) {
+    return <Redirect href="/(auth)/sign-in" />;
+  }
+
+  if (isHydrated && !isAuthPending && !authSession) {
+    return <Redirect href="/(auth)/sign-in" />;
+  }
 
   useEffect(() => {
     if (!isHydrated) return;
