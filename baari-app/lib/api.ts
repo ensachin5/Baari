@@ -70,8 +70,8 @@ async function resolveAuthCredentials(): Promise<{ token: string | null; cookie:
         const parsed = JSON.parse(rawCookie);
         for (const key of Object.keys(parsed)) {
           if (key.includes('session_token') && parsed[key]?.value) {
-            if (!token) {
-              token = parsed[key].value;
+            token = parsed[key].value;
+            if (useSession.getState().token !== token) {
               useSession.getState().setToken(token).catch(() => {});
             }
             break;

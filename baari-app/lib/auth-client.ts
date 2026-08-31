@@ -61,8 +61,22 @@ export async function syncSessionToStore(authResultData?: any): Promise<void> {
     const cookie = await (authClient as any).getCookie?.();
     if (cookie) {
       const match = cookie.match(/session_token=([^;]+)/);
-      if (match?.[1] && !useSession.getState().token) {
+      if (match?.[1]) {
         await useSession.getState().setToken(match[1]);
+      }
+    }
+  } catch (_) {}
+
+  // Direct fallback: check SecureStore 'baari_cookie'
+  try {
+    const rawCookie = await SecureStore.getItemAsync('baari_cookie');
+    if (rawCookie) {
+      const parsed = JSON.parse(rawCookie);
+      for (const key of Object.keys(parsed)) {
+        if (key.includes('session_token') && parsed[key]?.value) {
+          await useSession.getState().setToken(parsed[key].value);
+          break;
+        }
       }
     }
   } catch (_) {}
