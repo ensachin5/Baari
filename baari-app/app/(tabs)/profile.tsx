@@ -6,11 +6,11 @@ import {
   ScrollView,
   TouchableOpacity,
   Share,
-  SafeAreaView,
   Platform,
   Alert,
   Switch,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import * as Clipboard from 'expo-clipboard';
 import * as ImagePicker from 'expo-image-picker';

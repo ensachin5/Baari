@@ -5,9 +5,9 @@ import {
   StyleSheet,
   FlatList,
   RefreshControl,
-  SafeAreaView,
   Platform,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Colors, Typography, Spacing } from '../../lib/theme';
 import { useActivity } from '../../hooks/useActivity';

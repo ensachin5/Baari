@@ -13,15 +13,6 @@ export default function TabsLayout() {
   const isHydrated = useSession((state) => state.isHydrated);
   const { data: authSession, isPending: isAuthPending } = useAuthSession();
 
-  // Reactive guard: if signed out, immediately return Redirect
-  if (isHydrated && !token) {
-    return <Redirect href="/(auth)/sign-in" />;
-  }
-
-  if (isHydrated && !isAuthPending && !authSession) {
-    return <Redirect href="/(auth)/sign-in" />;
-  }
-
   useEffect(() => {
     if (!isHydrated) return;
 
@@ -31,6 +22,15 @@ export default function TabsLayout() {
       router.replace('/(onboarding)/choose');
     }
   }, [isHydrated, token, activeFlat]);
+
+  // Reactive guard: if signed out, immediately return Redirect
+  if (isHydrated && !token) {
+    return <Redirect href="/(auth)/sign-in" />;
+  }
+
+  if (isHydrated && !isAuthPending && !authSession) {
+    return <Redirect href="/(auth)/sign-in" />;
+  }
 
   return (
     <Tabs

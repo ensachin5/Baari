@@ -6,12 +6,12 @@ import {
   TouchableOpacity,
   ScrollView,
   RefreshControl,
-  SafeAreaView,
   FlatList,
   KeyboardAvoidingView,
   Platform,
   ActivityIndicator,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { Colors, Typography, Spacing, BorderRadius } from '../../lib/theme';
 import { useSession } from '../../store/session';
 import { useKaam } from '../../hooks/useKaam';

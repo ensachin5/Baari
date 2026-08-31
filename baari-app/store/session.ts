@@ -110,6 +110,10 @@ export const useSession = create<SessionState>((set, get) => ({
 
   logout: async () => {
     set({ user: null, activeFlat: null, token: null });
+    try {
+      const { disconnectSocket } = await import('../lib/socket');
+      disconnectSocket();
+    } catch (_) {}
     if (Platform.OS !== 'web') {
       await Promise.all([
         SecureStore.deleteItemAsync(TOKEN_KEY).catch(() => {}),
