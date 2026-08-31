@@ -28,6 +28,8 @@ export const initSocket = (httpServer: HTTPServer): SocketIOServer => {
       origin: '*',
       methods: ['GET', 'POST'],
     },
+    transports: ['polling', 'websocket'],
+    allowUpgrades: true,
   });
 
   // 1. Authenticate Socket Connections on initial handshake

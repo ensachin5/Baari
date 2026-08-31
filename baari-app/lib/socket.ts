@@ -36,7 +36,8 @@ export const getSocket = (): Socket => {
   if (!socket) {
     socket = io(API_BASE_URL, {
       autoConnect: false,
-      transports: ['websocket', 'polling'],
+      transports: ['polling', 'websocket'],
+      upgrade: true,
       auth: (cb) => {
         resolveSocketToken().then((tok) => {
           cb({ token: tok || '' });
@@ -58,8 +59,11 @@ export const getSocket = (): Socket => {
 
     socket.on('connect_error', (error) => {
       if (error.message === 'Unauthorized' || error.message === 'Authentication failed') {
-        // Disconnect immediately and suppress warning when unauthenticated
         socket?.disconnect();
+        return;
+      }
+      if (error.message === 'websocket error') {
+        // Socket.io automatically falls back to polling or upgrades; suppress transient warning
         return;
       }
       console.warn('[Socket] Connection error:', error.message);
