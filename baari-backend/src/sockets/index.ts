@@ -3,7 +3,8 @@ import { Server as HTTPServer } from 'http';
 import { auth } from '../auth.js';
 import { db } from '../db/index.js';
 import { flatMembers } from '../db/schema.js';
-import { eq, and } from 'drizzle-orm';
+import { session as sessionTable, user as userTable } from '../db/auth-schema.js';
+import { eq, and, gt } from 'drizzle-orm';
 import { registerSocketHandlers } from './handlers.js';
 import { logger } from '../middleware/error-handler.js';
 
@@ -45,14 +46,33 @@ export const initSocket = (httpServer: HTTPServer): SocketIOServer => {
 
       const session = await auth.api.getSession({ headers });
 
-      if (!session || !session.user) {
-        logger.warn({ socketId: socket.id }, 'Rejected unauthenticated socket connection');
-        return next(new Error('Unauthorized'));
+      if (session && session.user) {
+        socket.data.user = session.user as any;
+        socket.data.session = session.session;
+        return next();
       }
 
-      socket.data.user = session.user as any;
-      socket.data.session = session.session;
-      next();
+      // Fallback: check session table directly in Neon DB
+      if (token) {
+        const foundSession = await db.query.session.findFirst({
+          where: and(eq(sessionTable.token, token), gt(sessionTable.expiresAt, new Date())),
+        });
+
+        if (foundSession) {
+          const foundUser = await db.query.user.findFirst({
+            where: eq(userTable.id, foundSession.userId),
+          });
+
+          if (foundUser) {
+            socket.data.user = foundUser as any;
+            socket.data.session = foundSession as any;
+            return next();
+          }
+        }
+      }
+
+      logger.warn({ socketId: socket.id }, 'Rejected unauthenticated socket connection');
+      return next(new Error('Unauthorized'));
     } catch (err: any) {
       logger.error({ err, socketId: socket.id }, 'Socket authentication error');
       next(new Error('Authentication failed'));

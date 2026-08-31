@@ -5,6 +5,7 @@ const socket_io_1 = require("socket.io");
 const auth_js_1 = require("../auth.js");
 const index_js_1 = require("../db/index.js");
 const schema_js_1 = require("../db/schema.js");
+const auth_schema_js_1 = require("../db/auth-schema.js");
 const drizzle_orm_1 = require("drizzle-orm");
 const handlers_js_1 = require("./handlers.js");
 const error_handler_js_1 = require("../middleware/error-handler.js");
@@ -29,13 +30,29 @@ const initSocket = (httpServer) => {
                 headers.set('cookie', socket.handshake.headers.cookie);
             }
             const session = await auth_js_1.auth.api.getSession({ headers });
-            if (!session || !session.user) {
-                error_handler_js_1.logger.warn({ socketId: socket.id }, 'Rejected unauthenticated socket connection');
-                return next(new Error('Unauthorized'));
+            if (session && session.user) {
+                socket.data.user = session.user;
+                socket.data.session = session.session;
+                return next();
             }
-            socket.data.user = session.user;
-            socket.data.session = session.session;
-            next();
+            // Fallback: check session table directly in Neon DB
+            if (token) {
+                const foundSession = await index_js_1.db.query.session.findFirst({
+                    where: (0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(auth_schema_js_1.session.token, token), (0, drizzle_orm_1.gt)(auth_schema_js_1.session.expiresAt, new Date())),
+                });
+                if (foundSession) {
+                    const foundUser = await index_js_1.db.query.user.findFirst({
+                        where: (0, drizzle_orm_1.eq)(auth_schema_js_1.user.id, foundSession.userId),
+                    });
+                    if (foundUser) {
+                        socket.data.user = foundUser;
+                        socket.data.session = foundSession;
+                        return next();
+                    }
+                }
+            }
+            error_handler_js_1.logger.warn({ socketId: socket.id }, 'Rejected unauthenticated socket connection');
+            return next(new Error('Unauthorized'));
         }
         catch (err) {
             error_handler_js_1.logger.error({ err, socketId: socket.id }, 'Socket authentication error');

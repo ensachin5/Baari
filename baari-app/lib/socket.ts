@@ -30,6 +30,10 @@ export const getSocket = (): Socket => {
     });
 
     socket.on('connect_error', (error) => {
+      if (error.message === 'Unauthorized' || error.message === 'Authentication failed') {
+        // Disconnect immediately to stop endless reconnection attempts with an invalid token
+        socket?.disconnect();
+      }
       console.warn('[Socket] Connection error:', error.message);
     });
   }
@@ -90,5 +94,5 @@ export function useSocket() {
     }
   }, [token, activeFlat?.id, isHydrated]);
 
-  return getSocket();
+  return token ? getSocket() : null;
 }
