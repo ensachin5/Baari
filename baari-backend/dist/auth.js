@@ -48,7 +48,7 @@ const getBaseURL = () => {
     if (envUrl && envUrl.includes('baari-backend.onrender.com')) {
         return 'https://baari-wkqq.onrender.com';
     }
-    return envUrl || 'http://localhost:3000';
+    return (envUrl || 'http://localhost:3000').replace(/\/+$/, '');
 };
 const resolvedBaseURL = getBaseURL();
 exports.auth = (0, better_auth_1.betterAuth)({
