@@ -3,64 +3,44 @@ import {
   View,
   Text,
   StyleSheet,
-  TouchableOpacity,
-  KeyboardAvoidingView,
-  Platform,
-  ScrollView,
+  SafeAreaView,
 } from 'react-native';
 import { useRouter } from 'expo-router';
-import { Input } from '../../components/ui/Input';
 import { Button } from '../../components/ui/Button';
 import { Colors, Typography, Spacing, BorderRadius } from '../../lib/theme';
 import { authClient, syncSessionToStore, fetchUserProfile } from '../../lib/auth-client';
+import { api } from '../../lib/api';
 import * as Linking from 'expo-linking';
 import { useSession } from '../../store/session';
 
 export default function SignInScreen() {
   const router = useRouter();
-
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [loading, setLoading] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
   const [error, setError] = useState('');
 
   const handlePostAuth = async (data?: any) => {
-    // Sync the Better Auth session into Zustand store
+    // 1. Sync session token into Zustand store & SecureStore
     await syncSessionToStore(data);
-    // Fetch profile + flat membership
-    const { activeFlat } = await fetchUserProfile();
-    if (activeFlat) {
-      router.replace('/(tabs)/home');
-    } else {
-      router.replace('/(onboarding)/choose');
-    }
-  };
 
-  const handleSignIn = async () => {
-    if (!email.trim() || !password.trim()) {
-      setError('Please enter your email and password');
-      return;
-    }
-
+    // 2. Check if user has an active flat via GET /api/flats/me
     try {
-      setLoading(true);
-      setError('');
-      const result = await authClient.signIn.email({
-        email: email.trim(),
-        password,
-      });
-
-      if (result.error) {
-        setError(result.error.message || 'Invalid email or password');
-        return;
+      const res = await api.get<{ flat: any }>('/api/flats/me');
+      if (res?.flat) {
+        useSession.getState().setActiveFlat(res.flat);
+        fetchUserProfile().catch(() => {});
+        router.replace('/(tabs)/home');
+      } else {
+        useSession.getState().setActiveFlat(null);
+        router.replace('/(onboarding)/choose');
       }
-
-      await handlePostAuth(result.data);
-    } catch (err: any) {
-      setError(err.message || 'Invalid email or password');
-    } finally {
-      setLoading(false);
+    } catch {
+      // Fallback: check profile
+      const { activeFlat } = await fetchUserProfile();
+      if (activeFlat) {
+        router.replace('/(tabs)/home');
+      } else {
+        router.replace('/(onboarding)/choose');
+      }
     }
   };
 
@@ -73,7 +53,7 @@ export default function SignInScreen() {
         provider: 'google',
         callbackURL,
       });
-      // After OAuth redirect returns, sync session
+      // After OAuth redirect returns, sync session and check flat
       await handlePostAuth();
     } catch (err: any) {
       setError(err.message || 'Google sign-in failed');
@@ -83,14 +63,8 @@ export default function SignInScreen() {
   };
 
   return (
-    <KeyboardAvoidingView
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-      style={styles.container}
-    >
-      <ScrollView
-        contentContainerStyle={styles.scrollContent}
-        keyboardShouldPersistTaps="handled"
-      >
+    <SafeAreaView style={styles.container}>
+      <View style={styles.content}>
         {/* Branding Header */}
         <View style={styles.brandContainer}>
           <View style={styles.logoBadge}>
@@ -102,23 +76,6 @@ export default function SignInScreen() {
           </Text>
         </View>
 
-        {/* Google Sign In */}
-        <Button
-          title="Continue with Google"
-          variant="outline"
-          onPress={handleGoogleSignIn}
-          loading={googleLoading}
-          disabled={loading}
-          style={styles.googleButton}
-        />
-
-        {/* Divider */}
-        <View style={styles.dividerRow}>
-          <View style={styles.dividerLine} />
-          <Text style={[Typography.Caption, styles.dividerText]}>OR WITH EMAIL</Text>
-          <View style={styles.dividerLine} />
-        </View>
-
         {/* Error message */}
         {error ? (
           <View style={styles.errorContainer}>
@@ -126,43 +83,17 @@ export default function SignInScreen() {
           </View>
         ) : null}
 
-        {/* Form */}
-        <Input
-          label="Email Address"
-          placeholder="your.email@example.com"
-          value={email}
-          onChangeText={(text) => { setEmail(text); setError(''); }}
-          keyboardType="email-address"
-          autoCapitalize="none"
-        />
-
-        <Input
-          label="Password"
-          placeholder="••••••••"
-          value={password}
-          onChangeText={(text) => { setPassword(text); setError(''); }}
-          isPassword
-        />
-
+        {/* Google Sign In */}
         <Button
-          title="Sign In"
-          onPress={handleSignIn}
-          loading={loading}
-          disabled={googleLoading}
-          style={styles.signInButton}
+          title="Continue with Google"
+          variant="outline"
+          size="lg"
+          onPress={handleGoogleSignIn}
+          loading={googleLoading}
+          style={styles.googleButton}
         />
-
-        {/* Switch to Sign Up */}
-        <View style={styles.footerRow}>
-          <Text style={Typography.BodySmall}>New to Baari? </Text>
-          <TouchableOpacity onPress={() => router.push('/(auth)/sign-up')} disabled={loading || googleLoading}>
-            <Text style={[Typography.BodySmallMedium, styles.signUpLink]}>
-              Create an account
-            </Text>
-          </TouchableOpacity>
-        </View>
-      </ScrollView>
-    </KeyboardAvoidingView>
+      </View>
+    </SafeAreaView>
   );
 }
 
@@ -171,19 +102,18 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: Colors.white,
   },
-  scrollContent: {
-    flexGrow: 1,
+  content: {
+    flex: 1,
     justifyContent: 'center',
     paddingHorizontal: Spacing.xl,
-    paddingVertical: Spacing.xxxl,
   },
   brandContainer: {
     alignItems: 'center',
-    marginBottom: Spacing.xxl,
+    marginBottom: Spacing.xxxl,
   },
   logoBadge: {
-    width: 60,
-    height: 60,
+    width: 68,
+    height: 68,
     borderRadius: BorderRadius.lg,
     backgroundColor: Colors.navy,
     alignItems: 'center',
@@ -197,38 +127,21 @@ const styles = StyleSheet.create({
   },
   logoBadgeText: {
     fontFamily: 'Inter_700Bold',
-    fontSize: 32,
+    fontSize: 36,
     color: Colors.white,
   },
   tagline: {
     textAlign: 'center',
     marginTop: Spacing.xs,
     maxWidth: 280,
-  },
-  googleButton: {
-    marginBottom: Spacing.lg,
-  },
-  dividerRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: Spacing.lg,
-  },
-  dividerLine: {
-    flex: 1,
-    height: 1,
-    backgroundColor: Colors.border,
-  },
-  dividerText: {
-    paddingHorizontal: Spacing.md,
     color: Colors.grayBlack,
-    letterSpacing: 0.5,
   },
   errorContainer: {
     backgroundColor: '#FEF2F2',
     borderRadius: BorderRadius.sm,
     paddingHorizontal: Spacing.md,
     paddingVertical: Spacing.sm,
-    marginBottom: Spacing.md,
+    marginBottom: Spacing.lg,
     borderWidth: 1,
     borderColor: '#FECACA',
   },
@@ -236,19 +149,10 @@ const styles = StyleSheet.create({
     fontFamily: 'Inter_500Medium',
     fontSize: 13,
     color: '#DC2626',
+    textAlign: 'center',
     lineHeight: 18,
   },
-  signInButton: {
-    marginTop: Spacing.sm,
-    marginBottom: Spacing.xl,
-  },
-  footerRow: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  signUpLink: {
-    color: Colors.navy,
-    fontWeight: '700',
+  googleButton: {
+    width: '100%',
   },
 });

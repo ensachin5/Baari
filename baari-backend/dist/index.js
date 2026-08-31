@@ -107,8 +107,6 @@ app.get('/health', async (_req, res) => {
     }
 });
 // 6. Better Auth Rate Limiting & Handler
-app.use('/api/auth/sign-in/email', rate_limit_js_1.strictAuthRateLimiter);
-app.use('/api/auth/sign-up/email', rate_limit_js_1.strictAuthRateLimiter);
 app.all('/api/auth/*', rate_limit_js_1.lenientAuthRateLimiter, (0, node_1.toNodeHandler)(auth_js_1.auth));
 // 7. API Routes with general rate limiting
 app.use('/api', rate_limit_js_1.generalRateLimiter);

@@ -9,7 +9,7 @@ import { toNodeHandler } from 'better-auth/node';
 import { db, pool } from './db/index.js';
 import { initSocket } from './sockets/index.js';
 import { logger, errorHandler } from './middleware/error-handler.js';
-import { strictAuthRateLimiter, lenientAuthRateLimiter, generalRateLimiter } from './middleware/rate-limit.js';
+import { lenientAuthRateLimiter, generalRateLimiter } from './middleware/rate-limit.js';
 
 // Route imports
 import { flatsRouter } from './routes/flats.js';
@@ -80,8 +80,6 @@ app.get('/health', async (_req, res) => {
 });
 
 // 6. Better Auth Rate Limiting & Handler
-app.use('/api/auth/sign-in/email', strictAuthRateLimiter);
-app.use('/api/auth/sign-up/email', strictAuthRateLimiter);
 app.all('/api/auth/*', lenientAuthRateLimiter, toNodeHandler(auth));
 
 // 7. API Routes with general rate limiting
