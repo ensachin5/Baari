@@ -1,19 +1,46 @@
 import { useEffect } from 'react';
+import { Platform } from 'react-native';
+import * as SecureStore from 'expo-secure-store';
 import { io, Socket } from 'socket.io-client';
 import { API_BASE_URL } from './api';
 import { useSession } from '../store/session';
 
 let socket: Socket | null = null;
 
+export async function resolveSocketToken(): Promise<string | null> {
+  let token = useSession.getState().token;
+  if (!token && Platform.OS !== 'web') {
+    try {
+      token = await SecureStore.getItemAsync('baari_session_token');
+    } catch (_) {}
+
+    if (!token) {
+      try {
+        const rawCookie = await SecureStore.getItemAsync('baari_cookie');
+        if (rawCookie) {
+          const parsed = JSON.parse(rawCookie);
+          for (const key of Object.keys(parsed)) {
+            if (key.includes('session_token') && parsed[key]?.value) {
+              token = parsed[key].value;
+              break;
+            }
+          }
+        }
+      } catch (_) {}
+    }
+  }
+  return token;
+}
+
 export const getSocket = (): Socket => {
   if (!socket) {
-    const token = useSession.getState().token;
-
     socket = io(API_BASE_URL, {
       autoConnect: false,
       transports: ['websocket', 'polling'],
-      auth: {
-        token: token || '',
+      auth: (cb) => {
+        resolveSocketToken().then((tok) => {
+          cb({ token: tok || '' });
+        });
       },
     });
 
@@ -31,8 +58,9 @@ export const getSocket = (): Socket => {
 
     socket.on('connect_error', (error) => {
       if (error.message === 'Unauthorized' || error.message === 'Authentication failed') {
-        // Disconnect immediately to stop endless reconnection attempts with an invalid token
+        // Disconnect immediately and suppress warning when unauthenticated
         socket?.disconnect();
+        return;
       }
       console.warn('[Socket] Connection error:', error.message);
     });
@@ -41,17 +69,11 @@ export const getSocket = (): Socket => {
   return socket;
 };
 
-export const connectSocket = () => {
-  const token = useSession.getState().token;
+export const connectSocket = async () => {
+  const token = await resolveSocketToken();
   if (!token) return;
 
   const s = getSocket();
-
-  // Update auth token payload in case it refreshed or changed
-  if (s.auth && typeof s.auth === 'object') {
-    (s.auth as Record<string, any>).token = token;
-  }
-
   if (!s.connected) {
     s.connect();
   }

@@ -47,7 +47,9 @@ export const useChat = () => {
     if (!activeFlat?.id) return;
 
     const socket = getSocket();
-    socket.emit('join_flat', { flatId: activeFlat.id });
+    if (socket.connected) {
+      socket.emit('join_flat', { flatId: activeFlat.id });
+    }
 
     const handleNewMessage = (data: { message: ChatMessage }) => {
       if (data?.message) {
