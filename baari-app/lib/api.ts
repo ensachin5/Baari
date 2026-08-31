@@ -1,7 +1,6 @@
 import { Platform } from 'react-native';
 import * as SecureStore from 'expo-secure-store';
 import { useSession } from '../store/session';
-import { authClient } from './auth-client';
 
 export const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL || 'http://localhost:3000';
 
@@ -84,7 +83,8 @@ async function resolveAuthCredentials(): Promise<{ token: string | null; cookie:
 
   // 4. Resolve cookie from Better Auth expo client getCookie()
   try {
-    if ((authClient as any).getCookie) {
+    const { authClient } = await import('./auth-client');
+    if ((authClient as any)?.getCookie) {
       cookie = await (authClient as any).getCookie();
     }
   } catch (_) {}
