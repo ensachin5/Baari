@@ -11,11 +11,14 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Colors, Typography, Spacing } from '../../lib/theme';
 import { useActivity } from '../../hooks/useActivity';
+import { useSession } from '../../store/session';
 import { ActivityItem, ActivityEntry } from '../../components/activity/ActivityItem';
+import { WeeklySummaryCard } from '../../components/kaam/WeeklySummaryCard';
 import { Activity as ActivityIcon } from 'lucide-react-native';
 
 export default function ActivityScreen() {
   const router = useRouter();
+  const activeFlat = useSession((state) => state.activeFlat);
   const { activities, loading, refreshing, onRefresh, loadMore } = useActivity();
 
   const handleActivityPress = (activity: ActivityEntry) => {
@@ -38,6 +41,7 @@ export default function ActivityScreen() {
       <FlatList
         data={activities}
         keyExtractor={(item) => item.id}
+        ListHeaderComponent={<WeeklySummaryCard flatId={activeFlat?.id} />}
         renderItem={({ item }) => (
           <ActivityItem activity={item} onPress={handleActivityPress} />
         )}

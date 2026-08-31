@@ -19,6 +19,7 @@ import { useChat } from '../../hooks/useChat';
 import { useExpenses } from '../../hooks/useExpenses';
 import { KaamCard } from '../../components/kaam/KaamCard';
 import { CreateKaamModal } from '../../components/kaam/CreateKaamModal';
+import { SkipTurnModal } from '../../components/kaam/SkipTurnModal';
 import { MessageBubble, ChatMessage } from '../../components/chat/MessageBubble';
 import { ChatInput } from '../../components/chat/ChatInput';
 import { SegmentedControl } from '../../components/ui/SegmentedControl';
@@ -52,6 +53,15 @@ export default function HomeScreen() {
   const [activePage, setActivePage] = useState(0);
   const [filter, setFilter] = useState<'today' | 'upcoming' | 'recurring'>('today');
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+  const [skipModalState, setSkipModalState] = useState<{
+    visible: boolean;
+    occId: string;
+    taskTitle: string;
+  }>({
+    visible: false,
+    occId: '',
+    taskTitle: '',
+  });
 
   const chatFlatListRef = useRef<FlatList>(null);
 
@@ -194,6 +204,9 @@ export default function HomeScreen() {
                   key={task.id}
                   task={task}
                   onComplete={completeTask}
+                  onSkipTurn={(occId, taskTitle) =>
+                    setSkipModalState({ visible: true, occId, taskTitle })
+                  }
                   loading={completingId === task.currentOccurrence?.id}
                 />
               ))
@@ -320,6 +333,15 @@ export default function HomeScreen() {
         onClose={() => setIsCreateModalOpen(false)}
         onSubmit={createTask}
         members={members as any}
+      />
+
+      {/* Skip Turn Sheet */}
+      <SkipTurnModal
+        visible={skipModalState.visible}
+        taskTitle={skipModalState.taskTitle}
+        occurrenceId={skipModalState.occId}
+        onClose={() => setSkipModalState((s) => ({ ...s, visible: false }))}
+        onSuccess={() => onKaamRefresh()}
       />
     </SafeAreaView>
   );

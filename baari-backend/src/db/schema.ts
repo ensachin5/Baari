@@ -25,6 +25,7 @@ export const activityType = pgEnum('activity_type', [
   'task_created',
   'task_completed',
   'task_missed',
+  'task_skipped',
   'expense_added',
   'settlement',
   'member_joined',
@@ -111,6 +112,17 @@ export const taskOccurrenceMembers = pgTable(
   },
   (table) => [index('idx_task_occ_members_occ_id').on(table.occurrenceId)]
 );
+
+// 5b. task_rotation_state (for fair round-robin chore assignment)
+export const taskRotationState = pgTable('task_rotation_state', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  taskId: uuid('task_id')
+    .references(() => tasks.id, { onDelete: 'cascade' })
+    .notNull()
+    .unique(),
+  currentMemberIndex: integer('current_member_index').default(0).notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+});
 
 // 6. messages (group chat)
 export const messages = pgTable(
@@ -251,6 +263,7 @@ export const tasksRelations = relations(tasks, ({ one, many }) => ({
   flat: one(flats, { fields: [tasks.flatId], references: [flats.id] }),
   creator: one(user, { fields: [tasks.createdBy], references: [user.id] }),
   occurrences: many(taskOccurrences),
+  rotationState: one(taskRotationState, { fields: [tasks.id], references: [taskRotationState.taskId] }),
 }));
 
 export const taskOccurrencesRelations = relations(taskOccurrences, ({ one, many }) => ({

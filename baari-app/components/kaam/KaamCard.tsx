@@ -17,6 +17,11 @@ export interface KaamTask {
   recurrence: 'once' | 'daily' | 'weekly';
   createdBy: string;
   creatorName?: string;
+  nextAssignee?: {
+    id: string;
+    name: string;
+    image?: string | null;
+  } | null;
   currentOccurrence?: {
     id: string;
     occurrenceDate: string;
@@ -35,12 +40,14 @@ export interface KaamTask {
 interface KaamCardProps {
   task: KaamTask;
   onComplete: (occurrenceId: string) => void;
+  onSkipTurn?: (occurrenceId: string, taskTitle: string) => void;
   loading?: boolean;
 }
 
 export const KaamCard: React.FC<KaamCardProps> = ({
   task,
   onComplete,
+  onSkipTurn,
   loading = false,
 }) => {
   const currentUser = useSession((state) => state.user);
@@ -63,7 +70,7 @@ export const KaamCard: React.FC<KaamCardProps> = ({
 
   return (
     <Card style={styles.cardContainer} variant={isFullyDone ? 'muted' : 'outlined'}>
-      {/* Top row: Category & Recurrence */}
+      {/* Top row: Category & Recurrence & Next in Rotation */}
       <View style={styles.headerRow}>
         <View style={styles.badgeGroup}>
           <Badge label={task.category} category={task.category} />
@@ -71,6 +78,13 @@ export const KaamCard: React.FC<KaamCardProps> = ({
             <View style={styles.recurrenceBadge}>
               <Repeat size={10} color={Colors.mutedNavy} />
               <Text style={styles.recurrenceText}>{task.recurrence}</Text>
+            </View>
+          )}
+          {task.recurrence !== 'once' && task.nextAssignee && (
+            <View style={styles.nextBadge}>
+              <Text style={styles.nextBadgeText}>
+                Next: {task.nextAssignee.name.split(' ')[0]}
+              </Text>
             </View>
           )}
         </View>
@@ -105,7 +119,7 @@ export const KaamCard: React.FC<KaamCardProps> = ({
       {/* Divider */}
       <View style={styles.divider} />
 
-      {/* Footer: Assignees & Action Button */}
+      {/* Footer Info: Assignees & Action */}
       <View style={styles.footerRow}>
         <View style={styles.assigneeContainer}>
           <AssigneeStack assignees={assignees} />
@@ -119,30 +133,42 @@ export const KaamCard: React.FC<KaamCardProps> = ({
           )}
         </View>
 
-        {/* Action Button */}
+        {/* Action Buttons */}
         {currentOcc && myAssignment && !isFullyDone && (
-          <TouchableOpacity
-            activeOpacity={0.8}
-            disabled={isMyPartDone || loading}
-            onPress={() => onComplete(currentOcc.id)}
-            style={[
-              styles.actionButton,
-              isMyPartDone ? styles.actionButtonDone : styles.actionButtonPending,
-            ]}
-          >
-            <CheckCircle2
-              size={16}
-              color={isMyPartDone ? Colors.deepNavy : Colors.white}
-            />
-            <Text
+          <View style={styles.actionButtonsRow}>
+            {onSkipTurn && !isMyPartDone && (
+              <TouchableOpacity
+                activeOpacity={0.7}
+                onPress={() => onSkipTurn(currentOcc.id, task.title)}
+                style={styles.skipButton}
+              >
+                <Text style={styles.skipButtonText}>Skip turn</Text>
+              </TouchableOpacity>
+            )}
+
+            <TouchableOpacity
+              activeOpacity={0.8}
+              disabled={isMyPartDone || loading}
+              onPress={() => onComplete(currentOcc.id)}
               style={[
-                styles.actionButtonText,
-                isMyPartDone ? styles.actionButtonTextDone : styles.actionButtonTextPending,
+                styles.actionButton,
+                isMyPartDone ? styles.actionButtonDone : styles.actionButtonPending,
               ]}
             >
-              {isMyPartDone ? 'Your part done' : 'Mark Done'}
-            </Text>
-          </TouchableOpacity>
+              <CheckCircle2
+                size={16}
+                color={isMyPartDone ? Colors.deepNavy : Colors.white}
+              />
+              <Text
+                style={[
+                  styles.actionButtonText,
+                  isMyPartDone ? styles.actionButtonTextDone : styles.actionButtonTextPending,
+                ]}
+              >
+                {isMyPartDone ? 'Your part done' : 'Mark Done'}
+              </Text>
+            </TouchableOpacity>
+          </View>
         )}
       </View>
     </Card>
@@ -235,5 +261,36 @@ const styles = StyleSheet.create({
   },
   actionButtonTextDone: {
     color: Colors.deepNavy,
+  },
+  nextBadge: {
+    backgroundColor: '#F0F9FF',
+    borderWidth: 1,
+    borderColor: '#BAE6FD',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: BorderRadius.sm,
+  },
+  nextBadgeText: {
+    fontFamily: 'Inter_500Medium',
+    fontSize: 11,
+    color: '#0369A1',
+  },
+  actionButtonsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.xs,
+  },
+  skipButton: {
+    paddingVertical: 6,
+    paddingHorizontal: Spacing.sm,
+    borderRadius: BorderRadius.md,
+    backgroundColor: Colors.offWhite,
+    borderWidth: 1,
+    borderColor: Colors.border,
+  },
+  skipButtonText: {
+    fontFamily: 'Inter_500Medium',
+    fontSize: 12,
+    color: Colors.mutedNavy,
   },
 });

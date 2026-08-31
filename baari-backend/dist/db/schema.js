@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.verification = exports.account = exports.session = exports.user = exports.activityLogRelations = exports.settlementsRelations = exports.expenseSplitsRelations = exports.expensesRelations = exports.messagesRelations = exports.taskOccurrenceMembersRelations = exports.taskOccurrencesRelations = exports.tasksRelations = exports.flatMembersRelations = exports.flatsRelations = exports.pushTokens = exports.activityLog = exports.settlements = exports.expenseSplits = exports.expenses = exports.messageReads = exports.messages = exports.taskOccurrenceMembers = exports.taskOccurrences = exports.tasks = exports.flatMembers = exports.flats = exports.pushDeviceType = exports.activityType = exports.occurrenceMemberStatus = exports.occurrenceStatus = exports.taskRecurrence = exports.taskCategory = exports.flatMemberRole = void 0;
+exports.verification = exports.account = exports.session = exports.user = exports.activityLogRelations = exports.settlementsRelations = exports.expenseSplitsRelations = exports.expensesRelations = exports.messagesRelations = exports.taskOccurrenceMembersRelations = exports.taskOccurrencesRelations = exports.tasksRelations = exports.flatMembersRelations = exports.flatsRelations = exports.pushTokens = exports.activityLog = exports.settlements = exports.expenseSplits = exports.expenses = exports.messageReads = exports.messages = exports.taskRotationState = exports.taskOccurrenceMembers = exports.taskOccurrences = exports.tasks = exports.flatMembers = exports.flats = exports.pushDeviceType = exports.activityType = exports.occurrenceMemberStatus = exports.occurrenceStatus = exports.taskRecurrence = exports.taskCategory = exports.flatMemberRole = void 0;
 const pg_core_1 = require("drizzle-orm/pg-core");
 const drizzle_orm_1 = require("drizzle-orm");
 const auth_schema_js_1 = require("./auth-schema.js");
@@ -14,6 +14,7 @@ exports.activityType = (0, pg_core_1.pgEnum)('activity_type', [
     'task_created',
     'task_completed',
     'task_missed',
+    'task_skipped',
     'expense_added',
     'settlement',
     'member_joined',
@@ -83,6 +84,16 @@ exports.taskOccurrenceMembers = (0, pg_core_1.pgTable)('task_occurrence_members'
     status: (0, exports.occurrenceMemberStatus)('status').default('assigned').notNull(),
     completedAt: (0, pg_core_1.timestamp)('completed_at'),
 }, (table) => [(0, pg_core_1.index)('idx_task_occ_members_occ_id').on(table.occurrenceId)]);
+// 5b. task_rotation_state (for fair round-robin chore assignment)
+exports.taskRotationState = (0, pg_core_1.pgTable)('task_rotation_state', {
+    id: (0, pg_core_1.uuid)('id').defaultRandom().primaryKey(),
+    taskId: (0, pg_core_1.uuid)('task_id')
+        .references(() => exports.tasks.id, { onDelete: 'cascade' })
+        .notNull()
+        .unique(),
+    currentMemberIndex: (0, pg_core_1.integer)('current_member_index').default(0).notNull(),
+    updatedAt: (0, pg_core_1.timestamp)('updated_at').defaultNow().notNull(),
+});
 // 6. messages (group chat)
 exports.messages = (0, pg_core_1.pgTable)('messages', {
     id: (0, pg_core_1.uuid)('id').defaultRandom().primaryKey(),
@@ -193,6 +204,7 @@ exports.tasksRelations = (0, drizzle_orm_1.relations)(exports.tasks, ({ one, man
     flat: one(exports.flats, { fields: [exports.tasks.flatId], references: [exports.flats.id] }),
     creator: one(auth_schema_js_1.user, { fields: [exports.tasks.createdBy], references: [auth_schema_js_1.user.id] }),
     occurrences: many(exports.taskOccurrences),
+    rotationState: one(exports.taskRotationState, { fields: [exports.tasks.id], references: [exports.taskRotationState.taskId] }),
 }));
 exports.taskOccurrencesRelations = (0, drizzle_orm_1.relations)(exports.taskOccurrences, ({ one, many }) => ({
     task: one(exports.tasks, { fields: [exports.taskOccurrences.taskId], references: [exports.tasks.id] }),
