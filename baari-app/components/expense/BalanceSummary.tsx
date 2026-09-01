@@ -3,7 +3,7 @@ import { View, Text, StyleSheet } from 'react-native';
 import { Card } from '../ui/Card';
 import { Button } from '../ui/Button';
 import { Colors, Typography, Spacing, BorderRadius } from '../../lib/theme';
-import { ArrowUpRight, ArrowDownLeft, PlusCircle, CreditCard } from 'lucide-react-native';
+import { ArrowUpRight, ArrowDownLeft, Plus, HandCoins } from 'lucide-react-native';
 
 interface BalanceSummaryProps {
   youAreOwed: number;
@@ -59,10 +59,12 @@ export const BalanceSummary: React.FC<BalanceSummaryProps> = ({
         {/* You are owed */}
         <View style={styles.breakdownCol}>
           <View style={styles.colHeader}>
-            <ArrowDownLeft size={16} color={Colors.deepNavy} />
+            <View style={styles.arrowIconOwedBg}>
+              <ArrowDownLeft size={13} color="#059669" strokeWidth={2.5} />
+            </View>
             <Text style={[Typography.Caption, styles.colLabel]}>You are owed</Text>
           </View>
-          <Text style={[Typography.H2, { color: Colors.deepNavy }]}>
+          <Text style={[Typography.H2, { color: '#059669' }]}>
             ₹{youAreOwed.toFixed(2)}
           </Text>
         </View>
@@ -72,10 +74,12 @@ export const BalanceSummary: React.FC<BalanceSummaryProps> = ({
         {/* You owe */}
         <View style={styles.breakdownCol}>
           <View style={styles.colHeader}>
-            <ArrowUpRight size={16} color={Colors.mutedNavy} />
+            <View style={styles.arrowIconOweBg}>
+              <ArrowUpRight size={13} color="#DC2626" strokeWidth={2.5} />
+            </View>
             <Text style={[Typography.Caption, styles.colLabel]}>You owe</Text>
           </View>
-          <Text style={[Typography.H2, { color: Colors.mutedNavy }]}>
+          <Text style={[Typography.H2, { color: '#DC2626' }]}>
             ₹{youOwe.toFixed(2)}
           </Text>
         </View>
@@ -86,14 +90,14 @@ export const BalanceSummary: React.FC<BalanceSummaryProps> = ({
         <Button
           title="Add Expense"
           onPress={onAddExpense}
-          icon={<PlusCircle size={18} color={Colors.white} />}
+          icon={<Plus size={16} color={Colors.white} strokeWidth={2.4} />}
           style={styles.actionBtn}
         />
         <Button
           title="Settle Up"
           variant="secondary"
           onPress={onSettleUp}
-          icon={<CreditCard size={18} color={Colors.deepNavy} />}
+          icon={<HandCoins size={16} color={Colors.deepNavy} strokeWidth={2.2} />}
           style={styles.actionBtn}
         />
       </View>
@@ -165,8 +169,24 @@ const styles = StyleSheet.create({
   colHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
+    gap: 6,
     marginBottom: 4,
+  },
+  arrowIconOwedBg: {
+    width: 20,
+    height: 20,
+    borderRadius: BorderRadius.full,
+    backgroundColor: '#ECFDF5',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  arrowIconOweBg: {
+    width: 20,
+    height: 20,
+    borderRadius: BorderRadius.full,
+    backgroundColor: '#FEF2F2',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   colLabel: {
     color: Colors.grayBlack,

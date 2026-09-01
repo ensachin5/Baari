@@ -4,7 +4,7 @@ import { Card } from '../ui/Card';
 import { Badge } from '../ui/Badge';
 import { AssigneeStack, AssigneeInfo } from './AssigneeStack';
 import { Colors, Typography, Spacing, BorderRadius } from '../../lib/theme';
-import { CheckCircle2, Clock, Users, Repeat } from 'lucide-react-native';
+import { CheckCircle2, Clock, Users, Repeat, SkipForward } from 'lucide-react-native';
 import { useSession } from '../../store/session';
 
 export interface KaamTask {
@@ -142,6 +142,7 @@ export const KaamCard: React.FC<KaamCardProps> = ({
                 onPress={() => onSkipTurn(currentOcc.id, task.title)}
                 style={styles.skipButton}
               >
+                <SkipForward size={12} color={Colors.mutedNavy} strokeWidth={2.2} />
                 <Text style={styles.skipButtonText}>Skip turn</Text>
               </TouchableOpacity>
             )}
@@ -281,6 +282,9 @@ const styles = StyleSheet.create({
     gap: Spacing.xs,
   },
   skipButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
     paddingVertical: 6,
     paddingHorizontal: Spacing.sm,
     borderRadius: BorderRadius.md,

@@ -26,8 +26,8 @@ import { SegmentedControl } from '../../components/ui/SegmentedControl';
 import { Card } from '../../components/ui/Card';
 import {
   Plus,
-  MessageSquare,
-  CheckSquare,
+  MessageCircle,
+  CheckSquare2,
   Sparkles,
 } from 'lucide-react-native';
 
@@ -133,20 +133,38 @@ export default function HomeScreen() {
             onPress={() => setActivePage(0)}
             style={[styles.indicatorDotBtn, activePage === 0 && styles.indicatorActive]}
           >
-            <CheckSquare
-              size={16}
+            <CheckSquare2
+              size={13}
               color={activePage === 0 ? Colors.white : Colors.mutedNavy}
+              strokeWidth={2.2}
             />
+            <Text
+              style={[
+                styles.indicatorText,
+                activePage === 0 && styles.indicatorTextActive,
+              ]}
+            >
+              Kaam
+            </Text>
           </TouchableOpacity>
           <TouchableOpacity
             activeOpacity={0.8}
             onPress={() => setActivePage(1)}
             style={[styles.indicatorDotBtn, activePage === 1 && styles.indicatorActive]}
           >
-            <MessageSquare
-              size={16}
+            <MessageCircle
+              size={13}
               color={activePage === 1 ? Colors.white : Colors.mutedNavy}
+              strokeWidth={2.2}
             />
+            <Text
+              style={[
+                styles.indicatorText,
+                activePage === 1 && styles.indicatorTextActive,
+              ]}
+            >
+              Chat
+            </Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -298,7 +316,7 @@ export default function HomeScreen() {
               }}
               ListEmptyComponent={
                 <View style={styles.emptyChat}>
-                  <MessageSquare size={44} color={Colors.sky} />
+                  <MessageCircle size={44} color={Colors.sky} strokeWidth={1.75} />
                   <Text style={[Typography.H2, styles.emptyChatTitle]}>
                     No messages yet
                   </Text>
@@ -378,12 +396,24 @@ const styles = StyleSheet.create({
     borderColor: Colors.border,
   },
   indicatorDotBtn: {
-    paddingVertical: 6,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    paddingVertical: 5,
     paddingHorizontal: 10,
     borderRadius: BorderRadius.full,
   },
   indicatorActive: {
     backgroundColor: Colors.navy,
+  },
+  indicatorText: {
+    ...Typography.Caption,
+    fontFamily: 'Inter_600SemiBold',
+    fontSize: 12,
+    color: Colors.mutedNavy,
+  },
+  indicatorTextActive: {
+    color: Colors.white,
   },
   page: {
     flex: 1,
