@@ -25,6 +25,19 @@ export interface BalanceData {
   }[];
 }
 
+export interface PendingSettlement {
+  id: string;
+  flatId: string;
+  paidBy: string;
+  paidTo: string;
+  amount: string;
+  note?: string | null;
+  status: string;
+  createdAt: string;
+  payerName: string;
+  payerImage?: string | null;
+}
+
 export const useExpenses = () => {
   const activeFlat = useSession((state) => state.activeFlat);
   const currentUser = useSession((state) => state.user);
@@ -35,21 +48,35 @@ export const useExpenses = () => {
     memberBalances: [],
     simplifiedDebts: [],
   });
+  const [pendingSettlements, setPendingSettlements] = useState<PendingSettlement[]>([]);
   const [members, setMembers] = useState<FlatMember[]>([]);
+  const [search, setSearch] = useState('');
+  const [category, setCategory] = useState('All');
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
-  const fetchExpensesData = useCallback(async () => {
+  const fetchExpensesData = useCallback(async (customSearch?: string, customCategory?: string) => {
     if (!activeFlat?.id) return;
     try {
-      const [expData, balData, memData] = await Promise.all([
-        api.get<{ expenses: ExpenseItem[] }>('/api/expenses', { flatId: activeFlat.id }),
+      const activeSearch = customSearch !== undefined ? customSearch : search;
+      const activeCat = customCategory !== undefined ? customCategory : category;
+
+      const params: Record<string, string> = { flatId: activeFlat.id };
+      if (activeCat && activeCat !== 'All') params.category = activeCat;
+      if (activeSearch && activeSearch.trim()) params.search = activeSearch.trim();
+
+      const [expData, balData, memData, pendingData] = await Promise.all([
+        api.get<{ expenses: ExpenseItem[] }>('/api/expenses', params),
         api.get<BalanceData>('/api/expenses/balances', { flatId: activeFlat.id }),
         api.get<{ members: any[] }>(`/api/flats/${activeFlat.id}/members`),
+        api.get<{ pendingSettlements: PendingSettlement[] }>('/api/expenses/settlements/pending', {
+          flatId: activeFlat.id,
+        }),
       ]);
 
       setExpenses(expData.expenses || []);
       setBalances(balData);
+      setPendingSettlements(pendingData.pendingSettlements || []);
       setMembers(
         (memData.members || []).map((m: any) => ({
           userId: m.userId,
@@ -63,7 +90,7 @@ export const useExpenses = () => {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [activeFlat?.id]);
+  }, [activeFlat?.id, search, category]);
 
   useEffect(() => {
     fetchExpensesData();
@@ -75,6 +102,8 @@ export const useExpenses = () => {
     category: string;
     splitType: 'equal' | 'exact';
     splits: { userId: string; amountOwed: number }[];
+    isRecurring?: boolean;
+    recurrenceInterval?: 'weekly' | 'monthly';
   }) => {
     if (!activeFlat?.id) return;
     await api.post('/api/expenses', {
@@ -90,49 +119,36 @@ export const useExpenses = () => {
     note?: string;
   }) => {
     if (!activeFlat?.id || !currentUser?.id) return;
-
-    // Save previous snapshot for rollback
-    const prevBalances = { ...balances };
-
-    // Optimistically update balances locally
-    setBalances((prev) => {
-      const updatedMembers = prev.memberBalances.map((m) => {
-        if (m.userId === currentUser.id) {
-          return { ...m, netBalance: m.netBalance + payload.amount };
-        }
-        if (m.userId === payload.paidTo) {
-          return { ...m, netBalance: m.netBalance - payload.amount };
-        }
-        return m;
-      });
-
-      const newNet = prev.summary.netBalance + payload.amount;
-      const youAreOwed = newNet > 0 ? Math.round(newNet * 100) / 100 : 0;
-      const youOwe = newNet < 0 ? Math.round(-newNet * 100) / 100 : 0;
-
-      return {
-        ...prev,
-        summary: { youAreOwed, youOwe, netBalance: newNet },
-        memberBalances: updatedMembers,
-      };
+    await api.post('/api/expenses/settlements', {
+      ...payload,
+      flatId: activeFlat.id,
     });
+    await fetchExpensesData();
+  };
 
-    try {
-      await api.post('/api/expenses/settle', {
-        ...payload,
-        flatId: activeFlat.id,
-      });
-      await fetchExpensesData();
-    } catch (error) {
-      console.error('Error recording settlement, reverting state:', error);
-      setBalances(prevBalances);
-      throw error;
-    }
+  const confirmSettlement = async (settlementId: string) => {
+    await api.patch(`/api/expenses/settlements/${settlementId}/confirm`);
+    await fetchExpensesData();
+  };
+
+  const rejectSettlement = async (settlementId: string) => {
+    await api.patch(`/api/expenses/settlements/${settlementId}/reject`);
+    await fetchExpensesData();
   };
 
   const onRefresh = () => {
     setRefreshing(true);
     fetchExpensesData();
+  };
+
+  const handleSearchChange = (text: string) => {
+    setSearch(text);
+    fetchExpensesData(text, category);
+  };
+
+  const handleCategoryChange = (cat: string) => {
+    setCategory(cat);
+    fetchExpensesData(search, cat);
   };
 
   // Debts owed specifically by current user
@@ -145,10 +161,17 @@ export const useExpenses = () => {
     balances,
     members,
     myDebts,
+    pendingSettlements,
+    search,
+    category,
     loading,
     refreshing,
+    setSearch: handleSearchChange,
+    setCategory: handleCategoryChange,
     addExpense,
     settleUp,
+    confirmSettlement,
+    rejectSettlement,
     onRefresh,
   };
 };

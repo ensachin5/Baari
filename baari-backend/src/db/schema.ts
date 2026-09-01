@@ -28,9 +28,12 @@ export const activityType = pgEnum('activity_type', [
   'task_skipped',
   'expense_added',
   'settlement',
+  'settlement_confirmed',
   'member_joined',
 ]);
 export const pushDeviceType = pgEnum('push_device_type', ['ios', 'android']);
+export const settlementStatus = pgEnum('settlement_status', ['pending', 'confirmed', 'rejected']);
+export const expenseRecurrence = pgEnum('expense_recurrence', ['weekly', 'monthly']);
 
 // 1. flats
 export const flats = pgTable('flats', {
@@ -174,6 +177,11 @@ export const expenses = pgTable(
       .references(() => user.id)
       .notNull(),
     category: text('category'),
+    isRecurring: boolean('is_recurring').default(false).notNull(),
+    recurrenceInterval: expenseRecurrence('recurrence_interval'),
+    parentExpenseId: uuid('parent_expense_id'),
+    isEdited: boolean('is_edited').default(false).notNull(),
+    editedAt: timestamp('edited_at'),
     createdAt: timestamp('created_at').defaultNow().notNull(),
   },
   (table) => [index('idx_expenses_flat_id').on(table.flatId)]
@@ -192,6 +200,23 @@ export const expenseSplits = pgTable('expense_splits', {
   isSettled: boolean('is_settled').default(false).notNull(),
 });
 
+// 8b. expense_comments
+export const expenseComments = pgTable(
+  'expense_comments',
+  {
+    id: uuid('id').defaultRandom().primaryKey(),
+    expenseId: uuid('expense_id')
+      .references(() => expenses.id, { onDelete: 'cascade' })
+      .notNull(),
+    userId: uuid('user_id')
+      .references(() => user.id, { onDelete: 'cascade' })
+      .notNull(),
+    content: text('content').notNull(),
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+  },
+  (table) => [index('idx_expense_comments_expense_id').on(table.expenseId)]
+);
+
 // 9. settlements
 export const settlements = pgTable(
   'settlements',
@@ -208,6 +233,8 @@ export const settlements = pgTable(
       .notNull(),
     amount: numeric('amount', { precision: 12, scale: 2 }).notNull(),
     note: text('note'),
+    status: settlementStatus('status').default('pending').notNull(),
+    confirmedAt: timestamp('confirmed_at'),
     createdAt: timestamp('created_at').defaultNow().notNull(),
   },
   (table) => [index('idx_settlements_flat_id').on(table.flatId)]

@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.verification = exports.account = exports.session = exports.user = exports.activityLogRelations = exports.settlementsRelations = exports.expenseSplitsRelations = exports.expensesRelations = exports.messagesRelations = exports.taskOccurrenceMembersRelations = exports.taskOccurrencesRelations = exports.tasksRelations = exports.flatMembersRelations = exports.flatsRelations = exports.pushTokens = exports.activityLog = exports.settlements = exports.expenseSplits = exports.expenses = exports.messageReads = exports.messages = exports.taskRotationState = exports.taskOccurrenceMembers = exports.taskOccurrences = exports.tasks = exports.flatMembers = exports.flats = exports.pushDeviceType = exports.activityType = exports.occurrenceMemberStatus = exports.occurrenceStatus = exports.taskRecurrence = exports.taskCategory = exports.flatMemberRole = void 0;
+exports.verification = exports.account = exports.session = exports.user = exports.activityLogRelations = exports.settlementsRelations = exports.expenseSplitsRelations = exports.expensesRelations = exports.messagesRelations = exports.taskOccurrenceMembersRelations = exports.taskOccurrencesRelations = exports.tasksRelations = exports.flatMembersRelations = exports.flatsRelations = exports.pushTokens = exports.activityLog = exports.settlements = exports.expenseComments = exports.expenseSplits = exports.expenses = exports.messageReads = exports.messages = exports.taskRotationState = exports.taskOccurrenceMembers = exports.taskOccurrences = exports.tasks = exports.flatMembers = exports.flats = exports.expenseRecurrence = exports.settlementStatus = exports.pushDeviceType = exports.activityType = exports.occurrenceMemberStatus = exports.occurrenceStatus = exports.taskRecurrence = exports.taskCategory = exports.flatMemberRole = void 0;
 const pg_core_1 = require("drizzle-orm/pg-core");
 const drizzle_orm_1 = require("drizzle-orm");
 const auth_schema_js_1 = require("./auth-schema.js");
@@ -17,9 +17,12 @@ exports.activityType = (0, pg_core_1.pgEnum)('activity_type', [
     'task_skipped',
     'expense_added',
     'settlement',
+    'settlement_confirmed',
     'member_joined',
 ]);
 exports.pushDeviceType = (0, pg_core_1.pgEnum)('push_device_type', ['ios', 'android']);
+exports.settlementStatus = (0, pg_core_1.pgEnum)('settlement_status', ['pending', 'confirmed', 'rejected']);
+exports.expenseRecurrence = (0, pg_core_1.pgEnum)('expense_recurrence', ['weekly', 'monthly']);
 // 1. flats
 exports.flats = (0, pg_core_1.pgTable)('flats', {
     id: (0, pg_core_1.uuid)('id').defaultRandom().primaryKey(),
@@ -132,6 +135,11 @@ exports.expenses = (0, pg_core_1.pgTable)('expenses', {
         .references(() => auth_schema_js_1.user.id)
         .notNull(),
     category: (0, pg_core_1.text)('category'),
+    isRecurring: (0, pg_core_1.boolean)('is_recurring').default(false).notNull(),
+    recurrenceInterval: (0, exports.expenseRecurrence)('recurrence_interval'),
+    parentExpenseId: (0, pg_core_1.uuid)('parent_expense_id'),
+    isEdited: (0, pg_core_1.boolean)('is_edited').default(false).notNull(),
+    editedAt: (0, pg_core_1.timestamp)('edited_at'),
     createdAt: (0, pg_core_1.timestamp)('created_at').defaultNow().notNull(),
 }, (table) => [(0, pg_core_1.index)('idx_expenses_flat_id').on(table.flatId)]);
 // 8. expense_splits
@@ -146,6 +154,18 @@ exports.expenseSplits = (0, pg_core_1.pgTable)('expense_splits', {
     amountOwed: (0, pg_core_1.numeric)('amount_owed', { precision: 12, scale: 2 }).notNull(),
     isSettled: (0, pg_core_1.boolean)('is_settled').default(false).notNull(),
 });
+// 8b. expense_comments
+exports.expenseComments = (0, pg_core_1.pgTable)('expense_comments', {
+    id: (0, pg_core_1.uuid)('id').defaultRandom().primaryKey(),
+    expenseId: (0, pg_core_1.uuid)('expense_id')
+        .references(() => exports.expenses.id, { onDelete: 'cascade' })
+        .notNull(),
+    userId: (0, pg_core_1.uuid)('user_id')
+        .references(() => auth_schema_js_1.user.id, { onDelete: 'cascade' })
+        .notNull(),
+    content: (0, pg_core_1.text)('content').notNull(),
+    createdAt: (0, pg_core_1.timestamp)('created_at').defaultNow().notNull(),
+}, (table) => [(0, pg_core_1.index)('idx_expense_comments_expense_id').on(table.expenseId)]);
 // 9. settlements
 exports.settlements = (0, pg_core_1.pgTable)('settlements', {
     id: (0, pg_core_1.uuid)('id').defaultRandom().primaryKey(),
@@ -160,6 +180,8 @@ exports.settlements = (0, pg_core_1.pgTable)('settlements', {
         .notNull(),
     amount: (0, pg_core_1.numeric)('amount', { precision: 12, scale: 2 }).notNull(),
     note: (0, pg_core_1.text)('note'),
+    status: (0, exports.settlementStatus)('status').default('pending').notNull(),
+    confirmedAt: (0, pg_core_1.timestamp)('confirmed_at'),
     createdAt: (0, pg_core_1.timestamp)('created_at').defaultNow().notNull(),
 }, (table) => [(0, pg_core_1.index)('idx_settlements_flat_id').on(table.flatId)]);
 // 10. activity_log

@@ -22,6 +22,8 @@ interface AddExpenseModalProps {
     category: string;
     splitType: 'equal' | 'exact';
     splits: { userId: string; amountOwed: number }[];
+    isRecurring?: boolean;
+    recurrenceInterval?: 'weekly' | 'monthly';
   }) => Promise<void>;
   members: FlatMember[];
   loading?: boolean;
@@ -39,6 +41,8 @@ export const AddExpenseModal: React.FC<AddExpenseModalProps> = ({
   const [title, setTitle] = useState('');
   const [amountStr, setAmountStr] = useState('');
   const [category, setCategory] = useState('Groceries');
+  const [isRecurring, setIsRecurring] = useState(false);
+  const [recurrenceInterval, setRecurrenceInterval] = useState<'weekly' | 'monthly'>('monthly');
   const [selectedMembers, setSelectedMembers] = useState<string[]>(
     members.map((m) => m.userId)
   );
@@ -89,11 +93,14 @@ export const AddExpenseModal: React.FC<AddExpenseModalProps> = ({
         category,
         splitType: 'equal',
         splits,
+        isRecurring,
+        recurrenceInterval: isRecurring ? recurrenceInterval : undefined,
       });
 
       // Reset
       setTitle('');
       setAmountStr('');
+      setIsRecurring(false);
       onClose();
     } catch (err: any) {
       setError(err.message || 'Failed to add expense');
@@ -190,6 +197,44 @@ export const AddExpenseModal: React.FC<AddExpenseModalProps> = ({
             );
           })}
         </View>
+      </View>
+
+      {/* Recurring Option */}
+      <View style={styles.section}>
+        <TouchableOpacity
+          style={styles.recurringRow}
+          onPress={() => setIsRecurring(!isRecurring)}
+          activeOpacity={0.8}
+        >
+          <View style={[styles.checkbox, isRecurring && styles.checkboxSelected]}>
+            {isRecurring && <Check size={12} color={Colors.white} strokeWidth={3} />}
+          </View>
+          <Text style={styles.recurringLabel}>Repeat this expense</Text>
+        </TouchableOpacity>
+
+        {isRecurring && (
+          <View style={styles.intervalRow}>
+            {(['weekly', 'monthly'] as const).map((interval) => (
+              <TouchableOpacity
+                key={interval}
+                onPress={() => setRecurrenceInterval(interval)}
+                style={[
+                  styles.intervalChip,
+                  recurrenceInterval === interval && styles.intervalChipActive,
+                ]}
+              >
+                <Text
+                  style={[
+                    styles.intervalChipText,
+                    recurrenceInterval === interval && styles.intervalChipTextActive,
+                  ]}
+                >
+                  {interval === 'weekly' ? 'Weekly' : 'Monthly'}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        )}
       </View>
 
       <Button
@@ -307,6 +352,41 @@ const styles = StyleSheet.create({
   checkboxSelected: {
     backgroundColor: Colors.navy,
     borderColor: Colors.navy,
+  },
+  recurringRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.sm,
+    paddingVertical: Spacing.xs,
+  },
+  recurringLabel: {
+    ...Typography.BodySmallMedium,
+    color: Colors.deepNavy,
+  },
+  intervalRow: {
+    flexDirection: 'row',
+    gap: Spacing.sm,
+    marginTop: Spacing.sm,
+  },
+  intervalChip: {
+    paddingHorizontal: Spacing.md,
+    paddingVertical: 6,
+    borderRadius: BorderRadius.full,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    backgroundColor: Colors.white,
+  },
+  intervalChipActive: {
+    backgroundColor: Colors.navy,
+    borderColor: Colors.navy,
+  },
+  intervalChipText: {
+    ...Typography.Caption,
+    fontFamily: 'Inter_500Medium',
+    color: Colors.mutedNavy,
+  },
+  intervalChipTextActive: {
+    color: Colors.white,
   },
   submitBtn: {
     marginTop: Spacing.sm,

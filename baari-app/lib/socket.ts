@@ -62,8 +62,12 @@ export const getSocket = (): Socket => {
         socket?.disconnect();
         return;
       }
-      if (error.message === 'websocket error') {
-        // Socket.io automatically falls back to polling or upgrades; suppress transient warning
+      if (
+        error.message === 'websocket error' ||
+        error.message === 'timeout' ||
+        error.message === 'xhr poll error'
+      ) {
+        // Socket.io automatically retries during backend spin-up or transport negotiation; suppress transient noise
         return;
       }
       console.warn('[Socket] Connection error:', error.message);

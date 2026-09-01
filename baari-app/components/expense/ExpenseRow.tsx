@@ -1,8 +1,9 @@
 import React from 'react';
-import { View, Text, StyleSheet } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { Avatar } from '../ui/Avatar';
 import { Colors, Typography, Spacing, BorderRadius } from '../../lib/theme';
 import { useSession } from '../../store/session';
+import { Repeat } from 'lucide-react-native';
 
 export interface ExpenseItem {
   id: string;
@@ -11,6 +12,10 @@ export interface ExpenseItem {
   amount: string;
   paidBy: string;
   category?: string | null;
+  isRecurring?: boolean;
+  recurrenceInterval?: string | null;
+  isEdited?: boolean;
+  editedAt?: string | null;
   createdAt: string;
   payerName: string;
   payerImage?: string | null;
@@ -25,9 +30,10 @@ export interface ExpenseItem {
 
 interface ExpenseRowProps {
   expense: ExpenseItem;
+  onPress?: (expense: ExpenseItem) => void;
 }
 
-export const ExpenseRow: React.FC<ExpenseRowProps> = ({ expense }) => {
+export const ExpenseRow: React.FC<ExpenseRowProps> = ({ expense, onPress }) => {
   const currentUserId = useSession((state) => state.user?.id);
   const isPayer = expense.paidBy === currentUserId;
 
@@ -44,7 +50,7 @@ export const ExpenseRow: React.FC<ExpenseRowProps> = ({ expense }) => {
     }
   };
 
-  return (
+  const Content = (
     <View style={styles.container}>
       <Avatar
         name={expense.payerName}
@@ -55,9 +61,19 @@ export const ExpenseRow: React.FC<ExpenseRowProps> = ({ expense }) => {
 
       <View style={styles.contentCol}>
         <View style={styles.titleRow}>
-          <Text style={[Typography.BodyMedium, styles.title]} numberOfLines={1}>
-            {expense.title}
-          </Text>
+          <View style={styles.titleWithBadges}>
+            <Text style={[Typography.BodyMedium, styles.title]} numberOfLines={1}>
+              {expense.title}
+            </Text>
+            {expense.isRecurring && (
+              <View style={styles.repeatBadge}>
+                <Repeat size={10} color={Colors.mutedNavy} />
+              </View>
+            )}
+            {expense.isEdited && (
+              <Text style={styles.editedText}>(edited)</Text>
+            )}
+          </View>
           <Text style={[Typography.BodyMedium, styles.totalAmount]}>
             ₹{totalAmount.toFixed(2)}
           </Text>
@@ -84,6 +100,16 @@ export const ExpenseRow: React.FC<ExpenseRowProps> = ({ expense }) => {
       </View>
     </View>
   );
+
+  if (onPress) {
+    return (
+      <TouchableOpacity activeOpacity={0.7} onPress={() => onPress(expense)}>
+        {Content}
+      </TouchableOpacity>
+    );
+  }
+
+  return Content;
 };
 
 const styles = StyleSheet.create({
@@ -106,10 +132,25 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     marginBottom: 2,
   },
-  title: {
+  titleWithBadges: {
     flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
     marginRight: Spacing.sm,
+  },
+  title: {
     color: Colors.black,
+  },
+  repeatBadge: {
+    backgroundColor: Colors.offWhite,
+    padding: 3,
+    borderRadius: BorderRadius.sm,
+  },
+  editedText: {
+    fontSize: 10,
+    color: Colors.grayBlack,
+    fontStyle: 'italic',
   },
   totalAmount: {
     fontWeight: '700',

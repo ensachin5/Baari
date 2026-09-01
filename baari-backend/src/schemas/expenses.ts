@@ -12,6 +12,8 @@ export const createExpenseSchema = z.object({
   category: z.string().optional().default('General'),
   splitType: z.enum(['equal', 'exact', 'percentage']).default('equal'),
   splits: z.array(splitItemSchema).min(1, 'At least one participant is required'),
+  isRecurring: z.boolean().optional().default(false),
+  recurrenceInterval: z.enum(['weekly', 'monthly']).optional(),
 });
 
 export const createSettlementSchema = z.object({

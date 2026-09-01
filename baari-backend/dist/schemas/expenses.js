@@ -13,6 +13,8 @@ exports.createExpenseSchema = zod_1.z.object({
     category: zod_1.z.string().optional().default('General'),
     splitType: zod_1.z.enum(['equal', 'exact', 'percentage']).default('equal'),
     splits: zod_1.z.array(exports.splitItemSchema).min(1, 'At least one participant is required'),
+    isRecurring: zod_1.z.boolean().optional().default(false),
+    recurrenceInterval: zod_1.z.enum(['weekly', 'monthly']).optional(),
 });
 exports.createSettlementSchema = zod_1.z.object({
     flatId: zod_1.z.string().uuid('Invalid flat ID'),
