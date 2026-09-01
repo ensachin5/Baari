@@ -10,6 +10,36 @@ const profile_js_1 = require("../schemas/profile.js");
 const streaks_js_1 = require("../services/streaks.js");
 const drizzle_orm_1 = require("drizzle-orm");
 exports.profileRouter = (0, express_1.Router)();
+// GET /api/profile/stats?userId=
+exports.profileRouter.get('/stats', auth_guard_js_1.requireAuth, async (req, res) => {
+    const userId = req.query.userId || req.user.id;
+    const now = new Date();
+    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+    // 1. Kaam completed this month
+    const [completedKaam] = await index_js_1.db
+        .select({ count: (0, drizzle_orm_1.count)() })
+        .from(schema_js_1.taskOccurrenceMembers)
+        .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(schema_js_1.taskOccurrenceMembers.userId, userId), (0, drizzle_orm_1.eq)(schema_js_1.taskOccurrenceMembers.status, 'completed'), (0, drizzle_orm_1.gte)(schema_js_1.taskOccurrenceMembers.completedAt, startOfMonth)));
+    // 2. Streak
+    const streak = await (0, streaks_js_1.calculateUserStreak)(userId);
+    // 3. Expenses settled this month
+    const confirmedSettlements = await index_js_1.db
+        .select({
+        amount: schema_js_1.settlements.amount,
+    })
+        .from(schema_js_1.settlements)
+        .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.or)((0, drizzle_orm_1.eq)(schema_js_1.settlements.paidBy, userId), (0, drizzle_orm_1.eq)(schema_js_1.settlements.paidTo, userId)), (0, drizzle_orm_1.eq)(schema_js_1.settlements.status, 'confirmed'), (0, drizzle_orm_1.gte)(schema_js_1.settlements.confirmedAt, startOfMonth)));
+    const totalAmountSettled = confirmedSettlements.reduce((sum, s) => sum + parseFloat(s.amount || '0'), 0);
+    res.json({
+        stats: {
+            kaamCompletedThisMonth: completedKaam?.count || 0,
+            currentStreak: streak.currentStreak || 0,
+            longestStreak: streak.longestStreak || 0,
+            settlementsCountThisMonth: confirmedSettlements.length,
+            amountSettledThisMonth: Math.round(totalAmountSettled * 100) / 100,
+        },
+    });
+});
 // Get profile & flat status
 exports.profileRouter.get('/', auth_guard_js_1.requireAuth, async (req, res) => {
     const userId = req.user.id;

@@ -37,6 +37,8 @@ import {
   Bell,
   LogOut as LeaveIcon,
   Trash2,
+  CheckCircle2,
+  HandCoins,
 } from 'lucide-react-native';
 
 interface MemberItem {
@@ -67,6 +69,14 @@ export default function ProfileScreen() {
 
   const isAdmin = activeFlat?.role === 'admin';
 
+  const [profileStats, setProfileStats] = useState({
+    kaamCompletedThisMonth: 0,
+    currentStreak: 0,
+    longestStreak: 0,
+    settlementsCountThisMonth: 0,
+    amountSettledThisMonth: 0,
+  });
+
   const loadMembers = async () => {
     if (activeFlat?.id) {
       try {
@@ -76,8 +86,18 @@ export default function ProfileScreen() {
     }
   };
 
+  const loadStats = async () => {
+    try {
+      const res = await api.get<{ stats: any }>('/api/profile/stats');
+      if (res.stats) {
+        setProfileStats(res.stats);
+      }
+    } catch (_) {}
+  };
+
   useEffect(() => {
     loadMembers();
+    loadStats();
   }, [activeFlat?.id]);
 
   // Copy Invite Code using expo-clipboard
@@ -255,6 +275,36 @@ export default function ProfileScreen() {
             </TouchableOpacity>
           </View>
         </Card>
+
+        {/* Simple Stats Tiles (Section 3) */}
+        <View style={styles.statsRow}>
+          <Card variant="outlined" style={styles.statTile}>
+            <View style={styles.statIconBg}>
+              <CheckCircle2 size={16} color="#059669" strokeWidth={2.2} />
+            </View>
+            <Text style={styles.statValue}>{profileStats.kaamCompletedThisMonth}</Text>
+            <Text style={styles.statLabel}>Kaam Done</Text>
+            <Text style={styles.statSub}>this month</Text>
+          </Card>
+
+          <Card variant="outlined" style={styles.statTile}>
+            <View style={[styles.statIconBg, { backgroundColor: '#FFFBEB' }]}>
+              <Flame size={16} color="#D97706" fill="#FDE68A" strokeWidth={2} />
+            </View>
+            <Text style={styles.statValue}>{profileStats.currentStreak}d</Text>
+            <Text style={styles.statLabel}>On-Time Streak</Text>
+            <Text style={styles.statSub}>best: {profileStats.longestStreak}d</Text>
+          </Card>
+
+          <Card variant="outlined" style={styles.statTile}>
+            <View style={[styles.statIconBg, { backgroundColor: '#EFF6FF' }]}>
+              <HandCoins size={16} color="#2563EB" strokeWidth={2.2} />
+            </View>
+            <Text style={styles.statValue}>₹{profileStats.amountSettledThisMonth.toFixed(0)}</Text>
+            <Text style={styles.statLabel}>Settled</Text>
+            <Text style={styles.statSub}>{profileStats.settlementsCountThisMonth} payments</Text>
+          </Card>
+        </View>
 
         {/* Flat Details & Invite Code */}
         {activeFlat && (
@@ -462,7 +512,44 @@ const styles = StyleSheet.create({
     paddingBottom: Spacing.xxxl,
   },
   userCard: {
+    marginBottom: Spacing.md,
+  },
+  statsRow: {
+    flexDirection: 'row',
+    gap: Spacing.sm,
     marginBottom: Spacing.lg,
+  },
+  statTile: {
+    flex: 1,
+    padding: Spacing.sm,
+    alignItems: 'center',
+    backgroundColor: '#F8FAFC',
+    borderColor: Colors.border,
+  },
+  statIconBg: {
+    width: 28,
+    height: 28,
+    borderRadius: BorderRadius.full,
+    backgroundColor: '#ECFDF5',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 4,
+  },
+  statValue: {
+    fontFamily: 'Inter_700Bold',
+    fontSize: 18,
+    color: Colors.deepNavy,
+  },
+  statLabel: {
+    fontFamily: 'Inter_600SemiBold',
+    fontSize: 11,
+    color: Colors.deepNavy,
+    marginTop: 2,
+  },
+  statSub: {
+    ...Typography.Caption,
+    fontSize: 10,
+    color: Colors.grayBlack,
   },
   userRow: {
     flexDirection: 'row',

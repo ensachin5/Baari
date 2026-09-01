@@ -1,13 +1,72 @@
 import { Router, Response } from 'express';
 import { db } from '../db/index.js';
-import { user, pushTokens, flatMembers, flats } from '../db/schema.js';
+import {
+  user,
+  pushTokens,
+  flatMembers,
+  flats,
+  taskOccurrenceMembers,
+  settlements,
+} from '../db/schema.js';
 import { requireAuth, AuthenticatedRequest } from '../middleware/auth-guard.js';
 import { validate } from '../middleware/validate.js';
 import { updateProfileSchema, registerPushTokenSchema } from '../schemas/profile.js';
 import { calculateUserStreak } from '../services/streaks.js';
-import { eq, and } from 'drizzle-orm';
+import { eq, and, gte, or, count, sql } from 'drizzle-orm';
 
 export const profileRouter = Router();
+
+// GET /api/profile/stats?userId=
+profileRouter.get('/stats', requireAuth, async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+  const userId = (req.query.userId as string) || req.user!.id;
+
+  const now = new Date();
+  const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+
+  // 1. Kaam completed this month
+  const [completedKaam] = await db
+    .select({ count: count() })
+    .from(taskOccurrenceMembers)
+    .where(
+      and(
+        eq(taskOccurrenceMembers.userId, userId),
+        eq(taskOccurrenceMembers.status, 'completed'),
+        gte(taskOccurrenceMembers.completedAt, startOfMonth)
+      )
+    );
+
+  // 2. Streak
+  const streak = await calculateUserStreak(userId);
+
+  // 3. Expenses settled this month
+  const confirmedSettlements = await db
+    .select({
+      amount: settlements.amount,
+    })
+    .from(settlements)
+    .where(
+      and(
+        or(eq(settlements.paidBy, userId), eq(settlements.paidTo, userId)),
+        eq(settlements.status, 'confirmed'),
+        gte(settlements.confirmedAt, startOfMonth)
+      )
+    );
+
+  const totalAmountSettled = confirmedSettlements.reduce(
+    (sum, s) => sum + parseFloat(s.amount || '0'),
+    0
+  );
+
+  res.json({
+    stats: {
+      kaamCompletedThisMonth: completedKaam?.count || 0,
+      currentStreak: streak.currentStreak || 0,
+      longestStreak: streak.longestStreak || 0,
+      settlementsCountThisMonth: confirmedSettlements.length,
+      amountSettledThisMonth: Math.round(totalAmountSettled * 100) / 100,
+    },
+  });
+});
 
 // Get profile & flat status
 profileRouter.get('/', requireAuth, async (req: AuthenticatedRequest, res: Response): Promise<void> => {
