@@ -9,7 +9,7 @@ import {
   TextInput,
   Platform,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Colors, Typography, Spacing, BorderRadius } from '../../lib/theme';
 import { useExpenses } from '../../hooks/useExpenses';
 import { BalanceSummary } from '../../components/expense/BalanceSummary';
@@ -48,10 +48,12 @@ export default function ExpenseScreen() {
   const [isSettleModalOpen, setIsSettleModalOpen] = useState(false);
   const [selectedExpense, setSelectedExpense] = useState<ExpenseItem | null>(null);
   const [showSimplifiedDebts, setShowSimplifiedDebts] = useState(false);
+  const insets = useSafeAreaInsets();
+  const topInset = Math.max(insets.top, Platform.OS === 'android' ? 38 : 16);
 
   return (
-    <SafeAreaView style={styles.safeArea}>
-      <View style={styles.header}>
+    <View style={styles.safeArea}>
+      <View style={[styles.header, { paddingTop: topInset + 6 }]}>
         <Text style={Typography.H1}>Expenses & Balances</Text>
       </View>
 
@@ -294,7 +296,7 @@ export default function ExpenseScreen() {
         onClose={() => setSelectedExpense(null)}
         onRefresh={onRefresh}
       />
-    </SafeAreaView>
+    </View>
   );
 }
 
@@ -302,7 +304,6 @@ const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
     backgroundColor: Colors.white,
-    paddingTop: Platform.OS === 'android' ? 30 : 0,
   },
   header: {
     paddingHorizontal: Spacing.xl,

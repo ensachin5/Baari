@@ -10,7 +10,7 @@ import {
   Alert,
   Switch,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import * as Clipboard from 'expo-clipboard';
 import * as ImagePicker from 'expo-image-picker';
@@ -52,6 +52,8 @@ interface MemberItem {
 
 export default function ProfileScreen() {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
+  const topInset = Math.max(insets.top, Platform.OS === 'android' ? 38 : 16);
   const user = useSession((state) => state.user);
   const activeFlat = useSession((state) => state.activeFlat);
   const setActiveFlat = useSession((state) => state.setActiveFlat);
@@ -226,8 +228,8 @@ export default function ProfileScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.safeArea}>
-      <View style={styles.header}>
+    <View style={styles.safeArea}>
+      <View style={[styles.header, { paddingTop: topInset + 6 }]}>
         <Text style={Typography.H1}>Profile & Settings</Text>
       </View>
 
@@ -489,7 +491,7 @@ export default function ProfileScreen() {
           style={{ marginTop: Spacing.md }}
         />
       </Modal>
-    </SafeAreaView>
+    </View>
   );
 }
 
@@ -497,7 +499,6 @@ const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
     backgroundColor: Colors.white,
-    paddingTop: Platform.OS === 'android' ? 30 : 0,
   },
   header: {
     paddingHorizontal: Spacing.xl,

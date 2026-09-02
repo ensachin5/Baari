@@ -11,7 +11,7 @@ import {
   Platform,
   ActivityIndicator,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Colors, Typography, Spacing, BorderRadius } from '../../lib/theme';
 import { useSession } from '../../store/session';
 import { useKaam } from '../../hooks/useKaam';
@@ -49,6 +49,8 @@ function formatDateDivider(isoString: string): string {
 export default function HomeScreen() {
   const activeFlat = useSession((state) => state.activeFlat);
   const currentUser = useSession((state) => state.user);
+  const insets = useSafeAreaInsets();
+  const topInset = Math.max(insets.top, Platform.OS === 'android' ? 38 : 16);
 
   const [activePage, setActivePage] = useState(0);
   const [filter, setFilter] = useState<'today' | 'upcoming' | 'recurring'>('today');
@@ -118,9 +120,9 @@ export default function HomeScreen() {
   const todayCompleted = todayTasks.filter((t) => t.currentOccurrence?.status === 'done').length;
 
   return (
-    <SafeAreaView style={styles.safeArea}>
+    <View style={styles.safeArea}>
       {/* Top Bar with Flat Title & Page Indicator */}
-      <View style={styles.topHeader}>
+      <View style={[styles.topHeader, { paddingTop: topInset + 6 }]}>
         <View>
           <Text style={[Typography.Caption, styles.topFlatLabel]}>ACTIVE FLAT</Text>
           <Text style={Typography.H1}>{activeFlat?.name || 'Baari Flat'}</Text>
@@ -361,7 +363,7 @@ export default function HomeScreen() {
         onClose={() => setSkipModalState((s) => ({ ...s, visible: false }))}
         onSuccess={() => onKaamRefresh()}
       />
-    </SafeAreaView>
+    </View>
   );
 }
 
@@ -369,7 +371,6 @@ const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
     backgroundColor: Colors.white,
-    paddingTop: Platform.OS === 'android' ? 30 : 0,
   },
   topHeader: {
     flexDirection: 'row',

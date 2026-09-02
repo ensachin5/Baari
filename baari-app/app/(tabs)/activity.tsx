@@ -7,7 +7,7 @@ import {
   RefreshControl,
   Platform,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Colors, Typography, Spacing } from '../../lib/theme';
 import { useActivity } from '../../hooks/useActivity';
@@ -18,6 +18,8 @@ import { Activity as ActivityIcon } from 'lucide-react-native';
 
 export default function ActivityScreen() {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
+  const topInset = Math.max(insets.top, Platform.OS === 'android' ? 38 : 16);
   const activeFlat = useSession((state) => state.activeFlat);
   const { activities, loading, refreshing, onRefresh, loadMore } = useActivity();
 
@@ -30,8 +32,8 @@ export default function ActivityScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.safeArea}>
-      <View style={styles.header}>
+    <View style={styles.safeArea}>
+      <View style={[styles.header, { paddingTop: topInset + 6 }]}>
         <Text style={Typography.H1}>Flat Activity Feed</Text>
         <Text style={[Typography.Caption, styles.subHeader]}>
           Real-time updates of tasks, expenses & settlements
@@ -67,7 +69,7 @@ export default function ActivityScreen() {
           ) : null
         }
       />
-    </SafeAreaView>
+    </View>
   );
 }
 
@@ -75,7 +77,6 @@ const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
     backgroundColor: Colors.white,
-    paddingTop: Platform.OS === 'android' ? 30 : 0,
   },
   header: {
     paddingHorizontal: Spacing.xl,

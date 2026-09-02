@@ -1,12 +1,14 @@
 import React, { useEffect } from 'react';
 import { Tabs, useRouter, Redirect } from 'expo-router';
-import { View, StyleSheet, Platform } from 'react-native';
-import { Colors, Typography, BorderRadius } from '../../lib/theme';
-import { CheckCircle2, Wallet, Zap, User } from 'lucide-react-native';
+import { Platform } from 'react-native';
+import { Colors, Typography } from '../../lib/theme';
+import { Home, Wallet, Zap, User } from 'lucide-react-native';
 import { useSession } from '../../store/session';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 export default function TabsLayout() {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const token = useSession((state) => state.token);
   const activeFlat = useSession((state) => state.activeFlat);
   const isHydrated = useSession((state) => state.isHydrated);
@@ -26,6 +28,8 @@ export default function TabsLayout() {
     return <Redirect href="/(auth)/sign-in" />;
   }
 
+  const bottomInset = Math.max(insets.bottom, Platform.OS === 'android' ? 14 : 10);
+
   return (
     <Tabs
       screenOptions={{
@@ -36,29 +40,28 @@ export default function TabsLayout() {
           backgroundColor: Colors.white,
           borderTopColor: Colors.border,
           borderTopWidth: 1,
-          height: Platform.OS === 'ios' ? 88 : 64,
+          height: 54 + bottomInset,
           paddingTop: 6,
-          paddingBottom: Platform.OS === 'ios' ? 28 : 10,
+          paddingBottom: bottomInset,
         },
         tabBarLabelStyle: {
           ...Typography.Caption,
-          fontWeight: '600',
+          fontFamily: 'Inter_600SemiBold',
           fontSize: 11,
+          marginTop: 2,
         },
       }}
     >
       <Tabs.Screen
         name="home"
         options={{
-          title: 'Kaam',
+          title: 'Home',
           tabBarIcon: ({ color, focused }) => (
-            <View style={[styles.tabIconWrapper, focused && styles.tabIconActive]}>
-              <CheckCircle2
-                size={20}
-                color={focused ? Colors.navy : color}
-                strokeWidth={focused ? 2.3 : 1.8}
-              />
-            </View>
+            <Home
+              size={22}
+              color={focused ? Colors.navy : color}
+              strokeWidth={focused ? 2.3 : 1.8}
+            />
           ),
         }}
       />
@@ -67,13 +70,11 @@ export default function TabsLayout() {
         options={{
           title: 'Expenses',
           tabBarIcon: ({ color, focused }) => (
-            <View style={[styles.tabIconWrapper, focused && styles.tabIconActive]}>
-              <Wallet
-                size={20}
-                color={focused ? Colors.navy : color}
-                strokeWidth={focused ? 2.3 : 1.8}
-              />
-            </View>
+            <Wallet
+              size={22}
+              color={focused ? Colors.navy : color}
+              strokeWidth={focused ? 2.3 : 1.8}
+            />
           ),
         }}
       />
@@ -82,13 +83,11 @@ export default function TabsLayout() {
         options={{
           title: 'Activity',
           tabBarIcon: ({ color, focused }) => (
-            <View style={[styles.tabIconWrapper, focused && styles.tabIconActive]}>
-              <Zap
-                size={20}
-                color={focused ? Colors.navy : color}
-                strokeWidth={focused ? 2.3 : 1.8}
-              />
-            </View>
+            <Zap
+              size={22}
+              color={focused ? Colors.navy : color}
+              strokeWidth={focused ? 2.3 : 1.8}
+            />
           ),
         }}
       />
@@ -97,29 +96,14 @@ export default function TabsLayout() {
         options={{
           title: 'Profile',
           tabBarIcon: ({ color, focused }) => (
-            <View style={[styles.tabIconWrapper, focused && styles.tabIconActive]}>
-              <User
-                size={20}
-                color={focused ? Colors.navy : color}
-                strokeWidth={focused ? 2.3 : 1.8}
-              />
-            </View>
+            <User
+              size={22}
+              color={focused ? Colors.navy : color}
+              strokeWidth={focused ? 2.3 : 1.8}
+            />
           ),
         }}
       />
     </Tabs>
   );
 }
-
-const styles = StyleSheet.create({
-  tabIconWrapper: {
-    paddingHorizontal: 10,
-    paddingVertical: 3,
-    borderRadius: BorderRadius.full,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  tabIconActive: {
-    backgroundColor: Colors.paleSky,
-  },
-});
