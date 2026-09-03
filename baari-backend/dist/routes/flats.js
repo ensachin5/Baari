@@ -43,7 +43,17 @@ exports.flatsRouter.get(['/my-flat', '/me'], auth_guard_js_1.requireAuth, async 
         res.json({ flat: null });
         return;
     }
-    res.json({ flat: membership[0] });
+    const [countRes] = await index_js_1.db
+        .select({ count: (0, drizzle_orm_1.sql) `count(*)::int` })
+        .from(schema_js_1.flatMembers)
+        .where((0, drizzle_orm_1.eq)(schema_js_1.flatMembers.flatId, membership[0].id));
+    const memberCount = Number(countRes?.count || 1);
+    res.json({
+        flat: {
+            ...membership[0],
+            memberCount,
+        },
+    });
 });
 // Create flat
 exports.flatsRouter.post('/', auth_guard_js_1.requireAuth, (0, validate_js_1.validate)(flats_js_1.createFlatSchema), async (req, res) => {
@@ -97,7 +107,7 @@ exports.flatsRouter.post('/', auth_guard_js_1.requireAuth, (0, validate_js_1.val
         metadata: { flatName: newFlat.name, role: 'admin' },
     })
         .returning();
-    res.status(201).json({ flat: newFlat });
+    res.status(201).json({ flat: { ...newFlat, role: 'admin', memberCount: 1 } });
 });
 // Join flat via invite code
 exports.flatsRouter.post('/join', auth_guard_js_1.requireAuth, (0, validate_js_1.validate)(flats_js_1.joinFlatSchema), async (req, res) => {
@@ -116,8 +126,19 @@ exports.flatsRouter.post('/join', auth_guard_js_1.requireAuth, (0, validate_js_1
         .select()
         .from(schema_js_1.flatMembers)
         .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(schema_js_1.flatMembers.flatId, foundFlat.id), (0, drizzle_orm_1.eq)(schema_js_1.flatMembers.userId, userId)));
+    const [countRes] = await index_js_1.db
+        .select({ count: (0, drizzle_orm_1.sql) `count(*)::int` })
+        .from(schema_js_1.flatMembers)
+        .where((0, drizzle_orm_1.eq)(schema_js_1.flatMembers.flatId, foundFlat.id));
     if (existingMember) {
-        res.json({ message: 'Already a member of this flat', flat: foundFlat });
+        res.json({
+            message: 'Already a member of this flat',
+            flat: {
+                ...foundFlat,
+                role: existingMember.role,
+                memberCount: Number(countRes?.count || 1),
+            },
+        });
         return;
     }
     // Add as member
@@ -145,7 +166,29 @@ exports.flatsRouter.post('/join', auth_guard_js_1.requireAuth, (0, validate_js_1
         });
     }
     catch (_) { }
-    res.json({ message: 'Successfully joined flat', flat: foundFlat });
+    res.json({
+        message: 'Successfully joined flat',
+        flat: {
+            ...foundFlat,
+            role: 'member',
+            memberCount: Number(countRes?.count || 0) + 1,
+        },
+    });
+});
+// Get flat by ID
+exports.flatsRouter.get('/:id', auth_guard_js_1.requireAuth, async (req, res) => {
+    const flatId = String(req.params.id);
+    const [flat] = await index_js_1.db.select().from(schema_js_1.flats).where((0, drizzle_orm_1.eq)(schema_js_1.flats.id, flatId));
+    if (!flat) {
+        res.status(404).json({ error: 'Flat not found' });
+        return;
+    }
+    const [countRes] = await index_js_1.db
+        .select({ count: (0, drizzle_orm_1.sql) `count(*)::int` })
+        .from(schema_js_1.flatMembers)
+        .where((0, drizzle_orm_1.eq)(schema_js_1.flatMembers.flatId, flatId));
+    const memberCount = Number(countRes?.count || 1);
+    res.json({ flat: { ...flat, memberCount } });
 });
 // Get members of a flat
 exports.flatsRouter.get('/:id/members', auth_guard_js_1.requireAuth, async (req, res) => {

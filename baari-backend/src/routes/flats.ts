@@ -5,7 +5,7 @@ import { DEFAULT_QUICK_PICKS } from './quick-picks.js';
 import { requireAuth, AuthenticatedRequest } from '../middleware/auth-guard.js';
 import { validate } from '../middleware/validate.js';
 import { createFlatSchema, joinFlatSchema } from '../schemas/flats.js';
-import { eq, and, asc } from 'drizzle-orm';
+import { eq, and, asc, sql } from 'drizzle-orm';
 import { getIO } from '../sockets/index.js';
 import { broadcastActivityEvent } from '../sockets/handlers.js';
 import { calculateUserStreak } from '../services/streaks.js';
@@ -46,7 +46,19 @@ flatsRouter.get(['/my-flat', '/me'], requireAuth, async (req: AuthenticatedReque
     return;
   }
 
-  res.json({ flat: membership[0] });
+  const [countRes] = await db
+    .select({ count: sql<number>`count(*)::int` })
+    .from(flatMembers)
+    .where(eq(flatMembers.flatId, membership[0].id));
+
+  const memberCount = Number(countRes?.count || 1);
+
+  res.json({
+    flat: {
+      ...membership[0],
+      memberCount,
+    },
+  });
 });
 
 // Create flat
@@ -113,7 +125,7 @@ flatsRouter.post(
       })
       .returning();
 
-    res.status(201).json({ flat: newFlat });
+    res.status(201).json({ flat: { ...newFlat, role: 'admin', memberCount: 1 } });
   }
 );
 
@@ -142,8 +154,20 @@ flatsRouter.post(
       .from(flatMembers)
       .where(and(eq(flatMembers.flatId, foundFlat.id), eq(flatMembers.userId, userId)));
 
+    const [countRes] = await db
+      .select({ count: sql<number>`count(*)::int` })
+      .from(flatMembers)
+      .where(eq(flatMembers.flatId, foundFlat.id));
+
     if (existingMember) {
-      res.json({ message: 'Already a member of this flat', flat: foundFlat });
+      res.json({
+        message: 'Already a member of this flat',
+        flat: {
+          ...foundFlat,
+          role: existingMember.role,
+          memberCount: Number(countRes?.count || 1),
+        },
+      });
       return;
     }
 
@@ -174,9 +198,32 @@ flatsRouter.post(
       });
     } catch (_) {}
 
-    res.json({ message: 'Successfully joined flat', flat: foundFlat });
+    res.json({
+      message: 'Successfully joined flat',
+      flat: {
+        ...foundFlat,
+        role: 'member',
+        memberCount: Number(countRes?.count || 0) + 1,
+      },
+    });
   }
 );
+
+// Get flat by ID
+flatsRouter.get('/:id', requireAuth, async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+  const flatId = String(req.params.id);
+  const [flat] = await db.select().from(flats).where(eq(flats.id, flatId));
+  if (!flat) {
+    res.status(404).json({ error: 'Flat not found' });
+    return;
+  }
+  const [countRes] = await db
+    .select({ count: sql<number>`count(*)::int` })
+    .from(flatMembers)
+    .where(eq(flatMembers.flatId, flatId));
+  const memberCount = Number(countRes?.count || 1);
+  res.json({ flat: { ...flat, memberCount } });
+});
 
 // Get members of a flat
 flatsRouter.get('/:id/members', requireAuth, async (req: AuthenticatedRequest, res: Response): Promise<void> => {

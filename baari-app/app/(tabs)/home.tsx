@@ -14,6 +14,7 @@ import {
 import PagerView from 'react-native-pager-view';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Colors, Typography, Spacing, BorderRadius } from '../../lib/theme';
+import { api } from '../../lib/api';
 import { useSession } from '../../store/session';
 import { useKaam } from '../../hooks/useKaam';
 import { useChat } from '../../hooks/useChat';
@@ -49,6 +50,7 @@ function formatDateDivider(isoString: string): string {
 
 export default function HomeScreen() {
   const activeFlat = useSession((state) => state.activeFlat);
+  const setActiveFlat = useSession((state) => state.setActiveFlat);
   const currentUser = useSession((state) => state.user);
   const insets = useSafeAreaInsets();
   const topInset = Math.max(insets.top, Platform.OS === 'android' ? 38 : 16);
@@ -73,6 +75,24 @@ export default function HomeScreen() {
     setActivePage(pageIndex);
     pagerRef.current?.setPage(pageIndex);
   };
+
+  // Ensure activeFlat is fresh and contains accurate database name and memberCount
+  useEffect(() => {
+    api
+      .get<{ flat: any }>('/api/flats/me')
+      .then((res) => {
+        if (res?.flat) {
+          setActiveFlat({
+            id: res.flat.id,
+            name: res.flat.name,
+            inviteCode: res.flat.inviteCode,
+            role: res.flat.role,
+            memberCount: res.flat.memberCount,
+          });
+        }
+      })
+      .catch(() => {});
+  }, [setActiveFlat]);
 
   // Custom Hooks
   const {
@@ -99,6 +119,9 @@ export default function HomeScreen() {
     loadMore,
   } = useChat();
   const { members } = useExpenses();
+
+  const memberCount = members.length > 0 ? members.length : (activeFlat?.memberCount || 1);
+  const memberCountText = `${memberCount} ${memberCount === 1 ? 'member' : 'members'}`;
 
   // Scroll chat to bottom on new messages and mark read
   useEffect(() => {
@@ -131,9 +154,20 @@ export default function HomeScreen() {
     <View style={styles.safeArea}>
       {/* Top Bar with Flat Title & Page Indicator */}
       <View style={[styles.topHeader, { paddingTop: topInset + 6 }]}>
-        <View>
-          <Text style={[Typography.Caption, styles.topFlatLabel]}>ACTIVE FLAT</Text>
-          <Text style={Typography.H1}>{activeFlat?.name || 'Baari Flat'}</Text>
+        <View style={styles.headerTitleContainer}>
+          <Text style={styles.topFlatLabel}>Baari</Text>
+          {activeFlat?.name ? (
+            <View style={styles.flatTitleRow}>
+              <Text style={[Typography.H1, styles.flatNameText]} numberOfLines={1}>
+                {activeFlat.name}
+              </Text>
+              <Text style={[Typography.Caption, styles.memberCountText]}>
+                · {memberCountText}
+              </Text>
+            </View>
+          ) : (
+            <View style={styles.headerSkeleton} />
+          )}
         </View>
 
         {/* 2-Page Indicator Switcher */}
@@ -400,10 +434,38 @@ const styles = StyleSheet.create({
     borderBottomColor: Colors.border,
     backgroundColor: Colors.white,
   },
+  headerTitleContainer: {
+    flex: 1,
+    marginRight: Spacing.sm,
+  },
   topFlatLabel: {
+    ...Typography.Caption,
+    color: Colors.mutedNavy,
+    fontSize: 10,
+    fontFamily: 'Inter_700Bold',
+    letterSpacing: 1.2,
+    textTransform: 'uppercase',
+    marginBottom: 2,
+  },
+  flatTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    gap: 6,
+  },
+  flatNameText: {
+    flexShrink: 1,
+  },
+  memberCountText: {
     color: Colors.grayBlack,
-    letterSpacing: 1,
-    fontWeight: '700',
+    fontSize: 12,
+    fontFamily: 'Inter_500Medium',
+  },
+  headerSkeleton: {
+    width: 110,
+    height: 22,
+    backgroundColor: Colors.offWhite,
+    borderRadius: BorderRadius.sm,
+    marginTop: 4,
   },
   indicatorContainer: {
     flexDirection: 'row',

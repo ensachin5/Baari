@@ -14,6 +14,7 @@ export interface ActiveFlat {
   name: string;
   inviteCode: string;
   role: 'admin' | 'member';
+  memberCount?: number;
 }
 
 interface SessionState {
