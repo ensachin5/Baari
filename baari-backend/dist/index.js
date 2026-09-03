@@ -57,6 +57,7 @@ const activity_js_1 = require("./routes/activity.js");
 const profile_js_1 = require("./routes/profile.js");
 const messages_js_1 = require("./routes/messages.js");
 const dev_js_1 = require("./routes/dev.js");
+const quick_picks_js_1 = require("./routes/quick-picks.js");
 dotenv.config();
 const app = (0, express_1.default)();
 exports.app = app;
@@ -123,6 +124,7 @@ app.use('/api/expenses', expenses_js_1.expensesRouter);
 app.use('/api/activity', activity_js_1.activityRouter);
 app.use('/api/profile', profile_js_1.profileRouter);
 app.use('/api/messages', messages_js_1.messagesRouter);
+app.use('/api/quick-picks', quick_picks_js_1.quickPicksRouter);
 app.use('/api/dev', dev_js_1.devRouter);
 // Alias route for POST /api/push-tokens
 app.post('/api/push-tokens', (req, res, next) => {

@@ -19,6 +19,7 @@ import { activityRouter } from './routes/activity.js';
 import { profileRouter } from './routes/profile.js';
 import { messagesRouter } from './routes/messages.js';
 import { devRouter } from './routes/dev.js';
+import { quickPicksRouter } from './routes/quick-picks.js';
 
 dotenv.config();
 
@@ -98,6 +99,7 @@ app.use('/api/expenses', expensesRouter);
 app.use('/api/activity', activityRouter);
 app.use('/api/profile', profileRouter);
 app.use('/api/messages', messagesRouter);
+app.use('/api/quick-picks', quickPicksRouter);
 app.use('/api/dev', devRouter);
 
 // Alias route for POST /api/push-tokens

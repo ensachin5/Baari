@@ -353,6 +353,7 @@ export default function HomeScreen() {
         onClose={() => setIsCreateModalOpen(false)}
         onSubmit={createTask}
         members={members as any}
+        flatId={activeFlat?.id}
       />
 
       {/* Skip Turn Sheet */}

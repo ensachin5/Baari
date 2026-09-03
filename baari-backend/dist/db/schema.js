@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.verification = exports.account = exports.session = exports.user = exports.activityLogRelations = exports.settlementsRelations = exports.expenseSplitsRelations = exports.expensesRelations = exports.messagesRelations = exports.taskOccurrenceMembersRelations = exports.taskOccurrencesRelations = exports.tasksRelations = exports.flatMembersRelations = exports.flatsRelations = exports.pushTokens = exports.activityLog = exports.settlements = exports.expenseComments = exports.expenseSplits = exports.expenses = exports.messageReads = exports.messages = exports.taskRotationState = exports.taskOccurrenceMembers = exports.taskOccurrences = exports.tasks = exports.flatMembers = exports.flats = exports.expenseRecurrence = exports.settlementStatus = exports.pushDeviceType = exports.activityType = exports.occurrenceMemberStatus = exports.occurrenceStatus = exports.taskRecurrence = exports.taskCategory = exports.flatMemberRole = void 0;
+exports.verification = exports.account = exports.session = exports.user = exports.activityLogRelations = exports.settlementsRelations = exports.expenseSplitsRelations = exports.expensesRelations = exports.messagesRelations = exports.taskOccurrenceMembersRelations = exports.taskOccurrencesRelations = exports.tasksRelations = exports.flatMembersRelations = exports.quickPickPresetsRelations = exports.flatsRelations = exports.quickPickPresets = exports.pushTokens = exports.activityLog = exports.settlements = exports.expenseComments = exports.expenseSplits = exports.expenses = exports.messageReads = exports.messages = exports.taskRotationState = exports.taskOccurrenceMembers = exports.taskOccurrences = exports.tasks = exports.flatMembers = exports.flats = exports.expenseRecurrence = exports.settlementStatus = exports.pushDeviceType = exports.activityType = exports.occurrenceMemberStatus = exports.occurrenceStatus = exports.taskRecurrence = exports.taskCategory = exports.flatMemberRole = void 0;
 const pg_core_1 = require("drizzle-orm/pg-core");
 const drizzle_orm_1 = require("drizzle-orm");
 const auth_schema_js_1 = require("./auth-schema.js");
@@ -209,6 +209,18 @@ exports.pushTokens = (0, pg_core_1.pgTable)('push_tokens', {
     deviceType: (0, exports.pushDeviceType)('device_type').notNull(),
     createdAt: (0, pg_core_1.timestamp)('created_at').defaultNow().notNull(),
 });
+// 12. quick_pick_presets (per-flat customizable chore templates)
+exports.quickPickPresets = (0, pg_core_1.pgTable)('quick_pick_presets', {
+    id: (0, pg_core_1.uuid)('id').defaultRandom().primaryKey(),
+    flatId: (0, pg_core_1.uuid)('flat_id')
+        .references(() => exports.flats.id, { onDelete: 'cascade' })
+        .notNull(),
+    label: (0, pg_core_1.text)('label').notNull(),
+    title: (0, pg_core_1.text)('title').notNull(),
+    category: (0, exports.taskCategory)('category').notNull(),
+    sortOrder: (0, pg_core_1.integer)('sort_order').default(0).notNull(),
+    createdAt: (0, pg_core_1.timestamp)('created_at').defaultNow().notNull(),
+}, (table) => [(0, pg_core_1.index)('idx_quick_pick_presets_flat_id').on(table.flatId)]);
 // Relations
 exports.flatsRelations = (0, drizzle_orm_1.relations)(exports.flats, ({ one, many }) => ({
     creator: one(auth_schema_js_1.user, { fields: [exports.flats.createdBy], references: [auth_schema_js_1.user.id] }),
@@ -218,6 +230,10 @@ exports.flatsRelations = (0, drizzle_orm_1.relations)(exports.flats, ({ one, man
     expenses: many(exports.expenses),
     settlements: many(exports.settlements),
     activities: many(exports.activityLog),
+    quickPickPresets: many(exports.quickPickPresets),
+}));
+exports.quickPickPresetsRelations = (0, drizzle_orm_1.relations)(exports.quickPickPresets, ({ one }) => ({
+    flat: one(exports.flats, { fields: [exports.quickPickPresets.flatId], references: [exports.flats.id] }),
 }));
 exports.flatMembersRelations = (0, drizzle_orm_1.relations)(exports.flatMembers, ({ one }) => ({
     flat: one(exports.flats, { fields: [exports.flatMembers.flatId], references: [exports.flats.id] }),

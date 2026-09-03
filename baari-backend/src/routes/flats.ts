@@ -1,6 +1,7 @@
 import { Router, Response } from 'express';
 import { db } from '../db/index.js';
-import { flats, flatMembers, user, activityLog } from '../db/schema.js';
+import { flats, flatMembers, user, activityLog, quickPickPresets } from '../db/schema.js';
+import { DEFAULT_QUICK_PICKS } from './quick-picks.js';
 import { requireAuth, AuthenticatedRequest } from '../middleware/auth-guard.js';
 import { validate } from '../middleware/validate.js';
 import { createFlatSchema, joinFlatSchema } from '../schemas/flats.js';
@@ -88,6 +89,17 @@ flatsRouter.post(
       userId,
       role: 'admin',
     });
+
+    // Seed default quick pick presets
+    await db.insert(quickPickPresets).values(
+      DEFAULT_QUICK_PICKS.map((p) => ({
+        flatId: newFlat.id,
+        label: p.label,
+        title: p.title,
+        category: p.category,
+        sortOrder: p.sortOrder,
+      }))
+    );
 
     // Log activity
     const [activity] = await db

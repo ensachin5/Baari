@@ -4,6 +4,7 @@ exports.flatsRouter = void 0;
 const express_1 = require("express");
 const index_js_1 = require("../db/index.js");
 const schema_js_1 = require("../db/schema.js");
+const quick_picks_js_1 = require("./quick-picks.js");
 const auth_guard_js_1 = require("../middleware/auth-guard.js");
 const validate_js_1 = require("../middleware/validate.js");
 const flats_js_1 = require("../schemas/flats.js");
@@ -77,6 +78,14 @@ exports.flatsRouter.post('/', auth_guard_js_1.requireAuth, (0, validate_js_1.val
         userId,
         role: 'admin',
     });
+    // Seed default quick pick presets
+    await index_js_1.db.insert(schema_js_1.quickPickPresets).values(quick_picks_js_1.DEFAULT_QUICK_PICKS.map((p) => ({
+        flatId: newFlat.id,
+        label: p.label,
+        title: p.title,
+        category: p.category,
+        sortOrder: p.sortOrder,
+    })));
     // Log activity
     const [activity] = await index_js_1.db
         .insert(schema_js_1.activityLog)

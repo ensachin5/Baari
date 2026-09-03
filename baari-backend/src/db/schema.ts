@@ -274,6 +274,23 @@ export const pushTokens = pgTable('push_tokens', {
   createdAt: timestamp('created_at').defaultNow().notNull(),
 });
 
+// 12. quick_pick_presets (per-flat customizable chore templates)
+export const quickPickPresets = pgTable(
+  'quick_pick_presets',
+  {
+    id: uuid('id').defaultRandom().primaryKey(),
+    flatId: uuid('flat_id')
+      .references(() => flats.id, { onDelete: 'cascade' })
+      .notNull(),
+    label: text('label').notNull(),
+    title: text('title').notNull(),
+    category: taskCategory('category').notNull(),
+    sortOrder: integer('sort_order').default(0).notNull(),
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+  },
+  (table) => [index('idx_quick_pick_presets_flat_id').on(table.flatId)]
+);
+
 // Relations
 export const flatsRelations = relations(flats, ({ one, many }) => ({
   creator: one(user, { fields: [flats.createdBy], references: [user.id] }),
@@ -283,6 +300,11 @@ export const flatsRelations = relations(flats, ({ one, many }) => ({
   expenses: many(expenses),
   settlements: many(settlements),
   activities: many(activityLog),
+  quickPickPresets: many(quickPickPresets),
+}));
+
+export const quickPickPresetsRelations = relations(quickPickPresets, ({ one }) => ({
+  flat: one(flats, { fields: [quickPickPresets.flatId], references: [flats.id] }),
 }));
 
 export const flatMembersRelations = relations(flatMembers, ({ one }) => ({
