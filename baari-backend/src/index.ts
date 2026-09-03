@@ -26,6 +26,9 @@ dotenv.config();
 const app = express();
 const httpServer = createServer(app);
 
+// 0. Trust Proxy for Render & Cloudflare SSL termination
+app.set('trust proxy', 1);
+
 // 1. Helmet
 app.use(
   helmet({
@@ -67,7 +70,21 @@ if (process.env.NODE_ENV !== 'test') {
   );
 }
 
-// 5. Health Check Endpoint
+// 5. Root & Health Check Endpoints
+app.get('/', (req, res) => {
+  const clientUrl = process.env.CLIENT_URL || 'http://localhost:3000';
+  if (req.accepts('html')) {
+    const query = new URLSearchParams(req.query as Record<string, string>).toString();
+    const target = query ? `${clientUrl}?${query}` : clientUrl;
+    return res.redirect(target);
+  }
+  res.json({
+    status: 'ok',
+    service: 'baari-backend',
+    timestamp: new Date().toISOString(),
+  });
+});
+
 app.get('/health', async (_req, res) => {
   try {
     // Ping database

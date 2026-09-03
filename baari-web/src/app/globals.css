@@ -1,0 +1,49 @@
+@import "tailwindcss";
+@config "../../tailwind.config.ts";
+
+@theme {
+  --font-sans: var(--font-inter), system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+
+  --color-white: #FFFFFF;
+  --color-offWhite: #F4F6F9;
+  --color-white-dark: #F4F6F9;
+  --color-white-off: #F4F6F9;
+
+  --color-black: #1A1A1A;
+  --color-grayBlack: #5C5F66;
+  --color-black-light: #5C5F66;
+  --color-nearBlack: #0A0A0A;
+  --color-black-dark: #0A0A0A;
+
+  --color-navy: #0A2540;
+  --color-mutedNavy: #3C4E7A;
+  --color-navy-light: #3C4E7A;
+  --color-deepNavy: #061729;
+  --color-navy-dark: #061729;
+
+  --color-sky: #5AC8FA;
+  --color-paleSky: #DCEEF7;
+  --color-sky-light: #DCEEF7;
+  --color-deepSky: #2E93C4;
+  --color-sky-dark: #2E93C4;
+
+  --color-border: #E2E8F0;
+  --color-borderDark: #0A2540;
+
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 14px;
+  --radius-xl: 20px;
+  --radius-full: 9999px;
+}
+
+:root {
+  --background: #FFFFFF;
+  --foreground: #1A1A1A;
+}
+
+body {
+  background-color: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-inter), -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+}

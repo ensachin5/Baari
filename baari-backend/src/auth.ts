@@ -29,6 +29,11 @@ export const auth = betterAuth({
     database: {
       generateId: 'uuid',
     },
+    defaultCookieAttributes: {
+      sameSite: 'none',
+      secure: true,
+      httpOnly: true,
+    },
   },
   socialProviders: {
     ...(process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET
@@ -42,12 +47,14 @@ export const auth = betterAuth({
   },
   plugins: [expo(), bearer()],
   trustedOrigins: [
-    'http://localhost:8081',
     'http://localhost:3000',
+    'http://localhost:3001',
+    'http://localhost:8081',
     'http://localhost:19000',
     'http://localhost:19006',
     'https://baari-wkqq.onrender.com',
     'https://baari-backend.onrender.com',
+    ...(process.env.CLIENT_URL ? [process.env.CLIENT_URL] : []),
     'baari://',
     'baari://*',
     'exp://',

@@ -63,6 +63,8 @@ const app = (0, express_1.default)();
 exports.app = app;
 const httpServer = (0, http_1.createServer)(app);
 exports.httpServer = httpServer;
+// 0. Trust Proxy for Render & Cloudflare SSL termination
+app.set('trust proxy', 1);
 // 1. Helmet
 app.use((0, helmet_1.default)({
     crossOriginResourcePolicy: false,
@@ -93,7 +95,20 @@ if (process.env.NODE_ENV !== 'test') {
         },
     }));
 }
-// 5. Health Check Endpoint
+// 5. Root & Health Check Endpoints
+app.get('/', (req, res) => {
+    const clientUrl = process.env.CLIENT_URL || 'http://localhost:3000';
+    if (req.accepts('html')) {
+        const query = new URLSearchParams(req.query).toString();
+        const target = query ? `${clientUrl}?${query}` : clientUrl;
+        return res.redirect(target);
+    }
+    res.json({
+        status: 'ok',
+        service: 'baari-backend',
+        timestamp: new Date().toISOString(),
+    });
+});
 app.get('/health', async (_req, res) => {
     try {
         // Ping database
