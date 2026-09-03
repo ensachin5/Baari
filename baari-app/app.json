@@ -18,7 +18,8 @@
       "adaptiveIcon": {
         "backgroundColor": "#0A2540"
       },
-      "package": "app.baari.mobile"
+      "package": "app.baari.mobile",
+      "softwareKeyboardLayoutMode": "resize"
     },
     "web": {
       "bundler": "metro",

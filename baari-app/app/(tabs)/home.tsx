@@ -333,6 +333,8 @@ export default function HomeScreen() {
                 style={styles.chatFlatList}
                 contentContainerStyle={styles.chatListContent}
                 showsVerticalScrollIndicator={false}
+                keyboardShouldPersistTaps="handled"
+                keyboardDismissMode="on-drag"
                 onEndReachedThreshold={0.4}
                 onEndReached={() => {
                   if (hasMore && !loadingMore) {
