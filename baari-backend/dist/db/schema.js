@@ -7,7 +7,7 @@ const auth_schema_js_1 = require("./auth-schema.js");
 // Enums
 exports.flatMemberRole = (0, pg_core_1.pgEnum)('flat_member_role', ['admin', 'member']);
 exports.taskCategory = (0, pg_core_1.pgEnum)('task_category', ['water', 'garbage', 'chore', 'custom']);
-exports.taskRecurrence = (0, pg_core_1.pgEnum)('task_recurrence', ['once', 'daily', 'weekly']);
+exports.taskRecurrence = (0, pg_core_1.pgEnum)('task_recurrence', ['once', 'daily', 'weekly', 'custom']);
 exports.occurrenceStatus = (0, pg_core_1.pgEnum)('occurrence_status', ['pending', 'in_progress', 'done', 'missed']);
 exports.occurrenceMemberStatus = (0, pg_core_1.pgEnum)('occurrence_member_status', ['assigned', 'completed']);
 exports.activityType = (0, pg_core_1.pgEnum)('activity_type', [
@@ -59,6 +59,7 @@ exports.tasks = (0, pg_core_1.pgTable)('tasks', {
     description: (0, pg_core_1.text)('description'),
     peopleRequired: (0, pg_core_1.integer)('people_required').default(1).notNull(),
     recurrence: (0, exports.taskRecurrence)('recurrence').notNull(),
+    customRecurrenceConfig: (0, pg_core_1.jsonb)('custom_recurrence_config').$type(),
     createdBy: (0, pg_core_1.uuid)('created_by')
         .references(() => auth_schema_js_1.user.id)
         .notNull(),

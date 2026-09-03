@@ -18,7 +18,7 @@ import { user } from './auth-schema.js';
 // Enums
 export const flatMemberRole = pgEnum('flat_member_role', ['admin', 'member']);
 export const taskCategory = pgEnum('task_category', ['water', 'garbage', 'chore', 'custom']);
-export const taskRecurrence = pgEnum('task_recurrence', ['once', 'daily', 'weekly']);
+export const taskRecurrence = pgEnum('task_recurrence', ['once', 'daily', 'weekly', 'custom']);
 export const occurrenceStatus = pgEnum('occurrence_status', ['pending', 'in_progress', 'done', 'missed']);
 export const occurrenceMemberStatus = pgEnum('occurrence_member_status', ['assigned', 'completed']);
 export const activityType = pgEnum('activity_type', [
@@ -77,6 +77,10 @@ export const tasks = pgTable('tasks', {
   description: text('description'),
   peopleRequired: integer('people_required').default(1).notNull(),
   recurrence: taskRecurrence('recurrence').notNull(),
+  customRecurrenceConfig: jsonb('custom_recurrence_config').$type<
+    | { type: 'specific_days'; days: string[] }
+    | { type: 'interval'; everyNDays: number }
+  >(),
   createdBy: uuid('created_by')
     .references(() => user.id)
     .notNull(),

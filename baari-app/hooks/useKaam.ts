@@ -114,8 +114,13 @@ export const useKaam = () => {
     category: 'water' | 'garbage' | 'chore' | 'custom';
     description?: string;
     peopleRequired: number;
-    recurrence: 'once' | 'daily' | 'weekly';
+    recurrence: 'once' | 'daily' | 'weekly' | 'custom';
+    customRecurrenceConfig?:
+      | { type: 'specific_days'; days: string[] }
+      | { type: 'interval'; everyNDays: number }
+      | null;
     assigneeIds: string[];
+    occurrenceDate?: string;
   }) => {
     if (!activeFlat?.id) return;
     await api.post('/api/tasks', {

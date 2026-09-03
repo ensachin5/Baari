@@ -1,6 +1,7 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.tasksRouter = void 0;
+exports.computeNextOccurrenceDate = computeNextOccurrenceDate;
 const express_1 = require("express");
 const index_js_1 = require("../db/index.js");
 const schema_js_1 = require("../db/schema.js");
@@ -12,6 +13,62 @@ const index_js_2 = require("../sockets/index.js");
 const handlers_js_1 = require("../sockets/handlers.js");
 const push_js_1 = require("../services/push.js");
 const streaks_js_1 = require("../services/streaks.js");
+const WEEKDAY_MAP = {
+    sun: 0,
+    mon: 1,
+    tue: 2,
+    wed: 3,
+    thu: 4,
+    fri: 5,
+    sat: 6,
+};
+function computeNextOccurrenceDate(recurrence, customConfig, fromOccurrenceDate) {
+    if (recurrence === 'once')
+        return null;
+    let baseDate;
+    if (fromOccurrenceDate) {
+        const [y, m, d] = fromOccurrenceDate.split('-').map(Number);
+        baseDate = new Date(Date.UTC(y, m - 1, d));
+    }
+    else {
+        const now = new Date();
+        baseDate = new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate()));
+    }
+    if (recurrence === 'daily') {
+        baseDate.setUTCDate(baseDate.getUTCDate() + 1);
+        return baseDate.toISOString().split('T')[0];
+    }
+    if (recurrence === 'weekly') {
+        baseDate.setUTCDate(baseDate.getUTCDate() + 7);
+        return baseDate.toISOString().split('T')[0];
+    }
+    if (recurrence === 'custom' && customConfig) {
+        if (customConfig.type === 'interval') {
+            const intervalDays = Math.max(1, customConfig.everyNDays || 1);
+            baseDate.setUTCDate(baseDate.getUTCDate() + intervalDays);
+            return baseDate.toISOString().split('T')[0];
+        }
+        if (customConfig.type === 'specific_days' && Array.isArray(customConfig.days) && customConfig.days.length > 0) {
+            const targetDays = customConfig.days
+                .map((d) => WEEKDAY_MAP[d.toLowerCase()])
+                .filter((d) => d !== undefined);
+            if (targetDays.length === 0) {
+                baseDate.setUTCDate(baseDate.getUTCDate() + 1);
+                return baseDate.toISOString().split('T')[0];
+            }
+            const currentDay = baseDate.getUTCDay();
+            for (let offset = 1; offset <= 7; offset++) {
+                const checkDay = (currentDay + offset) % 7;
+                if (targetDays.includes(checkDay)) {
+                    baseDate.setUTCDate(baseDate.getUTCDate() + offset);
+                    return baseDate.toISOString().split('T')[0];
+                }
+            }
+        }
+    }
+    baseDate.setUTCDate(baseDate.getUTCDate() + 1);
+    return baseDate.toISOString().split('T')[0];
+}
 exports.tasksRouter = (0, express_1.Router)();
 // GET /api/tasks/streaks?userId=
 exports.tasksRouter.get('/streaks', auth_guard_js_1.requireAuth, async (req, res) => {
@@ -86,6 +143,7 @@ exports.tasksRouter.get('/', auth_guard_js_1.requireAuth, async (req, res) => {
         description: schema_js_1.tasks.description,
         peopleRequired: schema_js_1.tasks.peopleRequired,
         recurrence: schema_js_1.tasks.recurrence,
+        customRecurrenceConfig: schema_js_1.tasks.customRecurrenceConfig,
         createdBy: schema_js_1.tasks.createdBy,
         active: schema_js_1.tasks.active,
         createdAt: schema_js_1.tasks.createdAt,
@@ -179,7 +237,7 @@ exports.tasksRouter.get('/', auth_guard_js_1.requireAuth, async (req, res) => {
 });
 // Create a task
 exports.tasksRouter.post('/', auth_guard_js_1.requireAuth, (0, validate_js_1.validate)(tasks_js_1.createTaskSchema), async (req, res) => {
-    const { flatId, title, category, description, peopleRequired, recurrence, assigneeIds, occurrenceDate, } = req.body;
+    const { flatId, title, category, description, peopleRequired, recurrence, customRecurrenceConfig, assigneeIds, occurrenceDate, } = req.body;
     const userId = req.user.id;
     const todayStr = occurrenceDate || new Date().toISOString().split('T')[0];
     // 1. Create task
@@ -192,6 +250,7 @@ exports.tasksRouter.post('/', auth_guard_js_1.requireAuth, (0, validate_js_1.val
         description,
         peopleRequired: peopleRequired || assigneeIds.length,
         recurrence,
+        customRecurrenceConfig: recurrence === 'custom' ? (customRecurrenceConfig || null) : null,
         createdBy: userId,
         active: true,
     })
@@ -240,12 +299,14 @@ exports.tasksRouter.post('/', auth_guard_js_1.requireAuth, (0, validate_js_1.val
         type: 'task_created',
         referenceId: newTask.id,
         metadata: {
-            taskTitle: newTask.title,
-            category: newTask.category,
-            peopleRequired: newTask.peopleRequired,
+            taskTitle: title,
+            category,
+            recurrence,
+            peopleRequired: peopleRequired || assigneeIds.length,
         },
     })
         .returning();
+    // 5. Broadcast realtime event
     try {
         const io = (0, index_js_2.getIO)();
         (0, handlers_js_1.broadcastActivityEvent)(io, flatId, {
@@ -276,9 +337,13 @@ exports.tasksRouter.patch('/occurrences/:id/complete', auth_guard_js_1.requireAu
         .select({
         id: schema_js_1.taskOccurrences.id,
         taskId: schema_js_1.taskOccurrences.taskId,
+        occurrenceDate: schema_js_1.taskOccurrences.occurrenceDate,
         status: schema_js_1.taskOccurrences.status,
         flatId: schema_js_1.tasks.flatId,
         taskTitle: schema_js_1.tasks.title,
+        recurrence: schema_js_1.tasks.recurrence,
+        customRecurrenceConfig: schema_js_1.tasks.customRecurrenceConfig,
+        peopleRequired: schema_js_1.tasks.peopleRequired,
     })
         .from(schema_js_1.taskOccurrences)
         .innerJoin(schema_js_1.tasks, (0, drizzle_orm_1.eq)(schema_js_1.taskOccurrences.taskId, schema_js_1.tasks.id))
@@ -311,6 +376,63 @@ exports.tasksRouter.patch('/occurrences/:id/complete', auth_guard_js_1.requireAu
             .update(schema_js_1.taskOccurrences)
             .set({ status: 'done' })
             .where((0, drizzle_orm_1.eq)(schema_js_1.taskOccurrences.id, occurrenceId));
+        // Generate next occurrence for recurring task
+        if (occ.recurrence !== 'once') {
+            const nextDate = computeNextOccurrenceDate(occ.recurrence, occ.customRecurrenceConfig, occ.occurrenceDate);
+            if (nextDate) {
+                const [existingNext] = await index_js_1.db
+                    .select({ id: schema_js_1.taskOccurrences.id })
+                    .from(schema_js_1.taskOccurrences)
+                    .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(schema_js_1.taskOccurrences.taskId, occ.taskId), (0, drizzle_orm_1.eq)(schema_js_1.taskOccurrences.occurrenceDate, nextDate)));
+                if (!existingNext) {
+                    const [newOcc] = await index_js_1.db
+                        .insert(schema_js_1.taskOccurrences)
+                        .values({
+                        taskId: occ.taskId,
+                        occurrenceDate: nextDate,
+                        status: 'pending',
+                    })
+                        .returning();
+                    const flatMembersList = await index_js_1.db
+                        .select({ userId: schema_js_1.flatMembers.userId })
+                        .from(schema_js_1.flatMembers)
+                        .where((0, drizzle_orm_1.eq)(schema_js_1.flatMembers.flatId, occ.flatId))
+                        .orderBy((0, drizzle_orm_1.asc)(schema_js_1.flatMembers.joinedAt));
+                    if (flatMembersList.length > 0) {
+                        const [rotState] = await index_js_1.db
+                            .select()
+                            .from(schema_js_1.taskRotationState)
+                            .where((0, drizzle_orm_1.eq)(schema_js_1.taskRotationState.taskId, occ.taskId));
+                        const curIdx = rotState ? rotState.currentMemberIndex : 0;
+                        const peopleReq = Math.min(occ.peopleRequired || 1, flatMembersList.length);
+                        const nextAssigneeIds = [];
+                        for (let i = 0; i < peopleReq; i++) {
+                            const assignedUser = flatMembersList[(curIdx + i) % flatMembersList.length];
+                            nextAssigneeIds.push(assignedUser.userId);
+                        }
+                        const newMemberValues = nextAssigneeIds.map((uId) => ({
+                            occurrenceId: newOcc.id,
+                            userId: uId,
+                            status: 'assigned',
+                        }));
+                        await index_js_1.db.insert(schema_js_1.taskOccurrenceMembers).values(newMemberValues);
+                        const newIndex = (curIdx + peopleReq) % flatMembersList.length;
+                        if (rotState) {
+                            await index_js_1.db
+                                .update(schema_js_1.taskRotationState)
+                                .set({ currentMemberIndex: newIndex, updatedAt: new Date() })
+                                .where((0, drizzle_orm_1.eq)(schema_js_1.taskRotationState.taskId, occ.taskId));
+                        }
+                        else {
+                            await index_js_1.db.insert(schema_js_1.taskRotationState).values({
+                                taskId: occ.taskId,
+                                currentMemberIndex: newIndex,
+                            });
+                        }
+                    }
+                }
+            }
+        }
     }
     else {
         await index_js_1.db

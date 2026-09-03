@@ -18,6 +18,75 @@ import { broadcastTaskCompleted, broadcastActivityEvent } from '../sockets/handl
 import { sendPushNotification } from '../services/push.js';
 import { calculateUserStreak } from '../services/streaks.js';
 
+const WEEKDAY_MAP: Record<string, number> = {
+  sun: 0,
+  mon: 1,
+  tue: 2,
+  wed: 3,
+  thu: 4,
+  fri: 5,
+  sat: 6,
+};
+
+export function computeNextOccurrenceDate(
+  recurrence: 'once' | 'daily' | 'weekly' | 'custom',
+  customConfig?: { type: 'specific_days'; days: string[] } | { type: 'interval'; everyNDays: number } | null,
+  fromOccurrenceDate?: string
+): string | null {
+  if (recurrence === 'once') return null;
+
+  let baseDate: Date;
+  if (fromOccurrenceDate) {
+    const [y, m, d] = fromOccurrenceDate.split('-').map(Number);
+    baseDate = new Date(Date.UTC(y, m - 1, d));
+  } else {
+    const now = new Date();
+    baseDate = new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate()));
+  }
+
+  if (recurrence === 'daily') {
+    baseDate.setUTCDate(baseDate.getUTCDate() + 1);
+    return baseDate.toISOString().split('T')[0];
+  }
+
+  if (recurrence === 'weekly') {
+    baseDate.setUTCDate(baseDate.getUTCDate() + 7);
+    return baseDate.toISOString().split('T')[0];
+  }
+
+  if (recurrence === 'custom' && customConfig) {
+    if (customConfig.type === 'interval') {
+      const intervalDays = Math.max(1, customConfig.everyNDays || 1);
+      baseDate.setUTCDate(baseDate.getUTCDate() + intervalDays);
+      return baseDate.toISOString().split('T')[0];
+    }
+
+    if (customConfig.type === 'specific_days' && Array.isArray(customConfig.days) && customConfig.days.length > 0) {
+      const targetDays = customConfig.days
+        .map((d) => WEEKDAY_MAP[d.toLowerCase()])
+        .filter((d) => d !== undefined);
+
+      if (targetDays.length === 0) {
+        baseDate.setUTCDate(baseDate.getUTCDate() + 1);
+        return baseDate.toISOString().split('T')[0];
+      }
+
+      const currentDay = baseDate.getUTCDay();
+
+      for (let offset = 1; offset <= 7; offset++) {
+        const checkDay = (currentDay + offset) % 7;
+        if (targetDays.includes(checkDay)) {
+          baseDate.setUTCDate(baseDate.getUTCDate() + offset);
+          return baseDate.toISOString().split('T')[0];
+        }
+      }
+    }
+  }
+
+  baseDate.setUTCDate(baseDate.getUTCDate() + 1);
+  return baseDate.toISOString().split('T')[0];
+}
+
 export const tasksRouter = Router();
 
 // GET /api/tasks/streaks?userId=
@@ -117,6 +186,7 @@ tasksRouter.get('/', requireAuth, async (req: AuthenticatedRequest, res: Respons
       description: tasks.description,
       peopleRequired: tasks.peopleRequired,
       recurrence: tasks.recurrence,
+      customRecurrenceConfig: tasks.customRecurrenceConfig,
       createdBy: tasks.createdBy,
       active: tasks.active,
       createdAt: tasks.createdAt,
@@ -236,6 +306,7 @@ tasksRouter.post(
       description,
       peopleRequired,
       recurrence,
+      customRecurrenceConfig,
       assigneeIds,
       occurrenceDate,
     } = req.body;
@@ -253,6 +324,7 @@ tasksRouter.post(
         description,
         peopleRequired: peopleRequired || assigneeIds.length,
         recurrence,
+        customRecurrenceConfig: recurrence === 'custom' ? (customRecurrenceConfig || null) : null,
         createdBy: userId,
         active: true,
       })
@@ -308,13 +380,15 @@ tasksRouter.post(
         type: 'task_created',
         referenceId: newTask.id,
         metadata: {
-          taskTitle: newTask.title,
-          category: newTask.category,
-          peopleRequired: newTask.peopleRequired,
+          taskTitle: title,
+          category,
+          recurrence,
+          peopleRequired: peopleRequired || assigneeIds.length,
         },
       })
       .returning();
 
+    // 5. Broadcast realtime event
     try {
       const io = getIO();
       broadcastActivityEvent(io, flatId, {
@@ -352,9 +426,13 @@ tasksRouter.patch(
       .select({
         id: taskOccurrences.id,
         taskId: taskOccurrences.taskId,
+        occurrenceDate: taskOccurrences.occurrenceDate,
         status: taskOccurrences.status,
         flatId: tasks.flatId,
         taskTitle: tasks.title,
+        recurrence: tasks.recurrence,
+        customRecurrenceConfig: tasks.customRecurrenceConfig,
+        peopleRequired: tasks.peopleRequired,
       })
       .from(taskOccurrences)
       .innerJoin(tasks, eq(taskOccurrences.taskId, tasks.id))
@@ -398,6 +476,81 @@ tasksRouter.patch(
         .update(taskOccurrences)
         .set({ status: 'done' })
         .where(eq(taskOccurrences.id, occurrenceId));
+
+      // Generate next occurrence for recurring task
+      if (occ.recurrence !== 'once') {
+        const nextDate = computeNextOccurrenceDate(
+          occ.recurrence,
+          occ.customRecurrenceConfig,
+          occ.occurrenceDate
+        );
+
+        if (nextDate) {
+          const [existingNext] = await db
+            .select({ id: taskOccurrences.id })
+            .from(taskOccurrences)
+            .where(
+              and(
+                eq(taskOccurrences.taskId, occ.taskId),
+                eq(taskOccurrences.occurrenceDate, nextDate)
+              )
+            );
+
+          if (!existingNext) {
+            const [newOcc] = await db
+              .insert(taskOccurrences)
+              .values({
+                taskId: occ.taskId,
+                occurrenceDate: nextDate,
+                status: 'pending',
+              })
+              .returning();
+
+            const flatMembersList = await db
+              .select({ userId: flatMembers.userId })
+              .from(flatMembers)
+              .where(eq(flatMembers.flatId, occ.flatId))
+              .orderBy(asc(flatMembers.joinedAt));
+
+            if (flatMembersList.length > 0) {
+              const [rotState] = await db
+                .select()
+                .from(taskRotationState)
+                .where(eq(taskRotationState.taskId, occ.taskId));
+
+              const curIdx = rotState ? rotState.currentMemberIndex : 0;
+              const peopleReq = Math.min(occ.peopleRequired || 1, flatMembersList.length);
+              const nextAssigneeIds: string[] = [];
+
+              for (let i = 0; i < peopleReq; i++) {
+                const assignedUser = flatMembersList[(curIdx + i) % flatMembersList.length];
+                nextAssigneeIds.push(assignedUser.userId);
+              }
+
+              const newMemberValues = nextAssigneeIds.map((uId) => ({
+                occurrenceId: newOcc.id,
+                userId: uId,
+                status: 'assigned' as const,
+              }));
+
+              await db.insert(taskOccurrenceMembers).values(newMemberValues);
+
+              const newIndex = (curIdx + peopleReq) % flatMembersList.length;
+              if (rotState) {
+                await db
+                  .update(taskRotationState)
+                  .set({ currentMemberIndex: newIndex, updatedAt: new Date() })
+                  .where(eq(taskRotationState.taskId, occ.taskId));
+              } else {
+                await db.insert(taskRotationState).values({
+                  taskId: occ.taskId,
+                  currentMemberIndex: newIndex,
+                });
+              }
+            }
+          }
+        }
+      }
     } else {
       await db
         .update(taskOccurrences)
