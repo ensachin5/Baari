@@ -11,6 +11,7 @@ import {
   Platform,
   ActivityIndicator,
 } from 'react-native';
+import PagerView from 'react-native-pager-view';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Colors, Typography, Spacing, BorderRadius } from '../../lib/theme';
 import { useSession } from '../../store/session';
@@ -53,6 +54,7 @@ export default function HomeScreen() {
   const topInset = Math.max(insets.top, Platform.OS === 'android' ? 38 : 16);
 
   const [activePage, setActivePage] = useState(0);
+  const pagerRef = useRef<PagerView>(null);
   const [filter, setFilter] = useState<'today' | 'upcoming' | 'recurring'>('today');
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [skipModalState, setSkipModalState] = useState<{
@@ -66,6 +68,11 @@ export default function HomeScreen() {
   });
 
   const chatFlatListRef = useRef<FlatList>(null);
+
+  const handleSwitchPage = (pageIndex: number) => {
+    setActivePage(pageIndex);
+    pagerRef.current?.setPage(pageIndex);
+  };
 
   // Custom Hooks
   const {
@@ -133,7 +140,7 @@ export default function HomeScreen() {
         <View style={styles.indicatorContainer}>
           <TouchableOpacity
             activeOpacity={0.8}
-            onPress={() => setActivePage(0)}
+            onPress={() => handleSwitchPage(0)}
             style={[styles.indicatorDotBtn, activePage === 0 && styles.indicatorActive]}
           >
             <CheckSquare2
@@ -152,7 +159,7 @@ export default function HomeScreen() {
           </TouchableOpacity>
           <TouchableOpacity
             activeOpacity={0.8}
-            onPress={() => setActivePage(1)}
+            onPress={() => handleSwitchPage(1)}
             style={[styles.indicatorDotBtn, activePage === 1 && styles.indicatorActive]}
           >
             <MessageCircle
@@ -172,11 +179,18 @@ export default function HomeScreen() {
         </View>
       </View>
 
-      {/* PAGE 0: KAAM LIST */}
-      {activePage === 0 && (
-        <View style={styles.page}>
+      {/* 2-Page Horizontal PagerView */}
+      <PagerView
+        ref={pagerRef}
+        style={styles.pagerView}
+        initialPage={0}
+        onPageSelected={(e) => setActivePage(e.nativeEvent.position)}
+      >
+        {/* PAGE 0: KAAM LIST */}
+        <View key="0" style={styles.page}>
           <ScrollView
             contentContainerStyle={styles.kaamScrollContent}
+            showsVerticalScrollIndicator={false}
             refreshControl={
               <RefreshControl
                 refreshing={kaamRefreshing}
@@ -255,99 +269,100 @@ export default function HomeScreen() {
             <Text style={styles.fabText}>Create Kaam</Text>
           </TouchableOpacity>
         </View>
-      )}
 
-      {/* PAGE 1: REALTIME GROUP CHAT */}
-      {activePage === 1 && (
-        <KeyboardAvoidingView
-          style={styles.page}
-          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-          keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
-        >
-          <View style={styles.chatHeader}>
-            <Text style={Typography.H2}>Flat Group Chat</Text>
-            <Text style={[Typography.Caption, styles.chatSubtext]}>
-              Realtime chat with flatmates
-            </Text>
-          </View>
-
-          {chatLoading && messages.length === 0 ? (
-            <View style={styles.chatLoadingContainer}>
-              <ActivityIndicator size="large" color={Colors.navy} />
-            </View>
-          ) : (
-            <FlatList
-              ref={chatFlatListRef}
-              data={messages}
-              keyExtractor={(item) => item.id}
-              contentContainerStyle={styles.chatListContent}
-              onScroll={({ nativeEvent }) => {
-                // Fetch older messages when scrolled near top
-                if (nativeEvent.contentOffset.y < 40 && hasMore && !loadingMore) {
-                  loadMore();
-                }
-              }}
-              scrollEventThrottle={200}
-              ListHeaderComponent={
-                loadingMore ? (
-                  <View style={styles.loadMoreIndicator}>
-                    <ActivityIndicator size="small" color={Colors.navy} />
-                  </View>
-                ) : null
-              }
-              renderItem={({ item, index }) => {
-                const prevMsg = index > 0 ? messages[index - 1] : null;
-                const isDifferentSender = !prevMsg || prevMsg.senderId !== item.senderId;
-                const currentDate = formatDateDivider(item.createdAt);
-                const prevDate = prevMsg ? formatDateDivider(prevMsg.createdAt) : null;
-                const showDateDivider = currentDate && currentDate !== prevDate;
-
-                return (
-                  <View key={item.id}>
-                    {showDateDivider && (
-                      <View style={styles.dateDivider}>
-                        <Text style={styles.dateDividerText}>{currentDate}</Text>
-                      </View>
-                    )}
-                    <MessageBubble
-                      message={item}
-                      isCurrentUser={item.senderId === currentUser?.id}
-                      showSenderHeader={isDifferentSender}
-                      onRetry={retryMessage}
-                    />
-                  </View>
-                );
-              }}
-              ListEmptyComponent={
-                <View style={styles.emptyChat}>
-                  <MessageCircle size={44} color={Colors.sky} strokeWidth={1.75} />
-                  <Text style={[Typography.H2, styles.emptyChatTitle]}>
-                    No messages yet
-                  </Text>
-                  <Text style={[Typography.BodySmall, styles.emptyChatText]}>
-                    Say hi to your flatmates to kick off the conversation!
-                  </Text>
-                </View>
-              }
-            />
-          )}
-
-          {/* Typing Indicator Bar */}
-          {typingUsers.length > 0 && (
-            <View style={styles.typingBar}>
-              <Text style={styles.typingText}>
-                {typingUsers.length === 1
-                  ? `${typingUsers[0].userName} is typing...`
-                  : typingUsers.length === 2
-                  ? `${typingUsers[0].userName} and ${typingUsers[1].userName} are typing...`
-                  : `${typingUsers.length} people are typing...`}
+        {/* PAGE 1: REALTIME GROUP CHAT */}
+        <View key="1" style={styles.page}>
+          <KeyboardAvoidingView
+            style={styles.page}
+            behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+            keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
+          >
+            <View style={styles.chatHeader}>
+              <Text style={Typography.H2}>Flat Group Chat</Text>
+              <Text style={[Typography.Caption, styles.chatSubtext]}>
+                Realtime chat with flatmates
               </Text>
             </View>
-          )}
 
-          <ChatInput onSend={sendMessage} onTyping={emitTyping} />
-        </KeyboardAvoidingView>
-      )}
+            {chatLoading && messages.length === 0 ? (
+              <View style={styles.chatLoadingContainer}>
+                <ActivityIndicator size="large" color={Colors.navy} />
+              </View>
+            ) : (
+              <FlatList
+                ref={chatFlatListRef}
+                data={messages}
+                keyExtractor={(item) => item.id}
+                contentContainerStyle={styles.chatListContent}
+                showsVerticalScrollIndicator={false}
+                onScroll={({ nativeEvent }) => {
+                  // Fetch older messages when scrolled near top
+                  if (nativeEvent.contentOffset.y < 40 && hasMore && !loadingMore) {
+                    loadMore();
+                  }
+                }}
+                scrollEventThrottle={200}
+                ListHeaderComponent={
+                  loadingMore ? (
+                    <View style={styles.loadMoreIndicator}>
+                      <ActivityIndicator size="small" color={Colors.navy} />
+                    </View>
+                  ) : null
+                }
+                renderItem={({ item, index }) => {
+                  const prevMsg = index > 0 ? messages[index - 1] : null;
+                  const isDifferentSender = !prevMsg || prevMsg.senderId !== item.senderId;
+                  const currentDate = formatDateDivider(item.createdAt);
+                  const prevDate = prevMsg ? formatDateDivider(prevMsg.createdAt) : null;
+                  const showDateDivider = currentDate && currentDate !== prevDate;
+
+                  return (
+                    <View key={item.id}>
+                      {showDateDivider && (
+                        <View style={styles.dateDivider}>
+                          <Text style={styles.dateDividerText}>{currentDate}</Text>
+                        </View>
+                      )}
+                      <MessageBubble
+                        message={item}
+                        isCurrentUser={item.senderId === currentUser?.id}
+                        showSenderHeader={isDifferentSender}
+                        onRetry={retryMessage}
+                      />
+                    </View>
+                  );
+                }}
+                ListEmptyComponent={
+                  <View style={styles.emptyChat}>
+                    <MessageCircle size={44} color={Colors.sky} strokeWidth={1.75} />
+                    <Text style={[Typography.H2, styles.emptyChatTitle]}>
+                      No messages yet
+                    </Text>
+                    <Text style={[Typography.BodySmall, styles.emptyChatText]}>
+                      Say hi to your flatmates to kick off the conversation!
+                    </Text>
+                  </View>
+                }
+              />
+            )}
+
+            {/* Typing Indicator Bar */}
+            {typingUsers.length > 0 && (
+              <View style={styles.typingBar}>
+                <Text style={styles.typingText}>
+                  {typingUsers.length === 1
+                    ? `${typingUsers[0].userName} is typing...`
+                    : typingUsers.length === 2
+                    ? `${typingUsers[0].userName} and ${typingUsers[1].userName} are typing...`
+                    : `${typingUsers.length} people are typing...`}
+                </Text>
+              </View>
+            )}
+
+            <ChatInput onSend={sendMessage} onTyping={emitTyping} />
+          </KeyboardAvoidingView>
+        </View>
+      </PagerView>
 
       {/* Create Kaam Sheet */}
       <CreateKaamModal
@@ -418,6 +433,9 @@ const styles = StyleSheet.create({
   },
   indicatorTextActive: {
     color: Colors.white,
+  },
+  pagerView: {
+    flex: 1,
   },
   page: {
     flex: 1,
