@@ -28,6 +28,17 @@ export default function SignInPage() {
 
   useEffect(() => {
     hydrate();
+    if (typeof window !== "undefined") {
+      const params = new URLSearchParams(window.location.search);
+      const errorParam = params.get("error");
+      if (errorParam) {
+        if (errorParam === "state_mismatch") {
+          setError("Sign-in was interrupted. Please try clicking 'Continue with Google' again.");
+        } else {
+          setError(`Sign-in error: ${errorParam}`);
+        }
+      }
+    }
   }, [hydrate]);
 
   // If already authenticated via session, resolve flat and redirect
