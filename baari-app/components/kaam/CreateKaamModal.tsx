@@ -12,7 +12,7 @@ import { Button } from '../ui/Button';
 import { Avatar } from '../ui/Avatar';
 import { Colors, Typography, Spacing, BorderRadius } from '../../lib/theme';
 import { useQuickPicks, QuickPickPreset } from '../../hooks/useQuickPicks';
-import { EditQuickPicksModal, getCategoryIcon } from './EditQuickPicksModal';
+import { EditQuickPicksModal, renderQuickPickIcon } from './EditQuickPicksModal';
 import {
   Check,
   Plus,
@@ -329,8 +329,8 @@ export const CreateKaamModal: React.FC<CreateKaamModalProps> = ({
                     isSelected && styles.quickPickChipActive,
                   ]}
                 >
-                  {getCategoryIcon(
-                    item.category,
+                  {renderQuickPickIcon(
+                    item,
                     15,
                     isSelected ? Colors.white : Colors.navy
                   )}

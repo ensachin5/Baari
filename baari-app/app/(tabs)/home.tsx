@@ -29,7 +29,7 @@ import {
   Plus,
   MessageCircle,
   CheckSquare2,
-  Sparkles,
+  ClipboardCheck,
 } from 'lucide-react-native';
 
 function formatDateDivider(isoString: string): string {
@@ -248,7 +248,7 @@ export default function HomeScreen() {
               ))
             ) : (
               <View style={styles.emptyState}>
-                <Sparkles size={40} color={Colors.sky} />
+                <ClipboardCheck size={40} color={Colors.sky} strokeWidth={1.8} />
                 <Text style={[Typography.H2, styles.emptyTitle]}>
                   No Kaam due in this view!
                 </Text>

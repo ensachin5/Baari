@@ -9,13 +9,13 @@ import { eq, and, asc } from 'drizzle-orm';
 export const quickPicksRouter = Router();
 
 export const DEFAULT_QUICK_PICKS = [
-  { label: 'Water', title: 'Water Tank Refill', category: 'water' as const, sortOrder: 0 },
-  { label: 'Trash', title: 'Trash', category: 'garbage' as const, sortOrder: 1 },
-  { label: 'Sweeping', title: 'Sweeping', category: 'chore' as const, sortOrder: 2 },
-  { label: 'Bathroom', title: 'Bathroom', category: 'chore' as const, sortOrder: 3 },
-  { label: 'Dishes', title: 'Dishes', category: 'chore' as const, sortOrder: 4 },
-  { label: 'Laundry', title: 'Laundry', category: 'chore' as const, sortOrder: 5 },
-  { label: 'Groceries', title: 'Groceries', category: 'custom' as const, sortOrder: 6 },
+  { label: 'Water', title: 'Water Tank Refill', category: 'water' as const, icon: 'Droplet', sortOrder: 0 },
+  { label: 'Trash', title: 'Trash', category: 'garbage' as const, icon: 'Trash2', sortOrder: 1 },
+  { label: 'Sweeping', title: 'Sweeping', category: 'chore' as const, icon: 'Wind', sortOrder: 2 },
+  { label: 'Bathroom', title: 'Bathroom', category: 'chore' as const, icon: 'Bath', sortOrder: 3 },
+  { label: 'Dishes', title: 'Dishes', category: 'chore' as const, icon: 'UtensilsCrossed', sortOrder: 4 },
+  { label: 'Laundry', title: 'Laundry', category: 'chore' as const, icon: 'Shirt', sortOrder: 5 },
+  { label: 'Groceries', title: 'Groceries', category: 'custom' as const, icon: 'ShoppingCart', sortOrder: 6 },
 ];
 
 // 1. GET /api/quick-picks?flatId=
@@ -54,6 +54,7 @@ quickPicksRouter.get(
         label: p.label,
         title: p.title,
         category: p.category,
+        icon: p.icon,
         sortOrder: p.sortOrder,
       }));
 
@@ -71,7 +72,7 @@ quickPicksRouter.post(
   requireAuth,
   validate(createQuickPickSchema),
   async (req: AuthenticatedRequest, res: Response): Promise<void> => {
-    const { flatId, label, title, category, sortOrder } = req.body;
+    const { flatId, label, title, category, icon, sortOrder } = req.body;
     const userId = req.user!.id;
 
     // Verify membership
@@ -104,6 +105,7 @@ quickPicksRouter.post(
         label,
         title,
         category,
+        icon: icon || 'Droplet',
         sortOrder: finalSortOrder,
       })
       .returning();
@@ -119,7 +121,7 @@ quickPicksRouter.patch(
   validate(updateQuickPickSchema),
   async (req: AuthenticatedRequest, res: Response): Promise<void> => {
     const presetId = String(req.params.id);
-    const { label, title, category, sortOrder } = req.body;
+    const { label, title, category, icon, sortOrder } = req.body;
     const userId = req.user!.id;
 
     const [existing] = await db
@@ -147,6 +149,7 @@ quickPicksRouter.patch(
     if (label !== undefined) updatePayload.label = label;
     if (title !== undefined) updatePayload.title = title;
     if (category !== undefined) updatePayload.category = category;
+    if (icon !== undefined) updatePayload.icon = icon;
     if (sortOrder !== undefined) updatePayload.sortOrder = sortOrder;
 
     const [updatedPreset] = await db

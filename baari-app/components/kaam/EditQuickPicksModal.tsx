@@ -15,13 +15,20 @@ import { QuickPickPreset } from '../../hooks/useQuickPicks';
 import {
   Trash2,
   Plus,
-  Droplets,
-  Sparkles,
+  Droplet,
+  Wind,
   Bath,
-  Utensils,
+  UtensilsCrossed,
   Shirt,
-  ShoppingBag,
-  Layers,
+  ShoppingCart,
+  Home,
+  Flame,
+  Zap,
+  Bed,
+  Tv,
+  Package,
+  Coffee,
+  CheckCircle2,
   Check,
 } from 'lucide-react-native';
 
@@ -33,9 +40,25 @@ interface EditQuickPicksModalProps {
     label: string;
     title: string;
     category: 'water' | 'garbage' | 'chore' | 'custom';
+    icon?: string;
   }) => Promise<any>;
   onDelete: (id: string) => Promise<void>;
 }
+
+export const ICON_OPTIONS = [
+  { name: 'Droplet', label: 'Water', icon: Droplet },
+  { name: 'Trash2', label: 'Trash', icon: Trash2 },
+  { name: 'Wind', label: 'Sweeping', icon: Wind },
+  { name: 'Bath', label: 'Bathroom', icon: Bath },
+  { name: 'UtensilsCrossed', label: 'Dishes', icon: UtensilsCrossed },
+  { name: 'Shirt', label: 'Laundry', icon: Shirt },
+  { name: 'ShoppingCart', label: 'Groceries', icon: ShoppingCart },
+  { name: 'Home', label: 'Home', icon: Home },
+  { name: 'Flame', label: 'Kitchen/Gas', icon: Flame },
+  { name: 'Zap', label: 'Electricity', icon: Zap },
+  { name: 'Bed', label: 'Bedding', icon: Bed },
+  { name: 'Coffee', label: 'Breakfast', icon: Coffee },
+];
 
 const CATEGORIES: { label: string; value: 'water' | 'garbage' | 'chore' | 'custom' }[] = [
   { label: '💧 Water', value: 'water' },
@@ -44,18 +67,64 @@ const CATEGORIES: { label: string; value: 'water' | 'garbage' | 'chore' | 'custo
   { label: '✨ Custom', value: 'custom' },
 ];
 
-export const getCategoryIcon = (category: string, size: number = 16, color: string = Colors.navy) => {
-  switch (category) {
-    case 'water':
-      return <Droplets size={size} color={color} strokeWidth={2.2} />;
-    case 'garbage':
-      return <Trash2 size={size} color={color} strokeWidth={2.2} />;
-    case 'chore':
-      return <Sparkles size={size} color={color} strokeWidth={2.2} />;
-    case 'custom':
-    default:
-      return <ShoppingBag size={size} color={color} strokeWidth={2.2} />;
+export const renderQuickPickIcon = (
+  presetOrName?: string | QuickPickPreset | null,
+  size: number = 16,
+  color: string = Colors.navy
+) => {
+  let iconKey = '';
+  let label = '';
+  let category = '';
+
+  if (typeof presetOrName === 'string') {
+    iconKey = presetOrName;
+  } else if (presetOrName) {
+    iconKey = presetOrName.icon || '';
+    label = (presetOrName.label || presetOrName.title || '').toLowerCase();
+    category = (presetOrName.category || '').toLowerCase();
   }
+
+  // 1. Direct icon key matching
+  const keyLower = iconKey.toLowerCase();
+  if (keyLower.includes('droplet') || keyLower.includes('water') || label.includes('water') || category === 'water') {
+    return <Droplet size={size} color={color} strokeWidth={2.2} />;
+  }
+  if (keyLower.includes('trash') || keyLower.includes('garbage') || label.includes('trash') || category === 'garbage') {
+    return <Trash2 size={size} color={color} strokeWidth={2.2} />;
+  }
+  if (keyLower.includes('wind') || keyLower.includes('brush') || label.includes('sweep') || label.includes('broom')) {
+    return <Wind size={size} color={color} strokeWidth={2.2} />;
+  }
+  if (keyLower.includes('bath') || label.includes('bath') || label.includes('toilet') || label.includes('washroom')) {
+    return <Bath size={size} color={color} strokeWidth={2.2} />;
+  }
+  if (keyLower.includes('utensil') || keyLower.includes('dish') || label.includes('dish') || label.includes('plate')) {
+    return <UtensilsCrossed size={size} color={color} strokeWidth={2.2} />;
+  }
+  if (keyLower.includes('shirt') || keyLower.includes('laund') || label.includes('laund') || label.includes('cloth')) {
+    return <Shirt size={size} color={color} strokeWidth={2.2} />;
+  }
+  if (keyLower.includes('cart') || keyLower.includes('bag') || keyLower.includes('groc') || label.includes('groc') || label.includes('shop')) {
+    return <ShoppingCart size={size} color={color} strokeWidth={2.2} />;
+  }
+  if (keyLower.includes('home') || label.includes('home') || label.includes('room')) {
+    return <Home size={size} color={color} strokeWidth={2.2} />;
+  }
+  if (keyLower.includes('flame') || label.includes('gas') || label.includes('cook')) {
+    return <Flame size={size} color={color} strokeWidth={2.2} />;
+  }
+  if (keyLower.includes('zap') || label.includes('electr') || label.includes('power')) {
+    return <Zap size={size} color={color} strokeWidth={2.2} />;
+  }
+  if (keyLower.includes('bed') || label.includes('bed') || label.includes('sheet')) {
+    return <Bed size={size} color={color} strokeWidth={2.2} />;
+  }
+  if (keyLower.includes('coffee') || label.includes('tea') || label.includes('breakfast')) {
+    return <Coffee size={size} color={color} strokeWidth={2.2} />;
+  }
+
+  // Fallback
+  return <CheckCircle2 size={size} color={color} strokeWidth={2.2} />;
 };
 
 export const EditQuickPicksModal: React.FC<EditQuickPicksModalProps> = ({
@@ -69,6 +138,7 @@ export const EditQuickPicksModal: React.FC<EditQuickPicksModalProps> = ({
   const [newLabel, setNewLabel] = useState('');
   const [newTitle, setNewTitle] = useState('');
   const [newCategory, setNewCategory] = useState<'water' | 'garbage' | 'chore' | 'custom'>('chore');
+  const [selectedIconName, setSelectedIconName] = useState('Wind');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
@@ -89,10 +159,12 @@ export const EditQuickPicksModal: React.FC<EditQuickPicksModalProps> = ({
         label: newLabel.trim(),
         title: newTitle.trim(),
         category: newCategory,
+        icon: selectedIconName,
       });
       setNewLabel('');
       setNewTitle('');
       setNewCategory('chore');
+      setSelectedIconName('Wind');
       setIsAdding(false);
     } catch (err: any) {
       setError(err.message || 'Failed to add preset');
@@ -139,7 +211,7 @@ export const EditQuickPicksModal: React.FC<EditQuickPicksModalProps> = ({
         {presets.map((preset, idx) => (
           <View key={preset.id || idx} style={styles.presetRow}>
             <View style={styles.presetIconWrap}>
-              {getCategoryIcon(preset.category, 18, Colors.navy)}
+              {renderQuickPickIcon(preset, 18, Colors.navy)}
             </View>
             <View style={styles.presetInfo}>
               <View style={styles.presetLabelRow}>
@@ -186,6 +258,31 @@ export const EditQuickPicksModal: React.FC<EditQuickPicksModalProps> = ({
             value={newTitle}
             onChangeText={setNewTitle}
           />
+
+          <Text style={styles.inputLabel}>Select Icon</Text>
+          <View style={styles.iconPickerGrid}>
+            {ICON_OPTIONS.map((opt) => {
+              const isSelected = selectedIconName === opt.name;
+              const IconComponent = opt.icon;
+              return (
+                <TouchableOpacity
+                  key={opt.name}
+                  activeOpacity={0.7}
+                  onPress={() => setSelectedIconName(opt.name)}
+                  style={[
+                    styles.iconPickerCell,
+                    isSelected && styles.iconPickerCellActive,
+                  ]}
+                >
+                  <IconComponent
+                    size={18}
+                    color={isSelected ? Colors.white : Colors.navy}
+                    strokeWidth={2.2}
+                  />
+                </TouchableOpacity>
+              );
+            })}
+          </View>
 
           <Text style={styles.inputLabel}>Category</Text>
           <View style={styles.categoryRow}>
@@ -376,6 +473,27 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     fontSize: 13,
     color: Colors.black,
+  },
+  iconPickerGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginTop: 4,
+    marginBottom: Spacing.xs,
+  },
+  iconPickerCell: {
+    width: 38,
+    height: 38,
+    borderRadius: BorderRadius.sm,
+    backgroundColor: Colors.white,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  iconPickerCellActive: {
+    backgroundColor: Colors.navy,
+    borderColor: Colors.navy,
   },
   categoryRow: {
     flexDirection: 'row',

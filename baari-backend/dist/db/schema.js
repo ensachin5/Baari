@@ -219,6 +219,7 @@ exports.quickPickPresets = (0, pg_core_1.pgTable)('quick_pick_presets', {
     label: (0, pg_core_1.text)('label').notNull(),
     title: (0, pg_core_1.text)('title').notNull(),
     category: (0, exports.taskCategory)('category').notNull(),
+    icon: (0, pg_core_1.text)('icon'),
     sortOrder: (0, pg_core_1.integer)('sort_order').default(0).notNull(),
     createdAt: (0, pg_core_1.timestamp)('created_at').defaultNow().notNull(),
 }, (table) => [(0, pg_core_1.index)('idx_quick_pick_presets_flat_id').on(table.flatId)]);

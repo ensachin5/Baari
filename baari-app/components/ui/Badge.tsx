@@ -8,7 +8,7 @@ import {
   AlertCircle,
   Droplets,
   Trash2,
-  Sparkles,
+  Brush,
   LayoutGrid,
 } from 'lucide-react-native';
 
@@ -57,7 +57,7 @@ export const Badge: React.FC<BadgeProps> = ({
         bg: '#ECFDF5',
         border: '#A7F3D0',
         color: '#059669',
-        icon: <Sparkles size={11} color="#059669" strokeWidth={2.2} />,
+        icon: <Brush size={11} color="#059669" strokeWidth={2.2} />,
       };
     }
 

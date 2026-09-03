@@ -286,6 +286,7 @@ export const quickPickPresets = pgTable(
     label: text('label').notNull(),
     title: text('title').notNull(),
     category: taskCategory('category').notNull(),
+    icon: text('icon'),
     sortOrder: integer('sort_order').default(0).notNull(),
     createdAt: timestamp('created_at').defaultNow().notNull(),
   },
