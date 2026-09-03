@@ -44,9 +44,10 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
   const isSending = message.status === 'sending';
   const isFailed = message.status === 'failed';
 
+  // ── Current user's message (right-aligned) ──────────────────────────────
   if (isCurrentUser) {
     return (
-      <View style={[styles.container, styles.currentUserContainer, isSending && { opacity: 0.65 }]}>
+      <View style={[styles.row, styles.rowRight, isSending && { opacity: 0.65 }]}>
         {isFailed && onRetry && (
           <TouchableOpacity
             onPress={() => onRetry(message)}
@@ -56,9 +57,9 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
             <RefreshCw size={14} color="#DC2626" />
           </TouchableOpacity>
         )}
-        <View style={[styles.bubble, styles.currentUserBubble, isFailed && styles.failedBubble]}>
-          <Text style={styles.currentUserText}>{message.content}</Text>
-          <Text style={styles.currentUserTime}>
+        <View style={[styles.bubble, styles.bubbleRight, isFailed && styles.failedBubble]}>
+          <Text style={styles.textRight}>{message.content}</Text>
+          <Text style={styles.timeRight}>
             {isSending ? 'Sending...' : isFailed ? 'Failed' : formatTime(message.createdAt)}
           </Text>
         </View>
@@ -66,102 +67,108 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
     );
   }
 
+  // ── Other user's message (left-aligned) ─────────────────────────────────
   return (
-    <View style={[styles.container, styles.otherUserContainer]}>
-      {showSenderHeader ? (
-        <Avatar
-          name={message.sender?.name || 'Flatmate'}
-          image={message.sender?.image}
-          size="xs"
-          style={styles.avatar}
-        />
-      ) : (
-        <View style={styles.avatarPlaceholder} />
-      )}
-      <View style={[styles.bubble, styles.otherUserBubble]}>
+    <View style={styles.row}>
+      {/* Avatar column — 28px wide, always present so bubble doesn't jump */}
+      <View style={styles.avatarCol}>
+        {showSenderHeader ? (
+          <Avatar
+            name={message.sender?.name || 'Flatmate'}
+            image={message.sender?.image}
+            size="xs"
+          />
+        ) : null}
+      </View>
+
+      {/* Bubble column */}
+      <View style={[styles.bubble, styles.bubbleLeft]}>
         {showSenderHeader && (
           <Text style={styles.senderName}>{message.sender?.name || 'Flatmate'}</Text>
         )}
-        <Text style={styles.otherUserText}>{message.content}</Text>
-        <Text style={styles.otherUserTime}>{formatTime(message.createdAt)}</Text>
+        <Text style={styles.textLeft}>{message.content}</Text>
+        <Text style={styles.timeLeft}>{formatTime(message.createdAt)}</Text>
       </View>
     </View>
   );
 };
 
+const AVATAR_COL_WIDTH = 36;
+
 const styles = StyleSheet.create({
-  container: {
-    marginVertical: 3,
-    paddingHorizontal: Spacing.md,
+  row: {
     flexDirection: 'row',
     alignItems: 'flex-end',
+    marginVertical: 2,
+    paddingHorizontal: Spacing.md,
   },
-  currentUserContainer: {
+  rowRight: {
     justifyContent: 'flex-end',
   },
-  otherUserContainer: {
-    justifyContent: 'flex-start',
-    alignItems: 'flex-end',
-  },
-  avatar: {
-    marginRight: Spacing.xs,
-    marginBottom: 2,
-  },
-  avatarPlaceholder: {
-    width: 28,
+
+  // Avatar column: fixed width, bottom-aligned
+  avatarCol: {
+    width: AVATAR_COL_WIDTH,
+    alignItems: 'flex-start',
+    justifyContent: 'flex-end',
+    paddingBottom: 2,
     marginRight: Spacing.xs,
   },
+
   bubble: {
-    maxWidth: '78%',
+    maxWidth: '75%',
     paddingVertical: Spacing.sm,
     paddingHorizontal: Spacing.md,
     borderRadius: BorderRadius.lg,
   },
-  currentUserBubble: {
-    backgroundColor: Colors.sky,
-    borderBottomRightRadius: 2,
-  },
-  otherUserBubble: {
+  bubbleLeft: {
     backgroundColor: Colors.offWhite,
     borderWidth: 1,
     borderColor: Colors.border,
     borderBottomLeftRadius: 2,
+  },
+  bubbleRight: {
+    backgroundColor: Colors.sky,
+    borderBottomRightRadius: 2,
   },
   failedBubble: {
     backgroundColor: '#FEE2E2',
     borderWidth: 1,
     borderColor: '#FCA5A5',
   },
+
   senderName: {
     ...Typography.Caption,
     color: Colors.navy,
+    fontFamily: 'Inter_700Bold',
     fontWeight: '700',
     marginBottom: 2,
   },
-  currentUserText: {
-    ...Typography.Body,
-    color: Colors.white,
-  },
-  otherUserText: {
+  textLeft: {
     ...Typography.Body,
     color: Colors.navy,
   },
-  currentUserTime: {
-    ...Typography.Caption,
-    fontSize: 10,
-    color: Colors.paleSky,
-    alignSelf: 'flex-end',
-    marginTop: 2,
+  textRight: {
+    ...Typography.Body,
+    color: Colors.white,
   },
-  otherUserTime: {
+  timeLeft: {
     ...Typography.Caption,
     fontSize: 10,
     color: Colors.grayBlack,
     alignSelf: 'flex-end',
     marginTop: 2,
   },
+  timeRight: {
+    ...Typography.Caption,
+    fontSize: 10,
+    color: Colors.paleSky,
+    alignSelf: 'flex-end',
+    marginTop: 2,
+  },
   retryBtn: {
     marginRight: Spacing.xs,
     padding: Spacing.xs,
+    alignSelf: 'center',
   },
 });

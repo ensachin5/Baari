@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { View, Text, Image, StyleSheet, ViewStyle, ImageStyle } from 'react-native';
 import { Colors, Typography, BorderRadius } from '../../lib/theme';
 
@@ -15,10 +15,12 @@ export const Avatar: React.FC<AvatarProps> = ({
   size = 'md',
   style,
 }) => {
+  const [imgFailed, setImgFailed] = useState(false);
+
   const getDimensions = () => {
     switch (size) {
       case 'xs':
-        return { size: 24, fontSize: 10 };
+        return { size: 28, fontSize: 10 };
       case 'sm':
         return { size: 32, fontSize: 13 };
       case 'lg':
@@ -42,7 +44,7 @@ export const Avatar: React.FC<AvatarProps> = ({
     return n.slice(0, 2).toUpperCase();
   };
 
-  if (image) {
+  if (image && !imgFailed) {
     return (
       <Image
         source={{ uri: image }}
@@ -51,6 +53,7 @@ export const Avatar: React.FC<AvatarProps> = ({
           { width: dim, height: dim, borderRadius: dim / 2 },
           style as any,
         ]}
+        onError={() => setImgFailed(true)}
       />
     );
   }

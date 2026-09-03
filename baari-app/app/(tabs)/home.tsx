@@ -648,7 +648,6 @@ const styles = StyleSheet.create({
   },
   emptyChat: {
     flex: 1,
-    transform: [{ scaleY: -1 }],
     alignItems: 'center',
     justifyContent: 'center',
     paddingVertical: Spacing.xxxl,
