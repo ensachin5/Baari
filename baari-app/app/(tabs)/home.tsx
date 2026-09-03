@@ -8,6 +8,7 @@ import {
   RefreshControl,
   FlatList,
   KeyboardAvoidingView,
+  Keyboard,
   Platform,
   ActivityIndicator,
 } from 'react-native';
@@ -70,6 +71,25 @@ export default function HomeScreen() {
   });
 
   const chatFlatListRef = useRef<FlatList>(null);
+
+  const [keyboardHeight, setKeyboardHeight] = useState(0);
+
+  useEffect(() => {
+    const showEvent = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';
+    const hideEvent = Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide';
+
+    const showSub = Keyboard.addListener(showEvent, (e) => {
+      setKeyboardHeight(e.endCoordinates.height);
+    });
+    const hideSub = Keyboard.addListener(hideEvent, () => {
+      setKeyboardHeight(0);
+    });
+
+    return () => {
+      showSub.remove();
+      hideSub.remove();
+    };
+  }, []);
 
   const handleSwitchPage = (pageIndex: number) => {
     setActivePage(pageIndex);
@@ -307,7 +327,13 @@ export default function HomeScreen() {
         </View>
 
         {/* PAGE 1: REALTIME GROUP CHAT */}
-        <View key="1" style={styles.page}>
+        <View
+          key="1"
+          style={[
+            styles.page,
+            { paddingBottom: Platform.OS === 'android' ? keyboardHeight : 0 },
+          ]}
+        >
           <KeyboardAvoidingView
             style={styles.page}
             behavior={Platform.OS === 'ios' ? 'padding' : undefined}
