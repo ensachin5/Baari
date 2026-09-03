@@ -127,6 +127,8 @@ export const renderQuickPickIcon = (
   return <CheckCircle2 size={size} color={color} strokeWidth={2.2} />;
 };
 
+export const getCategoryIcon = renderQuickPickIcon;
+
 export const EditQuickPicksModal: React.FC<EditQuickPicksModalProps> = ({
   visible,
   onClose,
