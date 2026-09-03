@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useMemo } from 'react';
 import {
   View,
   Text,
@@ -123,12 +123,14 @@ export default function HomeScreen() {
   const memberCount = members.length > 0 ? members.length : (activeFlat?.memberCount || 1);
   const memberCountText = `${memberCount} ${memberCount === 1 ? 'member' : 'members'}`;
 
-  // Scroll chat to bottom on new messages and mark read
+  // Inverted message order: newest first in array so it renders anchored to the bottom
+  const reversedMessages = useMemo(() => {
+    return [...messages].reverse();
+  }, [messages]);
+
+  // Mark latest message read when viewing chat page
   useEffect(() => {
     if (messages.length > 0 && activePage === 1) {
-      setTimeout(() => {
-        chatFlatListRef.current?.scrollToEnd({ animated: true });
-      }, 150);
       const lastMsg = messages[messages.length - 1];
       if (lastMsg?.id) {
         markReadUpTo(lastMsg.id);
@@ -325,28 +327,19 @@ export default function HomeScreen() {
             ) : (
               <FlatList
                 ref={chatFlatListRef}
-                data={messages}
+                data={reversedMessages}
                 keyExtractor={(item) => item.id}
+                inverted={true}
+                style={styles.chatFlatList}
                 contentContainerStyle={styles.chatListContent}
                 showsVerticalScrollIndicator={false}
-                onContentSizeChange={() => {
-                  if (messages.length > 0) {
-                    chatFlatListRef.current?.scrollToEnd({ animated: true });
-                  }
-                }}
-                onLayout={() => {
-                  if (messages.length > 0) {
-                    chatFlatListRef.current?.scrollToEnd({ animated: false });
-                  }
-                }}
-                onScroll={({ nativeEvent }) => {
-                  // Fetch older messages when scrolled near top
-                  if (nativeEvent.contentOffset.y < 40 && hasMore && !loadingMore) {
+                onEndReachedThreshold={0.4}
+                onEndReached={() => {
+                  if (hasMore && !loadingMore) {
                     loadMore();
                   }
                 }}
-                scrollEventThrottle={200}
-                ListHeaderComponent={
+                ListFooterComponent={
                   loadingMore ? (
                     <View style={styles.loadMoreIndicator}>
                       <ActivityIndicator size="small" color={Colors.navy} />
@@ -354,11 +347,14 @@ export default function HomeScreen() {
                   ) : null
                 }
                 renderItem={({ item, index }) => {
-                  const prevMsg = index > 0 ? messages[index - 1] : null;
-                  const isDifferentSender = !prevMsg || prevMsg.senderId !== item.senderId;
+                  // In inverted FlatList:
+                  // item is reversedMessages[index]
+                  // older message is reversedMessages[index + 1] (visually above)
+                  const nextOlderMsg = index < reversedMessages.length - 1 ? reversedMessages[index + 1] : null;
+                  const isDifferentSender = !nextOlderMsg || nextOlderMsg.senderId !== item.senderId;
                   const currentDate = formatDateDivider(item.createdAt);
-                  const prevDate = prevMsg ? formatDateDivider(prevMsg.createdAt) : null;
-                  const showDateDivider = currentDate && currentDate !== prevDate;
+                  const olderDate = nextOlderMsg ? formatDateDivider(nextOlderMsg.createdAt) : null;
+                  const showDateDivider = currentDate && currentDate !== olderDate;
 
                   return (
                     <View key={item.id}>
@@ -596,13 +592,15 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  chatFlatList: {
+    flex: 1,
+  },
   loadMoreIndicator: {
     paddingVertical: Spacing.sm,
     alignItems: 'center',
   },
   chatListContent: {
     paddingVertical: Spacing.md,
-    flexGrow: 1,
   },
   dateDivider: {
     alignSelf: 'center',
@@ -622,6 +620,7 @@ const styles = StyleSheet.create({
   },
   emptyChat: {
     flex: 1,
+    transform: [{ scaleY: -1 }],
     alignItems: 'center',
     justifyContent: 'center',
     paddingVertical: Spacing.xxxl,
