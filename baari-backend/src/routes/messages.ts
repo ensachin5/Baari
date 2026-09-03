@@ -102,6 +102,62 @@ messagesRouter.get('/', requireAuth, async (req: AuthenticatedRequest, res: Resp
   });
 });
 
+// POST /api/messages — Send message via REST
+messagesRouter.post('/', requireAuth, async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+  const { flatId, content } = req.body;
+  const senderId = req.user!.id;
+
+  if (!flatId || !content?.trim()) {
+    res.status(400).json({ error: 'flatId and content are required' });
+    return;
+  }
+
+  // Verify membership
+  const [membership] = await db
+    .select()
+    .from(flatMembers)
+    .where(and(eq(flatMembers.flatId, flatId), eq(flatMembers.userId, senderId)));
+
+  if (!membership) {
+    res.status(403).json({ error: 'You are not a member of this flat' });
+    return;
+  }
+
+  // Insert message
+  const [newMessage] = await db
+    .insert(messages)
+    .values({
+      flatId,
+      senderId,
+      content: content.trim(),
+    })
+    .returning();
+
+  // Sender info
+  const [sender] = await db
+    .select({
+      id: user.id,
+      name: user.name,
+      image: user.image,
+    })
+    .from(user)
+    .where(eq(user.id, senderId));
+
+  const messagePayload = {
+    ...newMessage,
+    sender: sender || { id: senderId, name: req.user!.name, image: req.user!.image },
+    reads: [],
+  };
+
+  // Broadcast via Socket.io
+  try {
+    const io = getIO();
+    io.to(flatId).emit('new_message', { message: messagePayload });
+  } catch (_) {}
+
+  res.status(201).json({ message: messagePayload });
+});
+
 // POST /api/messages/read-up-to — body: { messageId }
 messagesRouter.post('/read-up-to', requireAuth, async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   const { messageId } = req.body;

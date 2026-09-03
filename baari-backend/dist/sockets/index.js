@@ -24,40 +24,46 @@ const initSocket = (httpServer) => {
         try {
             const token = socket.handshake.auth?.token ||
                 socket.handshake.headers?.authorization?.replace('Bearer ', '');
-            const headers = new Headers();
+            error_handler_js_1.logger.info({ socketId: socket.id, hasToken: !!token }, '[Socket Handshake] Authenticating incoming connection');
+            // 1. Try Better Auth getSession
             if (token) {
-                headers.set('authorization', `Bearer ${token}`);
+                try {
+                    const headers = new Headers();
+                    headers.set('authorization', `Bearer ${token}`);
+                    const session = await auth_js_1.auth.api.getSession({ headers });
+                    if (session && session.user) {
+                        socket.data.user = session.user;
+                        socket.data.session = session.session;
+                        error_handler_js_1.logger.info({ socketId: socket.id, userId: session.user.id, name: session.user.name }, '[Socket Handshake] Better Auth verified');
+                        return next();
+                    }
+                }
+                catch (_) { }
             }
-            else if (socket.handshake.headers.cookie) {
-                headers.set('cookie', socket.handshake.headers.cookie);
-            }
-            const session = await auth_js_1.auth.api.getSession({ headers });
-            if (session && session.user) {
-                socket.data.user = session.user;
-                socket.data.session = session.session;
-                return next();
-            }
-            // Fallback: check session table directly in Neon DB
+            // 2. Direct database query fallback against session & user tables
             if (token) {
-                const foundSession = await index_js_1.db.query.session.findFirst({
-                    where: (0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(auth_schema_js_1.session.token, token), (0, drizzle_orm_1.gt)(auth_schema_js_1.session.expiresAt, new Date())),
-                });
+                const [foundSession] = await index_js_1.db
+                    .select()
+                    .from(auth_schema_js_1.session)
+                    .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(auth_schema_js_1.session.token, token), (0, drizzle_orm_1.gt)(auth_schema_js_1.session.expiresAt, new Date())));
                 if (foundSession) {
-                    const foundUser = await index_js_1.db.query.user.findFirst({
-                        where: (0, drizzle_orm_1.eq)(auth_schema_js_1.user.id, foundSession.userId),
-                    });
+                    const [foundUser] = await index_js_1.db
+                        .select()
+                        .from(auth_schema_js_1.user)
+                        .where((0, drizzle_orm_1.eq)(auth_schema_js_1.user.id, foundSession.userId));
                     if (foundUser) {
                         socket.data.user = foundUser;
                         socket.data.session = foundSession;
+                        error_handler_js_1.logger.info({ socketId: socket.id, userId: foundUser.id, name: foundUser.name }, '[Socket Handshake] DB fallback session verified');
                         return next();
                     }
                 }
             }
-            error_handler_js_1.logger.warn({ socketId: socket.id }, 'Rejected unauthenticated socket connection');
+            error_handler_js_1.logger.warn({ socketId: socket.id, tokenProvided: !!token }, '[Socket Handshake] Rejected unauthenticated socket connection');
             return next(new Error('Unauthorized'));
         }
         catch (err) {
-            error_handler_js_1.logger.error({ err, socketId: socket.id }, 'Socket authentication error');
+            error_handler_js_1.logger.error({ err, socketId: socket.id }, '[Socket Handshake] Authentication error');
             next(new Error('Authentication failed'));
         }
     });

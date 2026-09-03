@@ -160,9 +160,9 @@ export const useChat = () => {
     [activeFlat?.id]
   );
 
-  // Optimistic message send
+  // Optimistic message send with Socket.io & REST fallback
   const sendMessage = useCallback(
-    (content: string) => {
+    async (content: string) => {
       if (!activeFlat?.id || !currentUser?.id || !content.trim()) return;
 
       emitTyping(false);
@@ -186,25 +186,59 @@ export const useChat = () => {
       setMessages((prev) => [...prev, tempMessage]);
 
       const socket = getSocket();
-      socket.emit(
-        'send_message',
-        {
-          flatId: activeFlat.id,
-          content: trimmed,
-        },
-        (response: any) => {
-          if (response?.error) {
-            console.error('[useChat] Failed to send message:', response.error);
+
+      if (socket.connected) {
+        socket.emit(
+          'send_message',
+          {
+            flatId: activeFlat.id,
+            content: trimmed,
+          },
+          async (response: any) => {
+            if (response?.error) {
+              console.warn('[useChat] Socket send returned error, trying REST fallback:', response.error);
+              try {
+                const restRes = await api.post<{ message: ChatMessage }>('/api/messages', {
+                  flatId: activeFlat.id,
+                  content: trimmed,
+                });
+                if (restRes?.message) {
+                  setMessages((prev) =>
+                    prev.map((m) => (m.id === tempId ? { ...restRes.message, status: 'sent' } : m))
+                  );
+                }
+              } catch (err) {
+                console.error('[useChat] REST fallback failed:', err);
+                setMessages((prev) =>
+                  prev.map((m) => (m.id === tempId ? { ...m, status: 'failed' } : m))
+                );
+              }
+            } else if (response?.message) {
+              setMessages((prev) =>
+                prev.map((m) => (m.id === tempId ? { ...response.message, status: 'sent' } : m))
+              );
+            }
+          }
+        );
+      } else {
+        // Socket not connected, send directly via REST
+        try {
+          const restRes = await api.post<{ message: ChatMessage }>('/api/messages', {
+            flatId: activeFlat.id,
+            content: trimmed,
+          });
+          if (restRes?.message) {
             setMessages((prev) =>
-              prev.map((m) => (m.id === tempId ? { ...m, status: 'failed' } : m))
-            );
-          } else if (response?.message) {
-            setMessages((prev) =>
-              prev.map((m) => (m.id === tempId ? { ...response.message, status: 'sent' } : m))
+              prev.map((m) => (m.id === tempId ? { ...restRes.message, status: 'sent' } : m))
             );
           }
+        } catch (err) {
+          console.error('[useChat] REST send failed:', err);
+          setMessages((prev) =>
+            prev.map((m) => (m.id === tempId ? { ...m, status: 'failed' } : m))
+          );
         }
-      );
+      }
     },
     [activeFlat?.id, currentUser, emitTyping]
   );

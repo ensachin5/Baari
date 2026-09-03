@@ -46,31 +46,26 @@ export const getSocket = (): Socket => {
     });
 
     socket.on('connect', () => {
+      console.log('[Socket] Connected successfully with ID:', socket?.id);
       useSession.getState().setSocketConnected(true);
       const activeFlat = useSession.getState().activeFlat;
       if (activeFlat?.id) {
+        console.log('[Socket] Joining flat room on connect:', activeFlat.id);
         socket?.emit('join_flat', { flatId: activeFlat.id });
       }
     });
 
-    socket.on('disconnect', () => {
+    socket.on('disconnect', (reason) => {
+      console.log('[Socket] Disconnected:', reason);
       useSession.getState().setSocketConnected(false);
     });
 
     socket.on('connect_error', (error) => {
+      console.warn('[Socket] Connection error:', error.message);
       if (error.message === 'Unauthorized' || error.message === 'Authentication failed') {
         socket?.disconnect();
         return;
       }
-      if (
-        error.message === 'websocket error' ||
-        error.message === 'timeout' ||
-        error.message === 'xhr poll error'
-      ) {
-        // Socket.io automatically retries during backend spin-up or transport negotiation; suppress transient noise
-        return;
-      }
-      console.warn('[Socket] Connection error:', error.message);
     });
   }
 
@@ -79,10 +74,12 @@ export const getSocket = (): Socket => {
 
 export const connectSocket = async () => {
   const token = await resolveSocketToken();
-  if (!token) return;
-
   const s = getSocket();
+  if (token) {
+    s.auth = { token };
+  }
   if (!s.connected) {
+    console.log('[Socket] Initiating socket connection with token present:', !!token);
     s.connect();
   }
 };
@@ -97,8 +94,13 @@ export const disconnectSocket = () => {
 
 export const joinFlatRoom = (flatId: string) => {
   const s = getSocket();
-  if (s.connected && flatId) {
-    s.emit('join_flat', { flatId });
+  if (flatId) {
+    if (s.connected) {
+      console.log('[Socket] Emitting join_flat room:', flatId);
+      s.emit('join_flat', { flatId });
+    } else {
+      connectSocket();
+    }
   }
 };
 

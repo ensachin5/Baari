@@ -329,6 +329,16 @@ export default function HomeScreen() {
                 keyExtractor={(item) => item.id}
                 contentContainerStyle={styles.chatListContent}
                 showsVerticalScrollIndicator={false}
+                onContentSizeChange={() => {
+                  if (messages.length > 0) {
+                    chatFlatListRef.current?.scrollToEnd({ animated: true });
+                  }
+                }}
+                onLayout={() => {
+                  if (messages.length > 0) {
+                    chatFlatListRef.current?.scrollToEnd({ animated: false });
+                  }
+                }}
                 onScroll={({ nativeEvent }) => {
                   // Fetch older messages when scrolled near top
                   if (nativeEvent.contentOffset.y < 40 && hasMore && !loadingMore) {

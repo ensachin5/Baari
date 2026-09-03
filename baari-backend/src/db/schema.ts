@@ -13,6 +13,7 @@ import {
   uniqueIndex,
 } from 'drizzle-orm/pg-core';
 import { relations } from 'drizzle-orm';
+export * from './auth-schema.js';
 import { user } from './auth-schema.js';
 
 // Enums

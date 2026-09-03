@@ -39,44 +39,61 @@ export const initSocket = (httpServer: HTTPServer): SocketIOServer => {
         socket.handshake.auth?.token ||
         socket.handshake.headers?.authorization?.replace('Bearer ', '');
 
-      const headers = new Headers();
+      logger.info(
+        { socketId: socket.id, hasToken: !!token },
+        '[Socket Handshake] Authenticating incoming connection'
+      );
+
+      // 1. Try Better Auth getSession
       if (token) {
-        headers.set('authorization', `Bearer ${token}`);
-      } else if (socket.handshake.headers.cookie) {
-        headers.set('cookie', socket.handshake.headers.cookie);
+        try {
+          const headers = new Headers();
+          headers.set('authorization', `Bearer ${token}`);
+          const session = await auth.api.getSession({ headers });
+          if (session && session.user) {
+            socket.data.user = session.user as any;
+            socket.data.session = session.session;
+            logger.info(
+              { socketId: socket.id, userId: session.user.id, name: session.user.name },
+              '[Socket Handshake] Better Auth verified'
+            );
+            return next();
+          }
+        } catch (_) {}
       }
 
-      const session = await auth.api.getSession({ headers });
-
-      if (session && session.user) {
-        socket.data.user = session.user as any;
-        socket.data.session = session.session;
-        return next();
-      }
-
-      // Fallback: check session table directly in Neon DB
+      // 2. Direct database query fallback against session & user tables
       if (token) {
-        const foundSession = await db.query.session.findFirst({
-          where: and(eq(sessionTable.token, token), gt(sessionTable.expiresAt, new Date())),
-        });
+        const [foundSession] = await db
+          .select()
+          .from(sessionTable)
+          .where(and(eq(sessionTable.token, token), gt(sessionTable.expiresAt, new Date())));
 
         if (foundSession) {
-          const foundUser = await db.query.user.findFirst({
-            where: eq(userTable.id, foundSession.userId),
-          });
+          const [foundUser] = await db
+            .select()
+            .from(userTable)
+            .where(eq(userTable.id, foundSession.userId));
 
           if (foundUser) {
             socket.data.user = foundUser as any;
             socket.data.session = foundSession as any;
+            logger.info(
+              { socketId: socket.id, userId: foundUser.id, name: foundUser.name },
+              '[Socket Handshake] DB fallback session verified'
+            );
             return next();
           }
         }
       }
 
-      logger.warn({ socketId: socket.id }, 'Rejected unauthenticated socket connection');
+      logger.warn(
+        { socketId: socket.id, tokenProvided: !!token },
+        '[Socket Handshake] Rejected unauthenticated socket connection'
+      );
       return next(new Error('Unauthorized'));
     } catch (err: any) {
-      logger.error({ err, socketId: socket.id }, 'Socket authentication error');
+      logger.error({ err, socketId: socket.id }, '[Socket Handshake] Authentication error');
       next(new Error('Authentication failed'));
     }
   });
