@@ -75,6 +75,7 @@ export default function HomeScreen() {
     completingId,
     completeTask,
     createTask,
+    deleteTask,
     onRefresh: onKaamRefresh,
   } = useKaam();
 
@@ -224,6 +225,7 @@ export default function HomeScreen() {
                   key={task.id}
                   task={task}
                   onComplete={completeTask}
+                  onDelete={deleteTask}
                   onSkipTurn={(occId, taskTitle) =>
                     setSkipModalState({ visible: true, occId, taskTitle })
                   }

@@ -645,3 +645,66 @@ exports.tasksRouter.get('/:id/rotation-history', auth_guard_js_1.requireAuth, as
     }));
     res.json({ history });
 });
+// DELETE /api/tasks/:id
+exports.tasksRouter.delete('/:id', auth_guard_js_1.requireAuth, async (req, res) => {
+    const taskId = String(req.params.id);
+    const userId = req.user.id;
+    // 1. Fetch task
+    const [task] = await index_js_1.db
+        .select({
+        id: schema_js_1.tasks.id,
+        flatId: schema_js_1.tasks.flatId,
+        title: schema_js_1.tasks.title,
+        createdBy: schema_js_1.tasks.createdBy,
+    })
+        .from(schema_js_1.tasks)
+        .where((0, drizzle_orm_1.eq)(schema_js_1.tasks.id, taskId));
+    if (!task) {
+        res.status(404).json({ error: 'Task not found' });
+        return;
+    }
+    // 2. Fetch user's role in the flat
+    const [membership] = await index_js_1.db
+        .select({ role: schema_js_1.flatMembers.role })
+        .from(schema_js_1.flatMembers)
+        .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(schema_js_1.flatMembers.flatId, task.flatId), (0, drizzle_orm_1.eq)(schema_js_1.flatMembers.userId, userId)));
+    if (!membership) {
+        res.status(403).json({ error: 'You are not a member of this flat' });
+        return;
+    }
+    const isCreator = task.createdBy === userId;
+    const isAdmin = membership.role === 'admin';
+    if (!isCreator && !isAdmin) {
+        res.status(403).json({ error: 'Only the task creator or a flat admin can delete this Kaam' });
+        return;
+    }
+    // 3. Log activity before deleting (snapshotting title into metadata)
+    const [activity] = await index_js_1.db
+        .insert(schema_js_1.activityLog)
+        .values({
+        flatId: task.flatId,
+        actorId: userId,
+        type: 'task_deleted',
+        referenceId: task.id,
+        metadata: {
+            taskTitle: task.title,
+        },
+    })
+        .returning();
+    // 4. Delete the task (cascades to task_occurrences, task_occurrence_members, task_rotation_state)
+    await index_js_1.db.delete(schema_js_1.tasks).where((0, drizzle_orm_1.eq)(schema_js_1.tasks.id, taskId));
+    // 5. Broadcast realtime events
+    try {
+        const io = (0, index_js_2.getIO)();
+        (0, handlers_js_1.broadcastTaskDeleted)(io, task.flatId, {
+            taskId: task.id,
+            taskTitle: task.title,
+        });
+        (0, handlers_js_1.broadcastActivityEvent)(io, task.flatId, {
+            ...activity,
+            actor: { id: req.user.id, name: req.user.name, image: req.user.image },
+        });
+    }
+    catch (_) { }
+    res.json({ success: true, message: 'Kaam deleted successfully' });
+});

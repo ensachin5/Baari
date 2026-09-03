@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.broadcastActivityEvent = exports.broadcastTaskCompleted = exports.registerSocketHandlers = void 0;
+exports.broadcastActivityEvent = exports.broadcastTaskDeleted = exports.broadcastTaskCompleted = exports.registerSocketHandlers = void 0;
 const index_js_1 = require("../db/index.js");
 const schema_js_1 = require("../db/schema.js");
 const chat_js_1 = require("../schemas/chat.js");
@@ -101,6 +101,10 @@ const broadcastTaskCompleted = (io, flatId, data) => {
     io.to(flatId).emit('task_completed', data);
 };
 exports.broadcastTaskCompleted = broadcastTaskCompleted;
+const broadcastTaskDeleted = (io, flatId, data) => {
+    io.to(flatId).emit('task_deleted', data);
+};
+exports.broadcastTaskDeleted = broadcastTaskDeleted;
 const broadcastActivityEvent = (io, flatId, entry) => {
     io.to(flatId).emit('activity_event', { entry });
 };

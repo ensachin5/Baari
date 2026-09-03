@@ -15,6 +15,7 @@ exports.activityType = (0, pg_core_1.pgEnum)('activity_type', [
     'task_completed',
     'task_missed',
     'task_skipped',
+    'task_deleted',
     'expense_added',
     'settlement',
     'settlement_confirmed',

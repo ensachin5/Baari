@@ -26,6 +26,7 @@ export const activityType = pgEnum('activity_type', [
   'task_completed',
   'task_missed',
   'task_skipped',
+  'task_deleted',
   'expense_added',
   'settlement',
   'settlement_confirmed',

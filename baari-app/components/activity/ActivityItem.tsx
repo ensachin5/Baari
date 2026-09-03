@@ -11,6 +11,7 @@ import {
   HandCoins,
   ShieldCheck,
   UserPlus,
+  Trash2,
 } from 'lucide-react-native';
 
 export interface ActivityEntry {
@@ -22,6 +23,7 @@ export interface ActivityEntry {
     | 'task_completed'
     | 'task_missed'
     | 'task_skipped'
+    | 'task_deleted'
     | 'expense_added'
     | 'settlement'
     | 'settlement_confirmed'
@@ -89,6 +91,13 @@ export const ActivityItem: React.FC<ActivityItemProps> = ({ activity, onPress })
           bg: '#FEF2F2',
           border: '#FECACA',
           actionText: `missed Kaam "${activity.metadata?.taskTitle || 'Task'}"`,
+        };
+      case 'task_deleted':
+        return {
+          icon: <Trash2 size={13} color="#DC2626" strokeWidth={2.2} />,
+          bg: '#FEF2F2',
+          border: '#FECACA',
+          actionText: `deleted Kaam "${activity.metadata?.taskTitle || 'Task'}"`,
         };
       case 'expense_added':
         return {

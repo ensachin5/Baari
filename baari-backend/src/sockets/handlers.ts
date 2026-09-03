@@ -117,6 +117,17 @@ export const broadcastTaskCompleted = (
   io.to(flatId).emit('task_completed', data);
 };
 
+export const broadcastTaskDeleted = (
+  io: SocketIOServer,
+  flatId: string,
+  data: {
+    taskId: string;
+    taskTitle: string;
+  }
+) => {
+  io.to(flatId).emit('task_deleted', data);
+};
+
 export const broadcastActivityEvent = (
   io: SocketIOServer,
   flatId: string,

@@ -60,10 +60,16 @@ export const useKaam = () => {
       );
     };
 
+    const handleTaskDeleted = (data: { taskId: string }) => {
+      setTasks((prev) => prev.filter((t) => t.id !== data.taskId));
+    };
+
     socket.on('task_completed', handleTaskCompleted);
+    socket.on('task_deleted', handleTaskDeleted);
 
     return () => {
       socket.off('task_completed', handleTaskCompleted);
+      socket.off('task_deleted', handleTaskDeleted);
     };
   }, []);
 
@@ -130,6 +136,20 @@ export const useKaam = () => {
     await fetchTasks();
   };
 
+  const deleteTask = async (taskId: string) => {
+    const previousTasks = [...tasks];
+    // Optimistically remove from state
+    setTasks((prev) => prev.filter((t) => t.id !== taskId));
+
+    try {
+      await api.delete(`/api/tasks/${taskId}`);
+    } catch (error) {
+      console.error('Error deleting task, reverting state:', error);
+      setTasks(previousTasks);
+      throw error;
+    }
+  };
+
   const onRefresh = () => {
     setRefreshing(true);
     fetchTasks();
@@ -142,6 +162,7 @@ export const useKaam = () => {
     completingId,
     completeTask,
     createTask,
+    deleteTask,
     onRefresh,
   };
 };
