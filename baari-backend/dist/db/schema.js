@@ -14,7 +14,7 @@ var __exportStar = (this && this.__exportStar) || function(m, exports) {
     for (var p in m) if (p !== "default" && !Object.prototype.hasOwnProperty.call(exports, p)) __createBinding(exports, m, p);
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.verification = exports.account = exports.session = exports.user = exports.activityLogRelations = exports.settlementsRelations = exports.expenseSplitsRelations = exports.expensesRelations = exports.messagesRelations = exports.taskOccurrenceMembersRelations = exports.taskOccurrencesRelations = exports.tasksRelations = exports.flatMembersRelations = exports.quickPickPresetsRelations = exports.flatsRelations = exports.quickPickPresets = exports.pushTokens = exports.activityLog = exports.settlements = exports.expenseComments = exports.expenseSplits = exports.expenses = exports.messageReads = exports.messages = exports.taskRotationState = exports.taskOccurrenceMembers = exports.taskOccurrences = exports.tasks = exports.flatMembers = exports.flats = exports.expenseRecurrence = exports.settlementStatus = exports.pushDeviceType = exports.activityType = exports.occurrenceMemberStatus = exports.occurrenceStatus = exports.taskRecurrence = exports.taskCategory = exports.flatMemberRole = void 0;
+exports.verification = exports.account = exports.session = exports.user = exports.activityLogRelations = exports.settlementsRelations = exports.expenseSplitsRelations = exports.expensesRelations = exports.messagesRelations = exports.taskOccurrenceMembersRelations = exports.taskOccurrencesRelations = exports.tasksRelations = exports.flatMembersRelations = exports.quickPickPresetsRelations = exports.groceryItemsRelations = exports.announcementsRelations = exports.flatsRelations = exports.groceryItems = exports.announcements = exports.quickPickPresets = exports.pushTokens = exports.activityLog = exports.settlements = exports.expenseComments = exports.expenseSplits = exports.expenses = exports.messageReads = exports.messages = exports.taskRotationState = exports.taskOccurrenceMembers = exports.taskOccurrences = exports.tasks = exports.flatMembers = exports.flats = exports.groceryItemStatus = exports.expenseRecurrence = exports.settlementStatus = exports.pushDeviceType = exports.activityType = exports.occurrenceMemberStatus = exports.occurrenceStatus = exports.taskRecurrence = exports.taskCategory = exports.flatMemberRole = void 0;
 const pg_core_1 = require("drizzle-orm/pg-core");
 const drizzle_orm_1 = require("drizzle-orm");
 __exportStar(require("./auth-schema.js"), exports);
@@ -39,6 +39,7 @@ exports.activityType = (0, pg_core_1.pgEnum)('activity_type', [
 exports.pushDeviceType = (0, pg_core_1.pgEnum)('push_device_type', ['ios', 'android']);
 exports.settlementStatus = (0, pg_core_1.pgEnum)('settlement_status', ['pending', 'confirmed', 'rejected']);
 exports.expenseRecurrence = (0, pg_core_1.pgEnum)('expense_recurrence', ['weekly', 'monthly']);
+exports.groceryItemStatus = (0, pg_core_1.pgEnum)('grocery_item_status', ['needed', 'bought']);
 // 1. flats
 exports.flats = (0, pg_core_1.pgTable)('flats', {
     id: (0, pg_core_1.uuid)('id').defaultRandom().primaryKey(),
@@ -238,6 +239,35 @@ exports.quickPickPresets = (0, pg_core_1.pgTable)('quick_pick_presets', {
     sortOrder: (0, pg_core_1.integer)('sort_order').default(0).notNull(),
     createdAt: (0, pg_core_1.timestamp)('created_at').defaultNow().notNull(),
 }, (table) => [(0, pg_core_1.index)('idx_quick_pick_presets_flat_id').on(table.flatId)]);
+// 13. announcements (pinned notices board)
+exports.announcements = (0, pg_core_1.pgTable)('announcements', {
+    id: (0, pg_core_1.uuid)('id').defaultRandom().primaryKey(),
+    flatId: (0, pg_core_1.uuid)('flat_id')
+        .references(() => exports.flats.id, { onDelete: 'cascade' })
+        .notNull(),
+    postedBy: (0, pg_core_1.uuid)('posted_by')
+        .references(() => auth_schema_js_1.user.id, { onDelete: 'cascade' })
+        .notNull(),
+    title: (0, pg_core_1.text)('title').notNull(),
+    body: (0, pg_core_1.text)('body').notNull(),
+    pinned: (0, pg_core_1.boolean)('pinned').default(true).notNull(),
+    createdAt: (0, pg_core_1.timestamp)('created_at').defaultNow().notNull(),
+}, (table) => [(0, pg_core_1.index)('idx_announcements_flat_id').on(table.flatId)]);
+// 14. grocery_items (shared grocery list)
+exports.groceryItems = (0, pg_core_1.pgTable)('grocery_items', {
+    id: (0, pg_core_1.uuid)('id').defaultRandom().primaryKey(),
+    flatId: (0, pg_core_1.uuid)('flat_id')
+        .references(() => exports.flats.id, { onDelete: 'cascade' })
+        .notNull(),
+    itemName: (0, pg_core_1.text)('item_name').notNull(),
+    addedBy: (0, pg_core_1.uuid)('added_by')
+        .references(() => auth_schema_js_1.user.id)
+        .notNull(),
+    status: (0, exports.groceryItemStatus)('status').default('needed').notNull(),
+    boughtBy: (0, pg_core_1.uuid)('bought_by').references(() => auth_schema_js_1.user.id),
+    boughtAt: (0, pg_core_1.timestamp)('bought_at'),
+    createdAt: (0, pg_core_1.timestamp)('created_at').defaultNow().notNull(),
+}, (table) => [(0, pg_core_1.index)('idx_grocery_items_flat_id').on(table.flatId)]);
 // Relations
 exports.flatsRelations = (0, drizzle_orm_1.relations)(exports.flats, ({ one, many }) => ({
     creator: one(auth_schema_js_1.user, { fields: [exports.flats.createdBy], references: [auth_schema_js_1.user.id] }),
@@ -248,6 +278,17 @@ exports.flatsRelations = (0, drizzle_orm_1.relations)(exports.flats, ({ one, man
     settlements: many(exports.settlements),
     activities: many(exports.activityLog),
     quickPickPresets: many(exports.quickPickPresets),
+    announcements: many(exports.announcements),
+    groceryItems: many(exports.groceryItems),
+}));
+exports.announcementsRelations = (0, drizzle_orm_1.relations)(exports.announcements, ({ one }) => ({
+    flat: one(exports.flats, { fields: [exports.announcements.flatId], references: [exports.flats.id] }),
+    author: one(auth_schema_js_1.user, { fields: [exports.announcements.postedBy], references: [auth_schema_js_1.user.id] }),
+}));
+exports.groceryItemsRelations = (0, drizzle_orm_1.relations)(exports.groceryItems, ({ one }) => ({
+    flat: one(exports.flats, { fields: [exports.groceryItems.flatId], references: [exports.flats.id] }),
+    creator: one(auth_schema_js_1.user, { fields: [exports.groceryItems.addedBy], references: [auth_schema_js_1.user.id] }),
+    buyer: one(auth_schema_js_1.user, { fields: [exports.groceryItems.boughtBy], references: [auth_schema_js_1.user.id] }),
 }));
 exports.quickPickPresetsRelations = (0, drizzle_orm_1.relations)(exports.quickPickPresets, ({ one }) => ({
     flat: one(exports.flats, { fields: [exports.quickPickPresets.flatId], references: [exports.flats.id] }),

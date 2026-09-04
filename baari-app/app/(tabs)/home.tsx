@@ -27,11 +27,14 @@ import { MessageBubble, ChatMessage } from '../../components/chat/MessageBubble'
 import { ChatInput } from '../../components/chat/ChatInput';
 import { SegmentedControl } from '../../components/ui/SegmentedControl';
 import { Card } from '../../components/ui/Card';
+import { AnnouncementBanner } from '../../components/announcement/AnnouncementBanner';
+import { GroceryListModal } from '../../components/grocery/GroceryListModal';
 import {
   Plus,
   MessageCircle,
   CheckSquare2,
   ClipboardCheck,
+  ShoppingCart,
 } from 'lucide-react-native';
 
 function formatDateDivider(isoString: string): string {
@@ -60,6 +63,7 @@ export default function HomeScreen() {
   const pagerRef = useRef<PagerView>(null);
   const [filter, setFilter] = useState<'today' | 'upcoming' | 'recurring'>('today');
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+  const [isGroceryModalOpen, setIsGroceryModalOpen] = useState(false);
   const [skipModalState, setSkipModalState] = useState<{
     visible: boolean;
     occId: string;
@@ -192,46 +196,57 @@ export default function HomeScreen() {
           )}
         </View>
 
-        {/* 2-Page Indicator Switcher */}
-        <View style={styles.indicatorContainer}>
+        {/* Header Right Actions */}
+        <View style={styles.topRightActions}>
           <TouchableOpacity
             activeOpacity={0.8}
-            onPress={() => handleSwitchPage(0)}
-            style={[styles.indicatorDotBtn, activePage === 0 && styles.indicatorActive]}
+            onPress={() => setIsGroceryModalOpen(true)}
+            style={styles.groceryHeaderBtn}
           >
-            <CheckSquare2
-              size={13}
-              color={activePage === 0 ? Colors.white : Colors.mutedNavy}
-              strokeWidth={2.2}
-            />
-            <Text
-              style={[
-                styles.indicatorText,
-                activePage === 0 && styles.indicatorTextActive,
-              ]}
-            >
-              Kaam
-            </Text>
+            <ShoppingCart size={15} color={Colors.navy} strokeWidth={2.2} />
           </TouchableOpacity>
-          <TouchableOpacity
-            activeOpacity={0.8}
-            onPress={() => handleSwitchPage(1)}
-            style={[styles.indicatorDotBtn, activePage === 1 && styles.indicatorActive]}
-          >
-            <MessageCircle
-              size={13}
-              color={activePage === 1 ? Colors.white : Colors.mutedNavy}
-              strokeWidth={2.2}
-            />
-            <Text
-              style={[
-                styles.indicatorText,
-                activePage === 1 && styles.indicatorTextActive,
-              ]}
+
+          {/* 2-Page Indicator Switcher */}
+          <View style={styles.indicatorContainer}>
+            <TouchableOpacity
+              activeOpacity={0.8}
+              onPress={() => handleSwitchPage(0)}
+              style={[styles.indicatorDotBtn, activePage === 0 && styles.indicatorActive]}
             >
-              Chat
-            </Text>
-          </TouchableOpacity>
+              <CheckSquare2
+                size={13}
+                color={activePage === 0 ? Colors.white : Colors.mutedNavy}
+                strokeWidth={2.2}
+              />
+              <Text
+                style={[
+                  styles.indicatorText,
+                  activePage === 0 && styles.indicatorTextActive,
+                ]}
+              >
+                Kaam
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              activeOpacity={0.8}
+              onPress={() => handleSwitchPage(1)}
+              style={[styles.indicatorDotBtn, activePage === 1 && styles.indicatorActive]}
+            >
+              <MessageCircle
+                size={13}
+                color={activePage === 1 ? Colors.white : Colors.mutedNavy}
+                strokeWidth={2.2}
+              />
+              <Text
+                style={[
+                  styles.indicatorText,
+                  activePage === 1 && styles.indicatorTextActive,
+                ]}
+              >
+                Chat
+              </Text>
+            </TouchableOpacity>
+          </View>
         </View>
       </View>
 
@@ -255,6 +270,9 @@ export default function HomeScreen() {
               />
             }
           >
+            {/* Pinned Announcements Banner */}
+            <AnnouncementBanner flatId={activeFlat?.id} />
+
             {/* Filter Tabs */}
             <SegmentedControl
               options={[
@@ -449,6 +467,13 @@ export default function HomeScreen() {
         onClose={() => setSkipModalState((s) => ({ ...s, visible: false }))}
         onSuccess={() => onKaamRefresh()}
       />
+
+      {/* Shared Grocery List Modal */}
+      <GroceryListModal
+        visible={isGroceryModalOpen}
+        onClose={() => setIsGroceryModalOpen(false)}
+        flatId={activeFlat?.id}
+      />
     </View>
   );
 }
@@ -500,6 +525,21 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.offWhite,
     borderRadius: BorderRadius.sm,
     marginTop: 4,
+  },
+  topRightActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.xs,
+  },
+  groceryHeaderBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: BorderRadius.full,
+    backgroundColor: Colors.offWhite,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: Colors.border,
   },
   indicatorContainer: {
     flexDirection: 'row',

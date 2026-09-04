@@ -75,16 +75,16 @@ export default function AppLayout({
       {/* Top Header */}
       <header className="sticky top-0 z-30 bg-white border-b border-[#E5E9F0]">
         <div className="max-w-4xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between">
-          <div className="flex items-center gap-2.5">
-            <div className="w-9 h-9 rounded-full bg-navy text-white flex items-center justify-center font-bold text-lg select-none shadow-xs">
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8 rounded-xl bg-navy text-white flex items-center justify-center font-bold text-base">
               B
             </div>
-            <div className="flex items-baseline gap-2">
-              <span className="font-bold text-navy text-[22px] tracking-tight">
+            <div>
+              <span className="font-bold text-navy text-h2 tracking-tight">
                 {activeFlat?.name || "Baari"}
               </span>
               {activeFlat?.inviteCode && (
-                <span className="hidden sm:inline-block px-2 py-0.5 rounded bg-paleSky text-deepNavy text-xs font-mono font-semibold">
+                <span className="hidden sm:inline-block ml-2 px-2 py-0.5 rounded bg-sky-light text-navy text-xs font-mono">
                   #{activeFlat.inviteCode}
                 </span>
               )}

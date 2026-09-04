@@ -135,3 +135,19 @@ export const broadcastActivityEvent = (
 ) => {
   io.to(flatId).emit('activity_event', { entry });
 };
+
+export const broadcastGroceryUpdated = (
+  io: SocketIOServer,
+  flatId: string,
+  data?: any
+) => {
+  io.to(flatId).emit('grocery_updated', data || {});
+};
+
+export const broadcastAnnouncementUpdated = (
+  io: SocketIOServer,
+  flatId: string,
+  data?: any
+) => {
+  io.to(flatId).emit('announcement_updated', data || {});
+};

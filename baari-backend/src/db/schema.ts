@@ -36,6 +36,7 @@ export const activityType = pgEnum('activity_type', [
 export const pushDeviceType = pgEnum('push_device_type', ['ios', 'android']);
 export const settlementStatus = pgEnum('settlement_status', ['pending', 'confirmed', 'rejected']);
 export const expenseRecurrence = pgEnum('expense_recurrence', ['weekly', 'monthly']);
+export const groceryItemStatus = pgEnum('grocery_item_status', ['needed', 'bought']);
 
 // 1. flats
 export const flats = pgTable('flats', {
@@ -294,6 +295,45 @@ export const quickPickPresets = pgTable(
   (table) => [index('idx_quick_pick_presets_flat_id').on(table.flatId)]
 );
 
+// 13. announcements (pinned notices board)
+export const announcements = pgTable(
+  'announcements',
+  {
+    id: uuid('id').defaultRandom().primaryKey(),
+    flatId: uuid('flat_id')
+      .references(() => flats.id, { onDelete: 'cascade' })
+      .notNull(),
+    postedBy: uuid('posted_by')
+      .references(() => user.id, { onDelete: 'cascade' })
+      .notNull(),
+    title: text('title').notNull(),
+    body: text('body').notNull(),
+    pinned: boolean('pinned').default(true).notNull(),
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+  },
+  (table) => [index('idx_announcements_flat_id').on(table.flatId)]
+);
+
+// 14. grocery_items (shared grocery list)
+export const groceryItems = pgTable(
+  'grocery_items',
+  {
+    id: uuid('id').defaultRandom().primaryKey(),
+    flatId: uuid('flat_id')
+      .references(() => flats.id, { onDelete: 'cascade' })
+      .notNull(),
+    itemName: text('item_name').notNull(),
+    addedBy: uuid('added_by')
+      .references(() => user.id)
+      .notNull(),
+    status: groceryItemStatus('status').default('needed').notNull(),
+    boughtBy: uuid('bought_by').references(() => user.id),
+    boughtAt: timestamp('bought_at'),
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+  },
+  (table) => [index('idx_grocery_items_flat_id').on(table.flatId)]
+);
+
 // Relations
 export const flatsRelations = relations(flats, ({ one, many }) => ({
   creator: one(user, { fields: [flats.createdBy], references: [user.id] }),
@@ -304,6 +344,19 @@ export const flatsRelations = relations(flats, ({ one, many }) => ({
   settlements: many(settlements),
   activities: many(activityLog),
   quickPickPresets: many(quickPickPresets),
+  announcements: many(announcements),
+  groceryItems: many(groceryItems),
+}));
+
+export const announcementsRelations = relations(announcements, ({ one }) => ({
+  flat: one(flats, { fields: [announcements.flatId], references: [flats.id] }),
+  author: one(user, { fields: [announcements.postedBy], references: [user.id] }),
+}));
+
+export const groceryItemsRelations = relations(groceryItems, ({ one }) => ({
+  flat: one(flats, { fields: [groceryItems.flatId], references: [flats.id] }),
+  creator: one(user, { fields: [groceryItems.addedBy], references: [user.id] }),
+  buyer: one(user, { fields: [groceryItems.boughtBy], references: [user.id] }),
 }));
 
 export const quickPickPresetsRelations = relations(quickPickPresets, ({ one }) => ({
