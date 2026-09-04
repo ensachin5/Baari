@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
 import { Input } from "@/components/ui/Input";
 import { Modal } from "@/components/ui/Modal";
+import { InstallPwaCard } from "@/components/pwa/InstallPwaCard";
 import {
   Copy,
   Share2,
@@ -430,6 +431,9 @@ export default function ProfilePage() {
             })}
           </Card>
         </div>
+
+        {/* PWA Install Card */}
+        <InstallPwaCard />
 
         {/* Settings & Preferences */}
         <div>
