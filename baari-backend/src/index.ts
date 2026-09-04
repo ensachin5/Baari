@@ -38,12 +38,39 @@ app.use(
   })
 );
 
+const ALLOWED_ORIGINS = [
+  'https://baari-app.vercel.app',
+  'https://baari-wkqq.onrender.com',
+  'https://baari-backend.onrender.com',
+  'http://localhost:3000',
+  'http://localhost:3001',
+  'http://localhost:8081',
+  'http://localhost:19000',
+  'http://localhost:19006',
+  ...(process.env.CLIENT_URL ? [process.env.CLIENT_URL.replace(/\/+$/, '')] : []),
+];
+
 // 2. CORS
 app.use(
   cors({
-    origin: true,
+    origin: (origin, callback) => {
+      // Allow mobile apps, curl, SSR requests with no Origin header
+      if (!origin) return callback(null, true);
+
+      if (
+        ALLOWED_ORIGINS.includes(origin) ||
+        origin.endsWith('.vercel.app') ||
+        origin.startsWith('baari://') ||
+        origin.startsWith('exp://')
+      ) {
+        return callback(null, true);
+      }
+
+      // Allow all in dev / fallback
+      return callback(null, true);
+    },
     credentials: true,
-    allowedHeaders: ['Content-Type', 'Authorization', 'Cookie', 'expo-origin', 'x-skip-oauth-proxy'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'Cookie', 'expo-origin', 'x-skip-oauth-proxy', 'x-requested-with'],
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
   })
 );
