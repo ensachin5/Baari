@@ -22,11 +22,37 @@ export interface AuthenticatedSocket extends Socket {
   };
 }
 
+const ALLOWED_SOCKET_ORIGINS = [
+  'https://baari-app.vercel.app',
+  'https://baari-wkqq.onrender.com',
+  'https://baari-backend.onrender.com',
+  'http://localhost:3000',
+  'http://localhost:3001',
+  'http://localhost:8081',
+  'http://localhost:19000',
+  'http://localhost:19006',
+  ...(process.env.CLIENT_URL ? [process.env.CLIENT_URL.replace(/\/+$/, '')] : []),
+];
+
 export const initSocket = (httpServer: HTTPServer): SocketIOServer => {
   io = new SocketIOServer(httpServer, {
     cors: {
       origin: (origin, callback) => {
-        // Echo back request origin to support withCredentials: true across all web and mobile clients
+        // Allow mobile apps, curl, tools with no origin header
+        if (!origin) return callback(null, true);
+
+        if (
+          ALLOWED_SOCKET_ORIGINS.includes(origin) ||
+          origin.endsWith('.vercel.app') ||
+          origin.startsWith('http://localhost:') ||
+          origin.startsWith('http://127.0.0.1:') ||
+          origin.startsWith('baari://') ||
+          origin.startsWith('exp://')
+        ) {
+          return callback(null, true);
+        }
+
+        // Fallback: allow origin in dev/fallback with credentials
         callback(null, true);
       },
       credentials: true,
