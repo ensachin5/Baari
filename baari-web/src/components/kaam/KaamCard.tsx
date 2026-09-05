@@ -93,7 +93,7 @@ export const KaamCard: React.FC<KaamCardProps> = ({
   return (
     <Card
       variant={isFullyDone ? "muted" : "outlined"}
-      className="mb-3"
+      className="p-4"
     >
       {/* Top row: Category & Recurrence & Next in Rotation & Status + Delete */}
       <div className="flex items-center justify-between mb-2">

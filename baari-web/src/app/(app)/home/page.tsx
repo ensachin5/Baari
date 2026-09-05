@@ -234,7 +234,7 @@ export default function HomePage() {
 
           {/* Kaam Cards */}
           {filteredTasks.length > 0 ? (
-            <div className="space-y-3 pb-24">
+            <div className="flex flex-col gap-3 pb-[90px]">
               {filteredTasks.map((task) => (
                 <KaamCard
                   key={task.id}
@@ -246,7 +246,7 @@ export default function HomePage() {
               ))}
             </div>
           ) : (
-            <div className="flex flex-col items-center justify-center py-12 px-4 text-center">
+            <div className="flex flex-col items-center justify-center py-8 px-4 text-center">
               <ClipboardCheck
                 size={40}
                 className="text-sky"
@@ -265,7 +265,7 @@ export default function HomePage() {
           <button
             type="button"
             onClick={() => setIsCreateModalOpen(true)}
-            className="fixed bottom-20 md:bottom-8 right-6 md:right-10 flex items-center gap-1.5 bg-navy text-white py-3 px-5 rounded-full font-bold text-[16px] shadow-[0_4px_8px_rgba(6,23,41,0.25)] hover:bg-deepNavy transition-all cursor-pointer z-30"
+            className="fixed bottom-20 md:bottom-5 right-5 flex items-center gap-1 bg-navy text-white py-3 px-4 rounded-full font-bold text-[16px] shadow-[0_4px_8px_rgba(6,23,41,0.25)] hover:bg-deepNavy active:bg-deepNavy transition-all cursor-pointer z-30"
           >
             <Plus size={20} className="text-white" strokeWidth={2.5} />
             <span>Create Kaam</span>
