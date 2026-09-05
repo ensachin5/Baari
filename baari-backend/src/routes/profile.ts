@@ -13,6 +13,7 @@ import { validate } from '../middleware/validate.js';
 import { updateProfileSchema, registerPushTokenSchema } from '../schemas/profile.js';
 import { calculateUserStreak } from '../services/streaks.js';
 import { eq, and, gte, or, count, sql } from 'drizzle-orm';
+import { logger } from '../middleware/error-handler.js';
 
 export const profileRouter = Router();
 
@@ -143,22 +144,76 @@ profileRouter.post(
   validate(registerPushTokenSchema),
   async (req: AuthenticatedRequest, res: Response): Promise<void> => {
     const userId = req.user!.id;
+    const userName = req.user!.name;
     const { token, deviceType } = req.body;
+    const tokenPreview = token.length > 25 ? `${token.substring(0, 15)}...${token.substring(token.length - 8)}` : token;
 
-    // Check if token already exists
-    const [existing] = await db
-      .select()
-      .from(pushTokens)
-      .where(and(eq(pushTokens.userId, userId), eq(pushTokens.token, token)));
-
-    if (!existing) {
-      await db.insert(pushTokens).values({
+    logger.info(
+      {
         userId,
-        token,
+        userName,
         deviceType,
-      });
-    }
+        tokenPreview,
+        tokenLength: token.length,
+      },
+      '[PushToken Registration] Incoming POST /api/push-tokens request'
+    );
 
-    res.json({ message: 'Push token registered successfully' });
+    try {
+      // Check if token already exists
+      const [existing] = await db
+        .select()
+        .from(pushTokens)
+        .where(and(eq(pushTokens.userId, userId), eq(pushTokens.token, token)));
+
+      if (existing) {
+        logger.info(
+          {
+            userId,
+            tokenId: existing.id,
+            deviceType: existing.deviceType,
+            tokenPreview,
+            dbInsertSucceeded: true,
+            isNew: false,
+          },
+          '[PushToken Registration] Token already exists in DB for this user'
+        );
+      } else {
+        const [inserted] = await db
+          .insert(pushTokens)
+          .values({
+            userId,
+            token,
+            deviceType,
+          })
+          .returning();
+
+        logger.info(
+          {
+            userId,
+            tokenId: inserted?.id,
+            deviceType,
+            tokenPreview,
+            dbInsertSucceeded: true,
+            isNew: true,
+          },
+          '[PushToken Registration] Successfully inserted new push token row in DB'
+        );
+      }
+
+      res.json({ message: 'Push token registered successfully' });
+    } catch (dbErr: any) {
+      logger.error(
+        {
+          userId,
+          deviceType,
+          tokenPreview,
+          error: dbErr?.message || dbErr,
+          dbInsertSucceeded: false,
+        },
+        '[PushToken Registration] Failed to insert push token into DB'
+      );
+      res.status(500).json({ error: 'Failed to register push token' });
+    }
   }
 );

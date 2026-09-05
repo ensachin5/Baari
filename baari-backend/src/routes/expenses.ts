@@ -16,6 +16,7 @@ import { eq, and, desc, inArray, ilike, asc } from 'drizzle-orm';
 import { getIO } from '../sockets/index.js';
 import { broadcastActivityEvent } from '../sockets/handlers.js';
 import { sendPushNotification } from '../services/push.js';
+import { logger } from '../middleware/error-handler.js';
 
 export const expensesRouter = Router();
 
@@ -340,6 +341,17 @@ expensesRouter.post(
       .filter((id: string) => id !== userId);
 
     if (participantUserIds.length > 0) {
+      logger.info(
+        {
+          expenseId: newExpense.id,
+          title: newExpense.title,
+          amount: newExpense.amount,
+          creatorId: req.user!.id,
+          creatorName: req.user!.name,
+          participantRecipientIds: participantUserIds,
+        },
+        '[Push Trigger 4: Expense Added / Settlement] Code path reached for new expense push'
+      );
       sendPushNotification(participantUserIds, {
         title: 'New Expense Added',
         body: `${req.user!.name} added an expense: ${newExpense.title} (₹${newExpense.amount})`,
@@ -595,6 +607,16 @@ expensesRouter.post(
     const [payee] = await db.select({ name: user.name }).from(user).where(eq(user.id, paidTo));
 
     // Send push notification to recipient to confirm
+    logger.info(
+      {
+        settlementId: newSettlement.id,
+        amount,
+        paidBy,
+        paidTo,
+        payerName: req.user!.name,
+      },
+      '[Push Trigger 4: Expense Added / Settlement] Code path reached for settlement payment sent push'
+    );
     sendPushNotification([paidTo], {
       title: 'Settlement Payment Sent',
       body: `${req.user!.name} sent you ₹${amount}. Tap to confirm receipt.`,
@@ -662,6 +684,16 @@ expensesRouter.patch(
       io.to(`flat:${st.flatId}`).emit('balance_updated', { flatId: st.flatId });
     } catch (_) {}
 
+    logger.info(
+      {
+        settlementId,
+        amount: st.amount,
+        paidBy: st.paidBy,
+        confirmedBy: req.user!.id,
+        confirmedByName: req.user!.name,
+      },
+      '[Push Trigger 4: Expense Added / Settlement] Code path reached for settlement confirmed push'
+    );
     sendPushNotification([st.paidBy], {
       title: 'Settlement Confirmed! ✅',
       body: `${req.user!.name} confirmed receiving your payment of ₹${st.amount}`,
@@ -697,6 +729,16 @@ expensesRouter.patch(
       .where(eq(settlements.id, settlementId))
       .returning();
 
+    logger.info(
+      {
+        settlementId,
+        amount: st.amount,
+        paidBy: st.paidBy,
+        rejectedBy: req.user!.id,
+        rejectedByName: req.user!.name,
+      },
+      '[Push Trigger 4: Expense Added / Settlement] Code path reached for settlement rejected push'
+    );
     sendPushNotification([st.paidBy], {
       title: 'Settlement Rejected ❌',
       body: `${req.user!.name} could not confirm receiving your payment of ₹${st.amount}`,

@@ -8,5 +8,5 @@ exports.updateProfileSchema = zod_1.z.object({
 });
 exports.registerPushTokenSchema = zod_1.z.object({
     token: zod_1.z.string().min(10),
-    deviceType: zod_1.z.enum(['ios', 'android']),
+    deviceType: zod_1.z.enum(['ios', 'android', 'web']),
 });

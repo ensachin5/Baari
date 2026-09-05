@@ -32,10 +32,38 @@ export async function resolveSocketToken(): Promise<string | null> {
   return token;
 }
 
+let isWarmingUp = false;
+
+// Pre-warm backend HTTP server before initiating WebSocket handshake
+async function warmUpBackend(): Promise<void> {
+  if (isWarmingUp) return;
+  isWarmingUp = true;
+  try {
+    console.log('[Socket] Pinging backend /health-ping to warm up cold instance before socket handshake...');
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 45000);
+    const res = await fetch(`${API_BASE_URL}/health-ping`, {
+      method: 'GET',
+      signal: controller.signal,
+    });
+    clearTimeout(timeoutId);
+    console.log('[Socket] Backend warm-up ping completed with status:', res.status);
+  } catch (err: any) {
+    console.warn('[Socket] Backend warm-up ping finished/aborted:', err?.message);
+  } finally {
+    isWarmingUp = false;
+  }
+}
+
 export const getSocket = (): Socket => {
   if (!socket) {
     socket = io(API_BASE_URL, {
       autoConnect: false,
+      reconnection: true,
+      reconnectionAttempts: Infinity,
+      reconnectionDelay: 1000,
+      reconnectionDelayMax: 5000,
+      timeout: 60000, // 60s timeout to handle Render cold starts
       transports: ['websocket', 'polling'],
       upgrade: true,
       auth: (cb) => {
@@ -92,6 +120,9 @@ export const connectSocket = async () => {
   }
   if (!s.connected) {
     console.log('[Socket] Initiating socket.connect(). Token present:', !!token);
+    if (!API_BASE_URL.includes('localhost') && !API_BASE_URL.includes('127.0.0.1')) {
+      warmUpBackend().catch(() => {});
+    }
     s.connect();
   }
 };

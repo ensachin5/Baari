@@ -17,6 +17,7 @@ import { getIO } from '../sockets/index.js';
 import { broadcastTaskCompleted, broadcastActivityEvent, broadcastTaskDeleted } from '../sockets/handlers.js';
 import { sendPushNotification } from '../services/push.js';
 import { calculateUserStreak } from '../services/streaks.js';
+import { logger } from '../middleware/error-handler.js';
 
 const WEEKDAY_MAP: Record<string, number> = {
   sun: 0,
@@ -605,6 +606,17 @@ tasksRouter.post(
 
     // Send push notification to assignees
     if (assigneeIds && assigneeIds.length > 0) {
+      logger.info(
+        {
+          taskId: newTask.id,
+          taskTitle: newTask.title,
+          category: newTask.category,
+          assigneeIds,
+          creatorId: req.user!.id,
+          creatorName: req.user!.name,
+        },
+        '[Push Trigger 2: Kaam Turn Assignment] Code path reached for new task assignment push'
+      );
       sendPushNotification(assigneeIds, {
         title: `Task Duty: ${newTask.title}`,
         body: `You're on ${newTask.category} duty today!`,
@@ -997,6 +1009,19 @@ tasksRouter.patch(
     } catch (_) {}
 
     // 9. Push notification
+    logger.info(
+      {
+        taskId: occ.taskId,
+        taskTitle: occ.taskTitle,
+        occurrenceId,
+        passedToUserId: nextMemberInfo.userId,
+        passedToName: nextMemberInfo.name,
+        senderId: req.user!.id,
+        senderName: req.user!.name,
+        reason,
+      },
+      '[Push Trigger 2: Kaam Turn Assignment] Code path reached for skip turn push'
+    );
     sendPushNotification([nextMemberInfo.userId], {
       title: `Kaam Passed to You: ${occ.taskTitle}`,
       body: `${req.user!.name} passed their turn to you.${reason ? ` Reason: "${reason}"` : ''}`,

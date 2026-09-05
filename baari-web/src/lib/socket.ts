@@ -4,11 +4,38 @@ import { API_BASE_URL } from "./api";
 import { useSession } from "@/store/session";
 
 let socket: Socket | null = null;
+let isWarmingUp = false;
+
+// Pre-warm backend HTTP server before initiating WebSocket handshake
+async function warmUpBackend(): Promise<void> {
+  if (isWarmingUp) return;
+  isWarmingUp = true;
+  try {
+    console.log('[Socket] Pinging backend /health-ping to warm up cold instance before socket handshake...');
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 45000);
+    const res = await fetch(`${API_BASE_URL}/health-ping`, {
+      method: 'GET',
+      signal: controller.signal,
+    });
+    clearTimeout(timeoutId);
+    console.log('[Socket] Backend warm-up ping completed with status:', res.status);
+  } catch (err: any) {
+    console.warn('[Socket] Backend warm-up ping finished/aborted:', err?.message);
+  } finally {
+    isWarmingUp = false;
+  }
+}
 
 export const getSocket = (): Socket => {
   if (!socket) {
     socket = io(API_BASE_URL, {
       autoConnect: false,
+      reconnection: true,
+      reconnectionAttempts: Infinity,
+      reconnectionDelay: 1000,
+      reconnectionDelayMax: 5000,
+      timeout: 60000, // 60s timeout to handle Render cold starts
       transports: ["websocket", "polling"],
       withCredentials: true,
       upgrade: true,
@@ -59,7 +86,7 @@ export const getSocket = (): Socket => {
   return socket;
 };
 
-export const connectSocket = () => {
+export const connectSocket = async () => {
   const token = useSession.getState().token;
   const s = getSocket();
   if (token) {
@@ -67,6 +94,10 @@ export const connectSocket = () => {
   }
   if (!s.connected) {
     console.log('[Socket] Initiating socket.connect(). Token present:', !!token);
+    // Non-blocking pre-warm ping for cold start
+    if (!API_BASE_URL.includes('localhost')) {
+      warmUpBackend().catch(() => {});
+    }
     s.connect();
   }
 };

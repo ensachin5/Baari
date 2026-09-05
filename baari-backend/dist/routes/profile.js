@@ -9,6 +9,7 @@ const validate_js_1 = require("../middleware/validate.js");
 const profile_js_1 = require("../schemas/profile.js");
 const streaks_js_1 = require("../services/streaks.js");
 const drizzle_orm_1 = require("drizzle-orm");
+const error_handler_js_1 = require("../middleware/error-handler.js");
 exports.profileRouter = (0, express_1.Router)();
 // GET /api/profile/stats?userId=
 exports.profileRouter.get('/stats', auth_guard_js_1.requireAuth, async (req, res) => {
@@ -97,18 +98,60 @@ exports.profileRouter.patch('/', auth_guard_js_1.requireAuth, (0, validate_js_1.
 // Register Push Token
 exports.profileRouter.post('/push-token', auth_guard_js_1.requireAuth, (0, validate_js_1.validate)(profile_js_1.registerPushTokenSchema), async (req, res) => {
     const userId = req.user.id;
+    const userName = req.user.name;
     const { token, deviceType } = req.body;
-    // Check if token already exists
-    const [existing] = await index_js_1.db
-        .select()
-        .from(schema_js_1.pushTokens)
-        .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(schema_js_1.pushTokens.userId, userId), (0, drizzle_orm_1.eq)(schema_js_1.pushTokens.token, token)));
-    if (!existing) {
-        await index_js_1.db.insert(schema_js_1.pushTokens).values({
-            userId,
-            token,
-            deviceType,
-        });
+    const tokenPreview = token.length > 25 ? `${token.substring(0, 15)}...${token.substring(token.length - 8)}` : token;
+    error_handler_js_1.logger.info({
+        userId,
+        userName,
+        deviceType,
+        tokenPreview,
+        tokenLength: token.length,
+    }, '[PushToken Registration] Incoming POST /api/push-tokens request');
+    try {
+        // Check if token already exists
+        const [existing] = await index_js_1.db
+            .select()
+            .from(schema_js_1.pushTokens)
+            .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(schema_js_1.pushTokens.userId, userId), (0, drizzle_orm_1.eq)(schema_js_1.pushTokens.token, token)));
+        if (existing) {
+            error_handler_js_1.logger.info({
+                userId,
+                tokenId: existing.id,
+                deviceType: existing.deviceType,
+                tokenPreview,
+                dbInsertSucceeded: true,
+                isNew: false,
+            }, '[PushToken Registration] Token already exists in DB for this user');
+        }
+        else {
+            const [inserted] = await index_js_1.db
+                .insert(schema_js_1.pushTokens)
+                .values({
+                userId,
+                token,
+                deviceType,
+            })
+                .returning();
+            error_handler_js_1.logger.info({
+                userId,
+                tokenId: inserted?.id,
+                deviceType,
+                tokenPreview,
+                dbInsertSucceeded: true,
+                isNew: true,
+            }, '[PushToken Registration] Successfully inserted new push token row in DB');
+        }
+        res.json({ message: 'Push token registered successfully' });
     }
-    res.json({ message: 'Push token registered successfully' });
+    catch (dbErr) {
+        error_handler_js_1.logger.error({
+            userId,
+            deviceType,
+            tokenPreview,
+            error: dbErr?.message || dbErr,
+            dbInsertSucceeded: false,
+        }, '[PushToken Registration] Failed to insert push token into DB');
+        res.status(500).json({ error: 'Failed to register push token' });
+    }
 });

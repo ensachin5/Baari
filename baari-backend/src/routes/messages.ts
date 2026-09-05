@@ -5,6 +5,8 @@ import { requireAuth, AuthenticatedRequest } from '../middleware/auth-guard.js';
 import { eq, and, desc, lt, lte, inArray } from 'drizzle-orm';
 import { getIO } from '../sockets/index.js';
 import { broadcastMessageEdited, broadcastMessageDeleted } from '../sockets/handlers.js';
+import { sendPushNotification } from '../services/push.js';
+import { logger } from '../middleware/error-handler.js';
 
 export const messagesRouter = Router();
 
@@ -161,6 +163,39 @@ messagesRouter.post('/', requireAuth, async (req: AuthenticatedRequest, res: Res
     const io = getIO();
     io.to(flatId).emit('new_message', { message: messagePayload });
   } catch (_) {}
+
+  // Send push notification to other flat members
+  try {
+    const allMembers = await db
+      .select({ userId: flatMembers.userId })
+      .from(flatMembers)
+      .where(eq(flatMembers.flatId, flatId));
+
+    const otherUserIds = allMembers
+      .map((m) => m.userId)
+      .filter((uid) => uid !== senderId);
+
+    logger.info(
+      {
+        flatId,
+        senderId,
+        senderName: req.user!.name,
+        recipientUserIds: otherUserIds,
+      },
+      '[Push Trigger 1: Chat Message] Code path reached for REST POST /api/messages'
+    );
+
+    if (otherUserIds.length > 0) {
+      const truncated = content.length > 50 ? `${content.substring(0, 47)}...` : content;
+      sendPushNotification(otherUserIds, {
+        title: req.user!.name || 'Flatmate',
+        body: truncated,
+        data: { type: 'chat', flatId },
+      });
+    }
+  } catch (pushErr: any) {
+    logger.warn({ pushErr: pushErr?.message, flatId }, '[Push Trigger 1: Chat Message] Failed to dispatch push notification');
+  }
 
   res.status(201).json({ message: messagePayload });
 });

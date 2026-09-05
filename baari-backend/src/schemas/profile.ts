@@ -7,5 +7,5 @@ export const updateProfileSchema = z.object({
 
 export const registerPushTokenSchema = z.object({
   token: z.string().min(10),
-  deviceType: z.enum(['ios', 'android']),
+  deviceType: z.enum(['ios', 'android', 'web']),
 });

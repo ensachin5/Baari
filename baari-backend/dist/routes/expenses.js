@@ -12,6 +12,7 @@ const drizzle_orm_1 = require("drizzle-orm");
 const index_js_2 = require("../sockets/index.js");
 const handlers_js_1 = require("../sockets/handlers.js");
 const push_js_1 = require("../services/push.js");
+const error_handler_js_1 = require("../middleware/error-handler.js");
 exports.expensesRouter = (0, express_1.Router)();
 // Helper: Calculate Balances and Simplified Debts
 async function calculateBalances(flatId, currentUserId) {
@@ -279,6 +280,14 @@ exports.expensesRouter.post('/', auth_guard_js_1.requireAuth, (0, validate_js_1.
         .map((s) => s.userId)
         .filter((id) => id !== userId);
     if (participantUserIds.length > 0) {
+        error_handler_js_1.logger.info({
+            expenseId: newExpense.id,
+            title: newExpense.title,
+            amount: newExpense.amount,
+            creatorId: req.user.id,
+            creatorName: req.user.name,
+            participantRecipientIds: participantUserIds,
+        }, '[Push Trigger 4: Expense Added / Settlement] Code path reached for new expense push');
         (0, push_js_1.sendPushNotification)(participantUserIds, {
             title: 'New Expense Added',
             body: `${req.user.name} added an expense: ${newExpense.title} (₹${newExpense.amount})`,
@@ -469,6 +478,13 @@ exports.expensesRouter.post(['/settle', '/settlements'], auth_guard_js_1.require
     // Get payee details
     const [payee] = await index_js_1.db.select({ name: schema_js_1.user.name }).from(schema_js_1.user).where((0, drizzle_orm_1.eq)(schema_js_1.user.id, paidTo));
     // Send push notification to recipient to confirm
+    error_handler_js_1.logger.info({
+        settlementId: newSettlement.id,
+        amount,
+        paidBy,
+        paidTo,
+        payerName: req.user.name,
+    }, '[Push Trigger 4: Expense Added / Settlement] Code path reached for settlement payment sent push');
     (0, push_js_1.sendPushNotification)([paidTo], {
         title: 'Settlement Payment Sent',
         body: `${req.user.name} sent you ₹${amount}. Tap to confirm receipt.`,
@@ -525,6 +541,13 @@ exports.expensesRouter.patch('/settlements/:id/confirm', auth_guard_js_1.require
         io.to(`flat:${st.flatId}`).emit('balance_updated', { flatId: st.flatId });
     }
     catch (_) { }
+    error_handler_js_1.logger.info({
+        settlementId,
+        amount: st.amount,
+        paidBy: st.paidBy,
+        confirmedBy: req.user.id,
+        confirmedByName: req.user.name,
+    }, '[Push Trigger 4: Expense Added / Settlement] Code path reached for settlement confirmed push');
     (0, push_js_1.sendPushNotification)([st.paidBy], {
         title: 'Settlement Confirmed! ✅',
         body: `${req.user.name} confirmed receiving your payment of ₹${st.amount}`,
@@ -550,6 +573,13 @@ exports.expensesRouter.patch('/settlements/:id/reject', auth_guard_js_1.requireA
         .set({ status: 'rejected' })
         .where((0, drizzle_orm_1.eq)(schema_js_1.settlements.id, settlementId))
         .returning();
+    error_handler_js_1.logger.info({
+        settlementId,
+        amount: st.amount,
+        paidBy: st.paidBy,
+        rejectedBy: req.user.id,
+        rejectedByName: req.user.name,
+    }, '[Push Trigger 4: Expense Added / Settlement] Code path reached for settlement rejected push');
     (0, push_js_1.sendPushNotification)([st.paidBy], {
         title: 'Settlement Rejected ❌',
         body: `${req.user.name} could not confirm receiving your payment of ₹${st.amount}`,

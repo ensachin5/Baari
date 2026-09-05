@@ -62,3 +62,77 @@ const serwist = new Serwist({
 
 serwist.addEventListeners();
 
+// Listen for incoming Web Push events
+self.addEventListener('push', (event: PushEvent) => {
+  console.log('[ServiceWorker Push] 🔔 Push event received by browser service worker:', event);
+
+  let payload = {
+    title: 'Baari Notification',
+    body: 'You have a new update in your flat.',
+    data: {} as Record<string, any>,
+  };
+
+  if (event.data) {
+    try {
+      const json = event.data.json();
+      console.log('[ServiceWorker Push] Parsed JSON push payload:', json);
+      payload = {
+        title: json.title || payload.title,
+        body: json.body || payload.body,
+        data: json.data || {},
+      };
+    } catch (_) {
+      const text = event.data.text();
+      console.log('[ServiceWorker Push] Raw text push payload:', text);
+      payload.body = text || payload.body;
+    }
+  } else {
+    console.log('[ServiceWorker Push] Push event has no payload data.');
+  }
+
+  const notificationOptions: NotificationOptions = {
+    body: payload.body,
+    icon: '/icon-192.png',
+    badge: '/icon-192.png',
+    data: payload.data,
+  };
+
+  event.waitUntil(
+    self.registration
+      .showNotification(payload.title, notificationOptions)
+      .then(() => {
+        console.log('[ServiceWorker Push] ✅ showNotification() displayed successfully:', payload.title);
+      })
+      .catch((err) => {
+        console.error('[ServiceWorker Push] ❌ showNotification() failed to display:', err);
+      })
+  );
+});
+
+// Handle notification click / tap
+self.addEventListener('notificationclick', (event: NotificationEvent) => {
+  console.log('[ServiceWorker NotificationClick] User clicked notification:', event.notification);
+  event.notification.close();
+
+  const data = event.notification.data || {};
+  let targetPath = '/home';
+  if (data.type === 'expense' || data.type === 'settlement') {
+    targetPath = '/expense';
+  } else if (data.type === 'activity') {
+    targetPath = '/activity';
+  }
+
+  event.waitUntil(
+    self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clientList) => {
+      for (const client of clientList) {
+        if (client.url.includes(targetPath) && 'focus' in client) {
+          return client.focus();
+        }
+      }
+      if (self.clients.openWindow) {
+        return self.clients.openWindow(targetPath);
+      }
+    })
+  );
+});
+

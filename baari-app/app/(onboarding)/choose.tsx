@@ -3,7 +3,7 @@ import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Card } from '../../components/ui/Card';
 import { Colors, Typography, Spacing, BorderRadius } from '../../lib/theme';
-import { Home, Users, ArrowRight } from 'lucide-react-native';
+import { House, Users, ArrowRight } from 'lucide-react-native';
 import { useSession } from '../../store/session';
 
 export default function ChooseFlatScreen() {
@@ -28,7 +28,7 @@ export default function ChooseFlatScreen() {
         >
           <View style={styles.optionRow}>
             <View style={[styles.iconBadge, { backgroundColor: Colors.navy }]}>
-              <Home size={24} color={Colors.white} />
+              <House size={24} color={Colors.white} strokeWidth={2} />
             </View>
             <View style={styles.optionTextCol}>
               <Text style={Typography.H2}>Create a new Flat</Text>

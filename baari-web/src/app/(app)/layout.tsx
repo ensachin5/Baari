@@ -6,6 +6,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { useAuthSession } from "@/lib/auth-client";
 import { useSession } from "@/store/session";
 import { useSocket } from "@/lib/socket";
+import { registerWebPushAsync } from "@/lib/web-push";
 import { Avatar } from "@/components/ui/Avatar";
 import { OfflineBanner } from "@/components/ui/OfflineBanner";
 import {
@@ -96,6 +97,14 @@ export default function AppLayout({
       router.replace("/sign-in");
     }
   }, [session, sessionLoading, user, isHydrated, router]);
+
+  // Register Web Push notifications on session and active flat mount
+  useEffect(() => {
+    if (user && activeFlat?.id) {
+      console.log('[AppLayout] User and activeFlat ready. Evaluating Web Push registration...');
+      registerWebPushAsync();
+    }
+  }, [user?.id, activeFlat?.id]);
 
   const handleCopyInvite = (e: React.MouseEvent) => {
     e.stopPropagation();

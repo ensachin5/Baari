@@ -37,7 +37,7 @@ exports.activityType = (0, pg_core_1.pgEnum)('activity_type', [
     'settlement_confirmed',
     'member_joined',
 ]);
-exports.pushDeviceType = (0, pg_core_1.pgEnum)('push_device_type', ['ios', 'android']);
+exports.pushDeviceType = (0, pg_core_1.pgEnum)('push_device_type', ['ios', 'android', 'web']);
 exports.settlementStatus = (0, pg_core_1.pgEnum)('settlement_status', ['pending', 'confirmed', 'rejected']);
 exports.expenseRecurrence = (0, pg_core_1.pgEnum)('expense_recurrence', ['weekly', 'monthly']);
 exports.groceryItemStatus = (0, pg_core_1.pgEnum)('grocery_item_status', ['needed', 'bought']);
@@ -131,6 +131,8 @@ exports.messages = (0, pg_core_1.pgTable)('messages', {
         .notNull(),
     content: (0, pg_core_1.text)('content').notNull(),
     createdAt: (0, pg_core_1.timestamp)('created_at').defaultNow().notNull(),
+    editedAt: (0, pg_core_1.timestamp)('edited_at'),
+    deletedAt: (0, pg_core_1.timestamp)('deleted_at'),
 }, (table) => [(0, pg_core_1.index)('idx_messages_flat_id').on(table.flatId)]);
 // 6b. message_reads
 exports.messageReads = (0, pg_core_1.pgTable)('message_reads', {

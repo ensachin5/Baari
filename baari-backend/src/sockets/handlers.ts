@@ -125,6 +125,18 @@ export const registerSocketHandlers = (io: SocketIOServer, socket: Authenticated
           .map((m) => m.userId)
           .filter((uid) => uid !== senderId && !activeUserIdsInRoom.has(uid));
 
+        logger.info(
+          {
+            flatId,
+            senderId,
+            senderName,
+            totalFlatMembers: allMembers.length,
+            activeSocketsInRoom: roomSockets.length,
+            offlineRecipientIds: offlineUserIds,
+          },
+          '[Push Trigger 1: Chat Message] Code path reached for chat message push dispatch'
+        );
+
         if (offlineUserIds.length > 0) {
           const truncated = content.length > 50 ? `${content.substring(0, 47)}...` : content;
           sendPushNotification(offlineUserIds, {
@@ -134,11 +146,16 @@ export const registerSocketHandlers = (io: SocketIOServer, socket: Authenticated
           });
           logger.info(
             { flatId, offlineUserCount: offlineUserIds.length, offlineUserIds },
-            '[Socket send_message] Sent push notifications to offline members'
+            '[Push Trigger 1: Chat Message] Dispatched sendPushNotification to offline members'
+          );
+        } else {
+          logger.info(
+            { flatId },
+            '[Push Trigger 1: Chat Message] All other flat members are currently active in room. No offline push required.'
           );
         }
       } catch (pushErr: any) {
-        logger.warn({ pushErr: pushErr?.message, flatId }, '[Socket send_message] Failed to dispatch push notification');
+        logger.warn({ pushErr: pushErr?.message, flatId }, '[Push Trigger 1: Chat Message] Failed to dispatch push notification');
       }
 
       if (callback) {
@@ -200,7 +217,16 @@ export const broadcastActivityEvent = (
   entry: any
 ) => {
   const roomSize = io.sockets.adapter.rooms.get(flatId)?.size || 0;
-  logger.info({ flatId, roomSocketCount: roomSize }, 'Broadcasting activity_event');
+  logger.info(
+    {
+      flatId,
+      activityType: entry?.type,
+      actorId: entry?.actorId || entry?.actor?.id,
+      actorName: entry?.actorName || entry?.actor?.name,
+      roomSocketCount: roomSize,
+    },
+    '[Push Trigger 3: Activity Event] Code path reached for activity event broadcast'
+  );
   io.to(flatId).emit('activity_event', { entry });
 };
 

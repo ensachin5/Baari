@@ -13,6 +13,7 @@ const index_js_2 = require("../sockets/index.js");
 const handlers_js_1 = require("../sockets/handlers.js");
 const push_js_1 = require("../services/push.js");
 const streaks_js_1 = require("../services/streaks.js");
+const error_handler_js_1 = require("../middleware/error-handler.js");
 const WEEKDAY_MAP = {
     sun: 0,
     mon: 1,
@@ -249,6 +250,146 @@ exports.tasksRouter.get('/', auth_guard_js_1.requireAuth, async (req, res) => {
     });
     res.json({ tasks: enrichedTasks });
 });
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+// GET /api/tasks/:id/history - Task definition and occurrence history with assignees
+exports.tasksRouter.get('/:id/history', auth_guard_js_1.requireAuth, async (req, res) => {
+    const taskId = (Array.isArray(req.params.id) ? req.params.id[0] : req.params.id);
+    const userId = req.user.id;
+    const cursor = req.query.cursor;
+    const limit = Math.min(Math.max(Number(req.query.limit) || 20, 1), 50);
+    if (!UUID_REGEX.test(taskId)) {
+        res.status(400).json({ error: 'Invalid task ID' });
+        return;
+    }
+    // 1. Fetch task definition with creator name
+    const [task] = await index_js_1.db
+        .select({
+        id: schema_js_1.tasks.id,
+        flatId: schema_js_1.tasks.flatId,
+        title: schema_js_1.tasks.title,
+        category: schema_js_1.tasks.category,
+        description: schema_js_1.tasks.description,
+        peopleRequired: schema_js_1.tasks.peopleRequired,
+        recurrence: schema_js_1.tasks.recurrence,
+        customRecurrenceConfig: schema_js_1.tasks.customRecurrenceConfig,
+        assignmentMode: schema_js_1.tasks.assignmentMode,
+        customRotationPool: schema_js_1.tasks.customRotationPool,
+        customRotationGroupSize: schema_js_1.tasks.customRotationGroupSize,
+        customRotationGroups: schema_js_1.tasks.customRotationGroups,
+        createdBy: schema_js_1.tasks.createdBy,
+        active: schema_js_1.tasks.active,
+        createdAt: schema_js_1.tasks.createdAt,
+        creatorName: schema_js_1.user.name,
+    })
+        .from(schema_js_1.tasks)
+        .innerJoin(schema_js_1.user, (0, drizzle_orm_1.eq)(schema_js_1.tasks.createdBy, schema_js_1.user.id))
+        .where((0, drizzle_orm_1.eq)(schema_js_1.tasks.id, taskId));
+    if (!task) {
+        res.status(404).json({ error: 'Task not found' });
+        return;
+    }
+    // 2. Check flat membership
+    const [membership] = await index_js_1.db
+        .select()
+        .from(schema_js_1.flatMembers)
+        .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(schema_js_1.flatMembers.flatId, task.flatId), (0, drizzle_orm_1.eq)(schema_js_1.flatMembers.userId, userId)));
+    if (!membership) {
+        res.status(403).json({ error: 'Forbidden. You are not a member of this flat.' });
+        return;
+    }
+    // 3. Visibility rule: For custom_rotation tasks, only users in the rotation pool can view history
+    if (task.assignmentMode === 'custom_rotation') {
+        const allowedPool = new Set();
+        if (Array.isArray(task.customRotationPool)) {
+            task.customRotationPool.forEach((uid) => allowedPool.add(uid));
+        }
+        if (Array.isArray(task.customRotationGroups)) {
+            task.customRotationGroups.forEach((g) => {
+                if (Array.isArray(g.userIds)) {
+                    g.userIds.forEach((uid) => allowedPool.add(uid));
+                }
+            });
+        }
+        if (allowedPool.size > 0 && !allowedPool.has(userId) && task.createdBy !== userId) {
+            res.status(403).json({ error: 'Forbidden. You are not part of this task\'s rotation pool.' });
+            return;
+        }
+    }
+    // 4. Build cursor conditions for occurrences
+    const conditions = [(0, drizzle_orm_1.eq)(schema_js_1.taskOccurrences.taskId, taskId)];
+    if (cursor) {
+        if (UUID_REGEX.test(cursor)) {
+            const [cursorOcc] = await index_js_1.db
+                .select({ occurrenceDate: schema_js_1.taskOccurrences.occurrenceDate, createdAt: schema_js_1.taskOccurrences.createdAt })
+                .from(schema_js_1.taskOccurrences)
+                .where((0, drizzle_orm_1.eq)(schema_js_1.taskOccurrences.id, cursor));
+            if (cursorOcc) {
+                conditions.push((0, drizzle_orm_1.or)((0, drizzle_orm_1.lt)(schema_js_1.taskOccurrences.occurrenceDate, cursorOcc.occurrenceDate), (0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(schema_js_1.taskOccurrences.occurrenceDate, cursorOcc.occurrenceDate), (0, drizzle_orm_1.lt)(schema_js_1.taskOccurrences.createdAt, cursorOcc.createdAt))));
+            }
+        }
+        else {
+            conditions.push((0, drizzle_orm_1.lt)(schema_js_1.taskOccurrences.occurrenceDate, cursor));
+        }
+    }
+    // 5. Query occurrences ordered by occurrenceDate DESC, createdAt DESC
+    const fetchedOccurrences = await index_js_1.db
+        .select({
+        id: schema_js_1.taskOccurrences.id,
+        taskId: schema_js_1.taskOccurrences.taskId,
+        occurrenceDate: schema_js_1.taskOccurrences.occurrenceDate,
+        status: schema_js_1.taskOccurrences.status,
+        createdAt: schema_js_1.taskOccurrences.createdAt,
+    })
+        .from(schema_js_1.taskOccurrences)
+        .where((0, drizzle_orm_1.and)(...conditions))
+        .orderBy((0, drizzle_orm_1.desc)(schema_js_1.taskOccurrences.occurrenceDate), (0, drizzle_orm_1.desc)(schema_js_1.taskOccurrences.createdAt))
+        .limit(limit + 1);
+    const hasMore = fetchedOccurrences.length > limit;
+    const pageOccurrences = hasMore ? fetchedOccurrences.slice(0, limit) : fetchedOccurrences;
+    const nextCursor = hasMore && pageOccurrences.length > 0 ? pageOccurrences[pageOccurrences.length - 1].id : null;
+    // 6. Fetch assignees/members for these occurrences
+    const occurrenceIds = pageOccurrences.map((o) => o.id);
+    const occMembers = occurrenceIds.length > 0
+        ? await index_js_1.db
+            .select({
+            id: schema_js_1.taskOccurrenceMembers.id,
+            occurrenceId: schema_js_1.taskOccurrenceMembers.occurrenceId,
+            userId: schema_js_1.taskOccurrenceMembers.userId,
+            status: schema_js_1.taskOccurrenceMembers.status,
+            completedAt: schema_js_1.taskOccurrenceMembers.completedAt,
+            userName: schema_js_1.user.name,
+            userImage: schema_js_1.user.image,
+        })
+            .from(schema_js_1.taskOccurrenceMembers)
+            .innerJoin(schema_js_1.user, (0, drizzle_orm_1.eq)(schema_js_1.taskOccurrenceMembers.userId, schema_js_1.user.id))
+            .where((0, drizzle_orm_1.inArray)(schema_js_1.taskOccurrenceMembers.occurrenceId, occurrenceIds))
+        : [];
+    const membersByOccId = new Map();
+    occMembers.forEach((m) => {
+        const list = membersByOccId.get(m.occurrenceId) || [];
+        list.push(m);
+        membersByOccId.set(m.occurrenceId, list);
+    });
+    const occurrencesWithAssignees = pageOccurrences.map((o) => ({
+        id: o.id,
+        occurrenceDate: o.occurrenceDate,
+        status: o.status,
+        createdAt: o.createdAt,
+        assignees: (membersByOccId.get(o.id) || []).map((m) => ({
+            id: m.id,
+            userId: m.userId,
+            userName: m.userName,
+            userImage: m.userImage,
+            status: m.status,
+            completedAt: m.completedAt,
+        })),
+    }));
+    res.json({
+        task,
+        occurrences: occurrencesWithAssignees,
+        nextCursor,
+    });
+});
 // Create a task
 exports.tasksRouter.post('/', auth_guard_js_1.requireAuth, (0, validate_js_1.validate)(tasks_js_1.createTaskSchema), async (req, res) => {
     const { flatId, title, category, description, peopleRequired, recurrence, customRecurrenceConfig, assignmentMode = 'auto_rotate', customRotationPool, customRotationGroupSize = 1, customRotationGroups, assigneeIds, occurrenceDate, } = req.body;
@@ -346,6 +487,14 @@ exports.tasksRouter.post('/', auth_guard_js_1.requireAuth, (0, validate_js_1.val
     catch (_) { }
     // Send push notification to assignees
     if (assigneeIds && assigneeIds.length > 0) {
+        error_handler_js_1.logger.info({
+            taskId: newTask.id,
+            taskTitle: newTask.title,
+            category: newTask.category,
+            assigneeIds,
+            creatorId: req.user.id,
+            creatorName: req.user.name,
+        }, '[Push Trigger 2: Kaam Turn Assignment] Code path reached for new task assignment push');
         (0, push_js_1.sendPushNotification)(assigneeIds, {
             title: `Task Duty: ${newTask.title}`,
             body: `You're on ${newTask.category} duty today!`,
@@ -676,6 +825,16 @@ exports.tasksRouter.patch('/occurrences/:id/skip-turn', auth_guard_js_1.requireA
     }
     catch (_) { }
     // 9. Push notification
+    error_handler_js_1.logger.info({
+        taskId: occ.taskId,
+        taskTitle: occ.taskTitle,
+        occurrenceId,
+        passedToUserId: nextMemberInfo.userId,
+        passedToName: nextMemberInfo.name,
+        senderId: req.user.id,
+        senderName: req.user.name,
+        reason,
+    }, '[Push Trigger 2: Kaam Turn Assignment] Code path reached for skip turn push');
     (0, push_js_1.sendPushNotification)([nextMemberInfo.userId], {
         title: `Kaam Passed to You: ${occ.taskTitle}`,
         body: `${req.user.name} passed their turn to you.${reason ? ` Reason: "${reason}"` : ''}`,

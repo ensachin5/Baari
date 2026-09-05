@@ -34,7 +34,7 @@ export const activityType = pgEnum('activity_type', [
   'settlement_confirmed',
   'member_joined',
 ]);
-export const pushDeviceType = pgEnum('push_device_type', ['ios', 'android']);
+export const pushDeviceType = pgEnum('push_device_type', ['ios', 'android', 'web']);
 export const settlementStatus = pgEnum('settlement_status', ['pending', 'confirmed', 'rejected']);
 export const expenseRecurrence = pgEnum('expense_recurrence', ['weekly', 'monthly']);
 export const groceryItemStatus = pgEnum('grocery_item_status', ['needed', 'bought']);
