@@ -5,8 +5,9 @@ import { useSession } from "@/store/session";
 import { useKaam } from "@/hooks/useKaam";
 import { useChat } from "@/hooks/useChat";
 import { useMembers } from "@/hooks/useMembers";
-import { KaamCard } from "@/components/kaam/KaamCard";
+import { KaamCard, KaamTask } from "@/components/kaam/KaamCard";
 import { CreateKaamModal } from "@/components/kaam/CreateKaamModal";
+import { KaamDetailModal } from "@/components/kaam/KaamDetailModal";
 import { MessageBubble } from "@/components/chat/MessageBubble";
 import { ChatInput } from "@/components/chat/ChatInput";
 import { SegmentedControl } from "@/components/ui/SegmentedControl";
@@ -46,6 +47,7 @@ export default function HomePage() {
   const [activeTab, setActiveTab] = useState<0 | 1>(0);
   const [filter, setFilter] = useState<"today" | "upcoming" | "recurring">("today");
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+  const [selectedTaskDetail, setSelectedTaskDetail] = useState<KaamTask | null>(null);
 
   const chatEndRef = useRef<HTMLDivElement>(null);
   const chatScrollContainerRef = useRef<HTMLDivElement>(null);
@@ -302,6 +304,10 @@ export default function HomePage() {
                 <KaamCard
                   key={task.id}
                   task={task}
+                  onPress={(t) => {
+                    console.log("[HomePage Web] Card clicked, setting selectedTaskDetail:", t.id, t.title);
+                    setSelectedTaskDetail(t);
+                  }}
                   onComplete={completeTask}
                   onDelete={deleteTask}
                   loading={completingId === task.currentOccurrence?.id}
@@ -458,6 +464,18 @@ export default function HomePage() {
         onSubmit={createTask}
         members={members}
         flatId={activeFlat?.id}
+      />
+
+      {/* Kaam Detail & History Modal */}
+      <KaamDetailModal
+        visible={!!selectedTaskDetail}
+        taskId={selectedTaskDetail?.id || null}
+        initialTask={selectedTaskDetail}
+        onClose={() => setSelectedTaskDetail(null)}
+        onComplete={(occId) => {
+          completeTask(occId);
+          onKaamRefresh();
+        }}
       />
     </div>
   );

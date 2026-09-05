@@ -20,8 +20,9 @@ import { useSession } from '../../store/session';
 import { useKaam } from '../../hooks/useKaam';
 import { useChat } from '../../hooks/useChat';
 import { useExpenses } from '../../hooks/useExpenses';
-import { KaamCard } from '../../components/kaam/KaamCard';
+import { KaamCard, KaamTask } from '../../components/kaam/KaamCard';
 import { CreateKaamModal } from '../../components/kaam/CreateKaamModal';
+import { KaamDetailModal } from '../../components/kaam/KaamDetailModal';
 import { SkipTurnModal } from '../../components/kaam/SkipTurnModal';
 import { MessageBubble, ChatMessage } from '../../components/chat/MessageBubble';
 import { ChatInput } from '../../components/chat/ChatInput';
@@ -64,6 +65,7 @@ export default function HomeScreen() {
   const [filter, setFilter] = useState<'today' | 'upcoming' | 'recurring'>('today');
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [isGroceryModalOpen, setIsGroceryModalOpen] = useState(false);
+  const [selectedTaskDetail, setSelectedTaskDetail] = useState<KaamTask | null>(null);
   const [skipModalState, setSkipModalState] = useState<{
     visible: boolean;
     occId: string;
@@ -314,6 +316,10 @@ export default function HomeScreen() {
                 <KaamCard
                   key={task.id}
                   task={task}
+                  onPress={(t) => {
+                    console.log('[HomeScreen] KaamCard pressed, setting selectedTaskDetail:', t.id, t.title);
+                    setSelectedTaskDetail(t);
+                  }}
                   onComplete={completeTask}
                   onDelete={deleteTask}
                   onSkipTurn={(occId, taskTitle) =>
@@ -482,6 +488,18 @@ export default function HomeScreen() {
         visible={isGroceryModalOpen}
         onClose={() => setIsGroceryModalOpen(false)}
         flatId={activeFlat?.id}
+      />
+
+      {/* Kaam Detail & History Modal */}
+      <KaamDetailModal
+        visible={!!selectedTaskDetail}
+        taskId={selectedTaskDetail?.id || null}
+        initialTask={selectedTaskDetail}
+        onClose={() => setSelectedTaskDetail(null)}
+        onComplete={(occId) => {
+          completeTask(occId);
+          onKaamRefresh();
+        }}
       />
     </View>
   );

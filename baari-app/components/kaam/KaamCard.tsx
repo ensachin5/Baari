@@ -15,6 +15,10 @@ export interface KaamTask {
   description?: string | null;
   peopleRequired: number;
   recurrence: 'once' | 'daily' | 'weekly' | 'custom';
+  assignmentMode?: 'auto_rotate' | 'all' | 'custom_rotation';
+  customRotationPool?: string[] | null;
+  customRotationGroupSize?: number | null;
+  customRotationGroups?: Array<{ groupOrder: number; userIds: string[] }> | null;
   createdBy: string;
   creatorName?: string;
   nextAssignee?: {
@@ -40,6 +44,7 @@ export interface KaamTask {
 interface KaamCardProps {
   task: KaamTask;
   onComplete: (occurrenceId: string) => void;
+  onPress?: (task: KaamTask) => void;
   onSkipTurn?: (occurrenceId: string, taskTitle: string) => void;
   onDelete?: (taskId: string) => void;
   loading?: boolean;
@@ -48,6 +53,7 @@ interface KaamCardProps {
 export const KaamCard: React.FC<KaamCardProps> = ({
   task,
   onComplete,
+  onPress,
   onSkipTurn,
   onDelete,
   loading = false,
@@ -91,7 +97,15 @@ export const KaamCard: React.FC<KaamCardProps> = ({
   };
 
   return (
-    <Card style={styles.cardContainer} variant={isFullyDone ? 'muted' : 'outlined'}>
+    <TouchableOpacity
+      activeOpacity={0.88}
+      onPress={() => {
+        console.log('[KaamCard] Tapped card:', task.id, task.title);
+        onPress?.(task);
+      }}
+      style={styles.touchableCard}
+    >
+      <Card style={styles.cardContainer} variant={isFullyDone ? 'muted' : 'outlined'}>
       {/* Top row: Category & Recurrence & Next in Rotation & Status + Delete */}
       <View style={styles.headerRow}>
         <View style={styles.badgeGroup}>
@@ -207,12 +221,16 @@ export const KaamCard: React.FC<KaamCardProps> = ({
         )}
       </View>
     </Card>
-  );
+  </TouchableOpacity>
+);
 };
 
 const styles = StyleSheet.create({
-  cardContainer: {
+  touchableCard: {
     marginBottom: Spacing.md,
+  },
+  cardContainer: {
+    marginBottom: 0,
   },
   headerRow: {
     flexDirection: 'row',

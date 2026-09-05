@@ -21,6 +21,10 @@ export interface KaamTask {
   description?: string | null;
   peopleRequired: number;
   recurrence: "once" | "daily" | "weekly" | "custom";
+  assignmentMode?: "auto_rotate" | "all" | "custom_rotation";
+  customRotationPool?: string[] | null;
+  customRotationGroupSize?: number | null;
+  customRotationGroups?: Array<{ groupOrder: number; userIds: string[] }> | null;
   createdBy: string;
   creatorName?: string;
   nextAssignee?: {
@@ -46,6 +50,7 @@ export interface KaamTask {
 interface KaamCardProps {
   task: KaamTask;
   onComplete: (occurrenceId: string) => void;
+  onPress?: (task: KaamTask) => void;
   onSkipTurn?: (occurrenceId: string, taskTitle: string) => void;
   onDelete?: (taskId: string) => void;
   loading?: boolean;
@@ -57,6 +62,7 @@ interface KaamCardProps {
 export const KaamCard: React.FC<KaamCardProps> = ({
   task,
   onComplete,
+  onPress,
   onSkipTurn,
   onDelete,
   loading = false,
@@ -84,17 +90,25 @@ export const KaamCard: React.FC<KaamCardProps> = ({
     status: m.status,
   }));
 
-  const handleDeletePress = () => {
+  const handleDeletePress = (e: React.MouseEvent) => {
+    e.stopPropagation();
     if (window.confirm(`Delete "${task.title}"? This cannot be undone.`)) {
       onDelete?.(task.id);
     }
   };
 
   return (
-    <Card
-      variant={isFullyDone ? "muted" : "outlined"}
-      className="p-4"
+    <div
+      onClick={() => {
+        console.log("[KaamCard Web] Clicked card:", task.id, task.title);
+        onPress?.(task);
+      }}
+      className="cursor-pointer transition-transform hover:-translate-y-0.5 active:translate-y-0"
     >
+      <Card
+        variant={isFullyDone ? "muted" : "outlined"}
+        className="p-4"
+      >
       {/* Top row: Category & Recurrence & Next in Rotation & Status + Delete */}
       <div className="flex items-center justify-between mb-2">
         <div className="flex items-center gap-1 flex-wrap">
@@ -186,7 +200,10 @@ export const KaamCard: React.FC<KaamCardProps> = ({
             {onSkipTurn && !isMyPartDone && (
               <button
                 type="button"
-                onClick={() => onSkipTurn(currentOcc.id, task.title)}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onSkipTurn(currentOcc.id, task.title);
+                }}
                 className="flex items-center gap-1 px-2 py-[6px] rounded-[10px] bg-offWhite border border-border text-mutedNavy text-[11px] font-semibold hover:bg-border transition-colors cursor-pointer"
               >
                 <SkipForward size={12} className="text-mutedNavy" strokeWidth={2.2} />
@@ -197,7 +214,10 @@ export const KaamCard: React.FC<KaamCardProps> = ({
             <button
               type="button"
               disabled={isMyPartDone || loading}
-              onClick={() => onComplete(currentOcc.id)}
+              onClick={(e) => {
+                e.stopPropagation();
+                onComplete(currentOcc.id);
+              }}
               className={`flex items-center gap-1 px-3 py-[6px] rounded-[10px] text-[12px] leading-[16px] font-semibold transition-all cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed ${
                 isMyPartDone
                   ? "bg-paleSky text-deepNavy"
@@ -214,5 +234,6 @@ export const KaamCard: React.FC<KaamCardProps> = ({
         )}
       </div>
     </Card>
-  );
+  </div>
+);
 };
