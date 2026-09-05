@@ -194,14 +194,14 @@ export default function HomePage() {
     <div
       className={`flex flex-col max-w-4xl mx-auto w-full min-h-0 flex-1 ${
         activeTab === 0
-          ? "min-h-[calc(100vh-4rem)] lg:min-h-screen pb-20 lg:pb-6"
+          ? "min-h-screen pb-20 lg:pb-6"
           : isKeyboardVisible
-          ? "h-[calc(100dvh-4rem)] lg:h-screen pb-0"
-          : "h-[calc(100dvh-4rem)] lg:h-screen pb-16 has-[input:focus]:pb-0 lg:pb-0"
+          ? "h-[100dvh] pb-0"
+          : "h-[100dvh] pb-16 has-[input:focus]:pb-0 lg:pb-0"
       }`}
     >
       {/* Top Header Row matching baari-app styles.topHeader */}
-      <div className="flex items-center justify-between px-5 py-3 border-b border-border bg-white sticky top-16 lg:top-0 z-20 flex-shrink-0">
+      <div className="flex items-center justify-between px-5 py-3 pt-[max(0.75rem,env(safe-area-inset-top,0.75rem))] border-b border-border bg-white sticky top-0 z-20 flex-shrink-0">
         <div className="flex-1 mr-2">
           <p className="text-[10px] leading-[14px] font-bold text-mutedNavy tracking-[1.2px] uppercase mb-[2px]">
             BAARI

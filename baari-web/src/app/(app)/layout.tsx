@@ -244,41 +244,6 @@ export default function AppLayout({
       </aside>
 
       {/* ────────────────────────────────────────────────────────────────────────
-          MOBILE TOP HEADER (Visible only below lg: breakpoint, exactly as before)
-      ────────────────────────────────────────────────────────────────────────── */}
-      <header className="lg:hidden sticky top-0 z-30 bg-white border-b border-[#E5E9F0]">
-        <div className="max-w-4xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-xl bg-navy text-white flex items-center justify-center font-bold text-base">
-              B
-            </div>
-            <div>
-              <span className="font-bold text-navy text-[18px] tracking-tight">
-                {activeFlat?.name || "Baari"}
-              </span>
-              {activeFlat?.inviteCode && (
-                <span className="hidden sm:inline-block ml-2 px-2 py-0.5 rounded bg-sky-light text-navy text-xs font-mono">
-                  #{activeFlat.inviteCode}
-                </span>
-              )}
-            </div>
-          </div>
-
-          {/* User profile avatar link */}
-          <Link
-            href="/profile"
-            className="flex items-center gap-2 hover:opacity-90 transition-opacity"
-          >
-            <Avatar
-              src={user?.image || session?.user?.image}
-              name={user?.name || session?.user?.name || "User"}
-              size="sm"
-            />
-          </Link>
-        </div>
-      </header>
-
-      {/* ────────────────────────────────────────────────────────────────────────
           MAIN PAGE CONTENT
       ────────────────────────────────────────────────────────────────────────── */}
       <main className="flex-1 flex flex-col min-h-0 w-full min-w-0">

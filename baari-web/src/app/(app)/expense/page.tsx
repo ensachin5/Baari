@@ -50,9 +50,9 @@ export default function ExpensePage() {
   const [showSimplifiedDebts, setShowSimplifiedDebts] = useState(false);
 
   return (
-    <div className="flex flex-col min-h-[calc(100vh-4rem)] lg:min-h-screen max-w-4xl mx-auto w-full pb-20 lg:pb-6">
+    <div className="flex flex-col min-h-screen max-w-4xl mx-auto w-full pb-20 lg:pb-6">
       {/* Header */}
-      <div className="px-5 py-3 border-b border-border bg-white sticky top-16 lg:top-0 z-20">
+      <div className="px-5 py-3 pt-[max(0.75rem,env(safe-area-inset-top,0.75rem))] border-b border-border bg-white sticky top-0 z-20">
         <h1 className="text-[22px] leading-[28px] font-semibold text-black">
           Expenses & Balances
         </h1>
