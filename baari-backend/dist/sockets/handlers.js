@@ -10,22 +10,26 @@ const drizzle_orm_1 = require("drizzle-orm");
 const registerSocketHandlers = (io, socket) => {
     // Realtime Chat Message Handler
     socket.on('send_message', async (data, callback) => {
+        const senderId = socket.data.user.id;
+        const senderName = socket.data.user.name;
+        error_handler_js_1.logger.info({ socketId: socket.id, senderId, senderName, flatId: data?.flatId, contentLength: data?.content?.length }, '[Socket send_message] Received send_message event');
         try {
             const parsed = chat_js_1.sendMessageSchema.safeParse(data);
             if (!parsed.success) {
                 const errorMsg = parsed.error.issues[0]?.message || 'Invalid message payload';
+                error_handler_js_1.logger.warn({ socketId: socket.id, senderId, errorMsg }, '[Socket send_message] Validation failed');
                 if (callback)
                     callback({ error: errorMsg });
                 return;
             }
             const { flatId, content } = parsed.data;
-            const senderId = socket.data.user.id;
             // Verify sender is a member of the flat
             const [membership] = await index_js_1.db
                 .select()
                 .from(schema_js_1.flatMembers)
                 .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(schema_js_1.flatMembers.flatId, flatId), (0, drizzle_orm_1.eq)(schema_js_1.flatMembers.userId, senderId)));
             if (!membership) {
+                error_handler_js_1.logger.warn({ socketId: socket.id, senderId, flatId }, '[Socket send_message] Sender is not a member of flat');
                 if (callback)
                     callback({ error: 'You are not a member of this flat' });
                 return;
@@ -39,6 +43,7 @@ const registerSocketHandlers = (io, socket) => {
                 content: content.trim(),
             })
                 .returning();
+            error_handler_js_1.logger.info({ socketId: socket.id, messageId: newMessage.id, flatId, senderId }, '[Socket send_message] Saved message to DB');
             // Fetch sender info for frontend rendering
             const [sender] = await index_js_1.db
                 .select({
@@ -50,10 +55,11 @@ const registerSocketHandlers = (io, socket) => {
                 .where((0, drizzle_orm_1.eq)(schema_js_1.user.id, senderId));
             const messagePayload = {
                 ...newMessage,
-                sender: sender || { id: senderId, name: socket.data.user.name, image: socket.data.user.image },
+                sender: sender || { id: senderId, name: senderName, image: socket.data.user.image },
             };
             // Broadcast new message to everyone in the flat room (including sender)
             io.to(flatId).emit('new_message', { message: messagePayload });
+            error_handler_js_1.logger.info({ socketId: socket.id, messageId: newMessage.id, flatId }, '[Socket send_message] Broadcast new_message to flat room');
             // Send push notification to offline/disconnected members
             try {
                 const allMembers = await index_js_1.db
@@ -68,18 +74,19 @@ const registerSocketHandlers = (io, socket) => {
                 if (offlineUserIds.length > 0) {
                     const truncated = content.length > 50 ? `${content.substring(0, 47)}...` : content;
                     (0, push_js_1.sendPushNotification)(offlineUserIds, {
-                        title: socket.data.user.name || 'Flatmate',
+                        title: senderName || 'Flatmate',
                         body: truncated,
                         data: { type: 'chat', flatId },
                     });
                 }
             }
             catch (_) { }
-            if (callback)
+            if (callback) {
                 callback({ success: true, message: messagePayload });
+            }
         }
         catch (error) {
-            error_handler_js_1.logger.error({ error, socketId: socket.id }, 'Error in send_message socket handler');
+            error_handler_js_1.logger.error({ error, socketId: socket.id, senderId }, 'Error in send_message socket handler');
             if (callback)
                 callback({ error: 'Failed to send message' });
         }

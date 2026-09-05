@@ -47,6 +47,6 @@ exports.pool = new Pool({
     connectionString: process.env.DATABASE_URL || 'postgresql://postgres:postgres@localhost:5432/baari',
     max: 20,
     idleTimeoutMillis: 30000,
-    connectionTimeoutMillis: 2000,
+    connectionTimeoutMillis: 10000,
 });
 exports.db = (0, node_postgres_1.drizzle)(exports.pool, { schema });

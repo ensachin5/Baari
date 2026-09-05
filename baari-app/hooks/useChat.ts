@@ -160,7 +160,7 @@ export const useChat = () => {
     [activeFlat?.id]
   );
 
-  // Optimistic message send with Socket.io & REST fallback
+  // Optimistic message send with Socket.io (with 5s ack timeout) & REST fallback
   const sendMessage = useCallback(
     async (content: string) => {
       if (!activeFlat?.id || !currentUser?.id || !content.trim()) return;
@@ -186,54 +186,62 @@ export const useChat = () => {
       setMessages((prev) => [...prev, tempMessage]);
 
       const socket = getSocket();
+      console.log(`[useChat] Attempting send_message. Socket connected: ${socket.connected}, socketId: ${socket.id}, flatId: ${activeFlat.id}`);
+
+      let sentViaSocket = false;
 
       if (socket.connected) {
-        socket.emit(
-          'send_message',
-          {
-            flatId: activeFlat.id,
-            content: trimmed,
-          },
-          async (response: any) => {
-            if (response?.error) {
-              console.warn('[useChat] Socket send returned error, trying REST fallback:', response.error);
-              try {
-                const restRes = await api.post<{ message: ChatMessage }>('/api/messages', {
-                  flatId: activeFlat.id,
-                  content: trimmed,
-                });
-                if (restRes?.message) {
-                  setMessages((prev) =>
-                    prev.map((m) => (m.id === tempId ? { ...restRes.message, status: 'sent' } : m))
-                  );
-                }
-              } catch (err) {
-                console.error('[useChat] REST fallback failed:', err);
-                setMessages((prev) =>
-                  prev.map((m) => (m.id === tempId ? { ...m, status: 'failed' } : m))
-                );
+        try {
+          // Emit with 5-second ack timeout
+          const socketPromise = new Promise<{ success?: boolean; message?: ChatMessage; error?: string }>((resolve, reject) => {
+            const timeoutTimer = setTimeout(() => {
+              reject(new Error('Socket send_message acknowledgment timed out after 5000ms'));
+            }, 5000);
+
+            socket.emit(
+              'send_message',
+              {
+                flatId: activeFlat.id,
+                content: trimmed,
+              },
+              (res: any) => {
+                clearTimeout(timeoutTimer);
+                resolve(res || {});
               }
-            } else if (response?.message) {
-              setMessages((prev) =>
-                prev.map((m) => (m.id === tempId ? { ...response.message, status: 'sent' } : m))
-              );
-            }
+            );
+          });
+
+          const response = await socketPromise;
+          if (response?.error) {
+            console.warn('[useChat] Socket send returned error from server:', response.error);
+          } else if (response?.message) {
+            console.log('[useChat] Message sent successfully via Socket.io ack:', response.message.id);
+            sentViaSocket = true;
+            setMessages((prev) =>
+              prev.map((m) => (m.id === tempId ? { ...response.message!, status: 'sent' } : m))
+            );
           }
-        );
-      } else {
-        // Socket not connected, send directly via REST
+        } catch (socketErr: any) {
+          console.warn('[useChat] Socket send timed out or threw error:', socketErr?.message);
+        }
+      }
+
+      // If socket wasn't connected or socket emit failed/timed out, execute REST fallback
+      if (!sentViaSocket) {
+        console.log('[useChat] Executing REST POST /api/messages fallback...');
         try {
           const restRes = await api.post<{ message: ChatMessage }>('/api/messages', {
             flatId: activeFlat.id,
             content: trimmed,
           });
           if (restRes?.message) {
+            console.log('[useChat] Message sent successfully via REST fallback:', restRes.message.id);
             setMessages((prev) =>
               prev.map((m) => (m.id === tempId ? { ...restRes.message, status: 'sent' } : m))
             );
           }
-        } catch (err) {
-          console.error('[useChat] REST send failed:', err);
+        } catch (restErr: any) {
+          console.error('[useChat] REST send fallback also failed:', restErr?.message || restErr);
           setMessages((prev) =>
             prev.map((m) => (m.id === tempId ? { ...m, status: 'failed' } : m))
           );
@@ -245,6 +253,7 @@ export const useChat = () => {
 
   const retryMessage = useCallback(
     (tempMsg: ChatMessage) => {
+      console.log('[useChat] Retrying failed message:', tempMsg.id);
       setMessages((prev) => prev.filter((m) => m.id !== tempMsg.id));
       sendMessage(tempMsg.content);
     },

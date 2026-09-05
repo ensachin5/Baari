@@ -10,16 +10,24 @@ import { eq, and } from 'drizzle-orm';
 export const registerSocketHandlers = (io: SocketIOServer, socket: AuthenticatedSocket) => {
   // Realtime Chat Message Handler
   socket.on('send_message', async (data: { flatId: string; content: string }, callback?: (res: any) => void) => {
+    const senderId = socket.data.user.id;
+    const senderName = socket.data.user.name;
+
+    logger.info(
+      { socketId: socket.id, senderId, senderName, flatId: data?.flatId, contentLength: data?.content?.length },
+      '[Socket send_message] Received send_message event'
+    );
+
     try {
       const parsed = sendMessageSchema.safeParse(data);
       if (!parsed.success) {
         const errorMsg = parsed.error.issues[0]?.message || 'Invalid message payload';
+        logger.warn({ socketId: socket.id, senderId, errorMsg }, '[Socket send_message] Validation failed');
         if (callback) callback({ error: errorMsg });
         return;
       }
 
       const { flatId, content } = parsed.data;
-      const senderId = socket.data.user.id;
 
       // Verify sender is a member of the flat
       const [membership] = await db
@@ -28,6 +36,10 @@ export const registerSocketHandlers = (io: SocketIOServer, socket: Authenticated
         .where(and(eq(flatMembers.flatId, flatId), eq(flatMembers.userId, senderId)));
 
       if (!membership) {
+        logger.warn(
+          { socketId: socket.id, senderId, flatId },
+          '[Socket send_message] Sender is not a member of flat'
+        );
         if (callback) callback({ error: 'You are not a member of this flat' });
         return;
       }
@@ -42,6 +54,11 @@ export const registerSocketHandlers = (io: SocketIOServer, socket: Authenticated
         })
         .returning();
 
+      logger.info(
+        { socketId: socket.id, messageId: newMessage.id, flatId, senderId },
+        '[Socket send_message] Saved message to DB'
+      );
+
       // Fetch sender info for frontend rendering
       const [sender] = await db
         .select({
@@ -54,11 +71,15 @@ export const registerSocketHandlers = (io: SocketIOServer, socket: Authenticated
 
       const messagePayload = {
         ...newMessage,
-        sender: sender || { id: senderId, name: socket.data.user.name, image: socket.data.user.image },
+        sender: sender || { id: senderId, name: senderName, image: socket.data.user.image },
       };
 
       // Broadcast new message to everyone in the flat room (including sender)
       io.to(flatId).emit('new_message', { message: messagePayload });
+      logger.info(
+        { socketId: socket.id, messageId: newMessage.id, flatId },
+        '[Socket send_message] Broadcast new_message to flat room'
+      );
 
       // Send push notification to offline/disconnected members
       try {
@@ -77,16 +98,18 @@ export const registerSocketHandlers = (io: SocketIOServer, socket: Authenticated
         if (offlineUserIds.length > 0) {
           const truncated = content.length > 50 ? `${content.substring(0, 47)}...` : content;
           sendPushNotification(offlineUserIds, {
-            title: socket.data.user.name || 'Flatmate',
+            title: senderName || 'Flatmate',
             body: truncated,
             data: { type: 'chat', flatId },
           });
         }
       } catch (_) {}
 
-      if (callback) callback({ success: true, message: messagePayload });
+      if (callback) {
+        callback({ success: true, message: messagePayload });
+      }
     } catch (error) {
-      logger.error({ error, socketId: socket.id }, 'Error in send_message socket handler');
+      logger.error({ error, socketId: socket.id, senderId }, 'Error in send_message socket handler');
       if (callback) callback({ error: 'Failed to send message' });
     }
   });

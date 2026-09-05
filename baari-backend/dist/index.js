@@ -116,11 +116,14 @@ if (process.env.NODE_ENV !== 'test') {
     app.use((0, pino_http_1.default)({
         logger: error_handler_js_1.logger,
         autoLogging: {
-            ignore: (req) => req.url === '/health',
+            ignore: (req) => req.url === '/health' || req.url === '/health-ping',
         },
     }));
 }
 // 5. Root & Health Check Endpoints
+app.get('/health-ping', (_req, res) => {
+    res.status(200).send('pong');
+});
 app.get('/', (req, res) => {
     const clientUrl = process.env.CLIENT_URL || 'http://localhost:3000';
     if (req.accepts('html')) {
