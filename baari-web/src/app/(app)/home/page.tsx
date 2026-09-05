@@ -134,9 +134,15 @@ export default function HomePage() {
   );
 
   return (
-    <div className="flex flex-col min-h-[calc(100vh-4rem)] max-w-4xl mx-auto w-full pb-20 md:pb-6">
+    <div
+      className={`flex flex-col max-w-4xl mx-auto w-full min-h-0 flex-1 ${
+        activeTab === 0
+          ? "min-h-[calc(100vh-4rem)] pb-20 md:pb-6"
+          : "h-[calc(100dvh-4rem)] pb-16 md:pb-0"
+      }`}
+    >
       {/* Top Header Row matching baari-app styles.topHeader */}
-      <div className="flex items-center justify-between px-5 py-3 border-b border-border bg-white sticky top-16 z-20">
+      <div className="flex items-center justify-between px-5 py-3 border-b border-border bg-white sticky top-16 z-20 flex-shrink-0">
         <div className="flex-1 mr-2">
           <p className="text-[10px] leading-[14px] font-bold text-mutedNavy tracking-[1.2px] uppercase mb-[2px]">
             BAARI
@@ -275,9 +281,9 @@ export default function HomePage() {
 
       {/* VIEW 1: REALTIME GROUP CHAT */}
       {activeTab === 1 && (
-        <div className="flex-1 flex flex-col bg-white border-x border-border">
+        <div className="flex-1 flex flex-col bg-white border-x border-border min-h-0 overflow-hidden">
           {/* Chat Header matching styles.chatHeader */}
-          <div className="px-5 py-2 bg-offWhite border-b border-border flex items-center justify-between">
+          <div className="px-5 py-2 bg-offWhite border-b border-border flex items-center justify-between flex-shrink-0">
             <div>
               <h2 className="text-[18px] leading-[24px] font-semibold text-black">
                 Flat Group Chat
@@ -291,7 +297,7 @@ export default function HomePage() {
           {/* Chat Messages List */}
           <div
             ref={chatScrollContainerRef}
-            className="flex-1 overflow-y-auto px-3 py-2 min-h-[350px] max-h-[60vh] md:max-h-[65vh]"
+            className="flex-1 overflow-y-auto px-3 py-2 min-h-0"
           >
             {hasMore && (
               <div className="text-center py-2">
@@ -368,7 +374,7 @@ export default function HomePage() {
 
           {/* Typing indicator */}
           {typingUsers.length > 0 && (
-            <div className="px-5 py-1 bg-white">
+            <div className="px-5 py-1 bg-white flex-shrink-0">
               <span className="text-[12px] italic text-mutedNavy">
                 {typingUsers.length === 1
                   ? `${typingUsers[0].userName} is typing...`
@@ -379,8 +385,10 @@ export default function HomePage() {
             </div>
           )}
 
-          {/* Sticky Chat Input pinned to bottom of chat */}
-          <ChatInput onSend={sendMessage} onTyping={emitTyping} />
+          {/* Sticky Chat Input pinned directly above the bottom navbar */}
+          <div className="flex-shrink-0 bg-white">
+            <ChatInput onSend={sendMessage} onTyping={emitTyping} />
+          </div>
         </div>
       )}
 

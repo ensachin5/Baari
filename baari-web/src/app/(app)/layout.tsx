@@ -72,7 +72,7 @@ export default function AppLayout({
   ];
 
   return (
-    <div className="min-h-screen bg-[#F4F6F9] flex flex-col pb-20 md:pb-0">
+    <div className="min-h-screen bg-[#F4F6F9] flex flex-col">
       {/* Global Offline Banner */}
       <OfflineBanner />
 
@@ -128,7 +128,7 @@ export default function AppLayout({
       </header>
 
       {/* Main Page Content */}
-      <main className="flex-1 max-w-4xl w-full mx-auto">
+      <main className="flex-1 max-w-4xl w-full mx-auto flex flex-col min-h-0">
         {children}
       </main>
 
