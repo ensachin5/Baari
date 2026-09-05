@@ -18,6 +18,7 @@ export default function AppLayout({
   const router = useRouter();
   const { data: session, isPending: sessionLoading } = useAuthSession();
   const { user, activeFlat, isHydrated, hydrate } = useSession();
+  const [isKeyboardVisible, setIsKeyboardVisible] = React.useState(false);
 
   // Initialize socket lifecycle
   useSocket();
@@ -25,6 +26,58 @@ export default function AppLayout({
   useEffect(() => {
     hydrate();
   }, [hydrate]);
+
+  // Hide bottom nav bar automatically when mobile virtual keyboard appears
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    const checkViewport = () => {
+      if (window.visualViewport) {
+        // If viewport height dropped by more than 120px, keyboard is open
+        const isKeyboard = window.visualViewport.height < window.innerHeight - 120;
+        setIsKeyboardVisible(isKeyboard);
+      }
+    };
+
+    const handleFocusIn = (e: FocusEvent) => {
+      const target = e.target as HTMLElement | null;
+      if (
+        target &&
+        (target.tagName === "INPUT" || target.tagName === "TEXTAREA") &&
+        window.innerWidth < 768
+      ) {
+        setIsKeyboardVisible(true);
+      }
+    };
+
+    const handleFocusOut = () => {
+      setTimeout(() => {
+        const active = document.activeElement as HTMLElement | null;
+        if (
+          !active ||
+          (active.tagName !== "INPUT" && active.tagName !== "TEXTAREA")
+        ) {
+          setIsKeyboardVisible(false);
+        }
+      }, 100);
+    };
+
+    if (window.visualViewport) {
+      window.visualViewport.addEventListener("resize", checkViewport);
+      window.visualViewport.addEventListener("scroll", checkViewport);
+    }
+    window.addEventListener("focusin", handleFocusIn);
+    window.addEventListener("focusout", handleFocusOut);
+
+    return () => {
+      if (window.visualViewport) {
+        window.visualViewport.removeEventListener("resize", checkViewport);
+        window.visualViewport.removeEventListener("scroll", checkViewport);
+      }
+      window.removeEventListener("focusin", handleFocusIn);
+      window.removeEventListener("focusout", handleFocusOut);
+    };
+  }, []);
 
   useEffect(() => {
     if (!sessionLoading && !session?.user && isHydrated && !user) {
@@ -133,7 +186,11 @@ export default function AppLayout({
       </main>
 
       {/* Mobile Bottom Tab Bar */}
-      <nav className="md:hidden fixed bottom-0 left-0 right-0 z-30 bg-white border-t border-[#E5E9F0] h-16 flex items-center justify-around px-2 shadow-lg">
+      <nav
+        className={`md:hidden fixed bottom-0 left-0 right-0 z-30 bg-white border-t border-[#E5E9F0] h-16 flex items-center justify-around px-2 shadow-lg transition-all duration-150 ${
+          isKeyboardVisible ? "hidden pointer-events-none -translate-y-full opacity-0" : "flex"
+        }`}
+      >
         {navTabs.map((tab) => {
           const isActive = pathname.startsWith(tab.href);
           return (

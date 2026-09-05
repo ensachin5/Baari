@@ -133,11 +133,66 @@ export default function HomePage() {
     [todayTasks]
   );
 
+  // Detect mobile virtual keyboard
+  const [isKeyboardVisible, setIsKeyboardVisible] = useState(false);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    const checkViewport = () => {
+      if (window.visualViewport) {
+        const isKeyboard = window.visualViewport.height < window.innerHeight - 120;
+        setIsKeyboardVisible(isKeyboard);
+      }
+    };
+
+    const handleFocusIn = (e: FocusEvent) => {
+      const target = e.target as HTMLElement | null;
+      if (
+        target &&
+        (target.tagName === "INPUT" || target.tagName === "TEXTAREA") &&
+        window.innerWidth < 768
+      ) {
+        setIsKeyboardVisible(true);
+      }
+    };
+
+    const handleFocusOut = () => {
+      setTimeout(() => {
+        const active = document.activeElement as HTMLElement | null;
+        if (
+          !active ||
+          (active.tagName !== "INPUT" && active.tagName !== "TEXTAREA")
+        ) {
+          setIsKeyboardVisible(false);
+        }
+      }, 100);
+    };
+
+    if (window.visualViewport) {
+      window.visualViewport.addEventListener("resize", checkViewport);
+      window.visualViewport.addEventListener("scroll", checkViewport);
+    }
+    window.addEventListener("focusin", handleFocusIn);
+    window.addEventListener("focusout", handleFocusOut);
+
+    return () => {
+      if (window.visualViewport) {
+        window.visualViewport.removeEventListener("resize", checkViewport);
+        window.visualViewport.removeEventListener("scroll", checkViewport);
+      }
+      window.removeEventListener("focusin", handleFocusIn);
+      window.removeEventListener("focusout", handleFocusOut);
+    };
+  }, []);
+
   return (
     <div
       className={`flex flex-col max-w-4xl mx-auto w-full min-h-0 flex-1 ${
         activeTab === 0
           ? "min-h-[calc(100vh-4rem)] pb-20 md:pb-6"
+          : isKeyboardVisible
+          ? "h-[calc(100dvh-4rem)] pb-0 md:pb-0"
           : "h-[calc(100dvh-4rem)] pb-16 md:pb-0"
       }`}
     >
