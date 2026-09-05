@@ -110,21 +110,32 @@ export const joinFlatRoom = (flatId: string) => {
  */
 export function useSocket() {
   const token = useSession((state) => state.token);
+  const user = useSession((state) => state.user);
   const activeFlat = useSession((state) => state.activeFlat);
   const isHydrated = useSession((state) => state.isHydrated);
 
   useEffect(() => {
     if (!isHydrated) return;
 
-    if (token) {
-      connectSocket();
-      if (activeFlat?.id) {
-        joinFlatRoom(activeFlat.id);
+    let isMounted = true;
+    const init = async () => {
+      const resolvedToken = await resolveSocketToken();
+      if (!isMounted) return;
+      if (resolvedToken || user?.id) {
+        await connectSocket();
+        if (activeFlat?.id) {
+          joinFlatRoom(activeFlat.id);
+        }
+      } else {
+        disconnectSocket();
       }
-    } else {
-      disconnectSocket();
-    }
-  }, [token, activeFlat?.id, isHydrated]);
+    };
+    init();
 
-  return token ? getSocket() : null;
+    return () => {
+      isMounted = false;
+    };
+  }, [token, user?.id, activeFlat?.id, isHydrated]);
+
+  return user?.id ? getSocket() : null;
 }

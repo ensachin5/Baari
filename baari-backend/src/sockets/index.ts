@@ -35,39 +35,57 @@ export const initSocket = (httpServer: HTTPServer): SocketIOServer => {
   // 1. Authenticate Socket Connections on initial handshake
   io.use(async (socket, next) => {
     try {
-      const token =
+      const rawToken =
         socket.handshake.auth?.token ||
         socket.handshake.headers?.authorization?.replace('Bearer ', '');
 
+      const rawCookie = socket.handshake.headers?.cookie;
+
+      let cookieToken: string | null = null;
+      if (rawCookie) {
+        const match = rawCookie.match(/(?:better-auth\.session_token|session_token|baari_session_token)=([^;]+)/);
+        if (match?.[1]) {
+          cookieToken = decodeURIComponent(match[1]);
+        }
+      }
+
+      const token = rawToken || cookieToken;
+
       logger.info(
-        { socketId: socket.id, hasToken: !!token },
+        { socketId: socket.id, hasToken: !!token, hasCookie: !!rawCookie },
         '[Socket Handshake] Authenticating incoming connection'
       );
 
       // 1. Try Better Auth getSession
-      if (token) {
-        try {
-          const headers = new Headers();
+      try {
+        const headers = new Headers();
+        if (token) {
           headers.set('authorization', `Bearer ${token}`);
-          const session = await auth.api.getSession({ headers });
-          if (session && session.user) {
-            socket.data.user = session.user as any;
-            socket.data.session = session.session;
-            logger.info(
-              { socketId: socket.id, userId: session.user.id, name: session.user.name },
-              '[Socket Handshake] Better Auth verified'
-            );
-            return next();
-          }
-        } catch (_) {}
+        }
+        if (rawCookie) {
+          headers.set('cookie', rawCookie);
+        }
+        const session = await auth.api.getSession({ headers });
+        if (session && session.user) {
+          socket.data.user = session.user as any;
+          socket.data.session = session.session;
+          logger.info(
+            { socketId: socket.id, userId: session.user.id, name: session.user.name },
+            '[Socket Handshake] Better Auth session verified'
+          );
+          return next();
+        }
+      } catch (err: any) {
+        logger.debug({ err: err?.message }, '[Socket Handshake] Better Auth getSession returned error');
       }
 
       // 2. Direct database query fallback against session & user tables
       if (token) {
+        const cleanToken = token.split('.')[0] || token;
         const [foundSession] = await db
           .select()
           .from(sessionTable)
-          .where(and(eq(sessionTable.token, token), gt(sessionTable.expiresAt, new Date())));
+          .where(and(eq(sessionTable.token, cleanToken), gt(sessionTable.expiresAt, new Date())));
 
         if (foundSession) {
           const [foundUser] = await db
@@ -88,7 +106,7 @@ export const initSocket = (httpServer: HTTPServer): SocketIOServer => {
       }
 
       logger.warn(
-        { socketId: socket.id, tokenProvided: !!token },
+        { socketId: socket.id, tokenProvided: !!token, cookieProvided: !!rawCookie },
         '[Socket Handshake] Rejected unauthenticated socket connection'
       );
       return next(new Error('Unauthorized'));

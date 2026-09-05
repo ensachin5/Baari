@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useSession } from '../store/session';
-import { getSocket } from '../lib/socket';
+import { getSocket, connectSocket } from '../lib/socket';
 import { api } from '../lib/api';
 import { ChatMessage } from '../components/chat/MessageBubble';
 
@@ -31,6 +31,14 @@ export const useChat = () => {
       const fetched = (data.messages || []).map((m) => ({ ...m, status: 'sent' as const })).reverse();
       setMessages(fetched);
       setNextCursor(data.nextCursor);
+
+      // Mark the most recent message as read
+      if (fetched.length > 0) {
+        const latest = fetched[fetched.length - 1];
+        if (latest.senderId !== currentUser?.id) {
+          markReadUpTo(latest.id);
+        }
+      }
     } catch (error) {
       console.error('[useChat] Error fetching message history:', error);
     } finally {
@@ -66,6 +74,11 @@ export const useChat = () => {
           if (prev.some((m) => m.id === incoming.id)) return prev;
           return [...prev, incoming];
         });
+
+        // If incoming message is from a flatmate, mark it read in real time
+        if (incoming.senderId !== currentUser?.id) {
+          markReadUpTo(incoming.id);
+        }
       }
     };
 
@@ -186,17 +199,20 @@ export const useChat = () => {
       setMessages((prev) => [...prev, tempMessage]);
 
       const socket = getSocket();
+      if (!socket.connected) {
+        connectSocket();
+      }
       console.log(`[useChat] Attempting send_message. Socket connected: ${socket.connected}, socketId: ${socket.id}, flatId: ${activeFlat.id}`);
 
       let sentViaSocket = false;
 
       if (socket.connected) {
         try {
-          // Emit with 5-second ack timeout
+          // Emit with 3-second ack timeout
           const socketPromise = new Promise<{ success?: boolean; message?: ChatMessage; error?: string }>((resolve, reject) => {
             const timeoutTimer = setTimeout(() => {
-              reject(new Error('Socket send_message acknowledgment timed out after 5000ms'));
-            }, 5000);
+              reject(new Error('Socket send_message acknowledgment timed out after 3000ms'));
+            }, 3000);
 
             socket.emit(
               'send_message',

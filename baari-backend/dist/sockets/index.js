@@ -22,30 +22,45 @@ const initSocket = (httpServer) => {
     // 1. Authenticate Socket Connections on initial handshake
     io.use(async (socket, next) => {
         try {
-            const token = socket.handshake.auth?.token ||
+            const rawToken = socket.handshake.auth?.token ||
                 socket.handshake.headers?.authorization?.replace('Bearer ', '');
-            error_handler_js_1.logger.info({ socketId: socket.id, hasToken: !!token }, '[Socket Handshake] Authenticating incoming connection');
-            // 1. Try Better Auth getSession
-            if (token) {
-                try {
-                    const headers = new Headers();
-                    headers.set('authorization', `Bearer ${token}`);
-                    const session = await auth_js_1.auth.api.getSession({ headers });
-                    if (session && session.user) {
-                        socket.data.user = session.user;
-                        socket.data.session = session.session;
-                        error_handler_js_1.logger.info({ socketId: socket.id, userId: session.user.id, name: session.user.name }, '[Socket Handshake] Better Auth verified');
-                        return next();
-                    }
+            const rawCookie = socket.handshake.headers?.cookie;
+            let cookieToken = null;
+            if (rawCookie) {
+                const match = rawCookie.match(/(?:better-auth\.session_token|session_token|baari_session_token)=([^;]+)/);
+                if (match?.[1]) {
+                    cookieToken = decodeURIComponent(match[1]);
                 }
-                catch (_) { }
+            }
+            const token = rawToken || cookieToken;
+            error_handler_js_1.logger.info({ socketId: socket.id, hasToken: !!token, hasCookie: !!rawCookie }, '[Socket Handshake] Authenticating incoming connection');
+            // 1. Try Better Auth getSession
+            try {
+                const headers = new Headers();
+                if (token) {
+                    headers.set('authorization', `Bearer ${token}`);
+                }
+                if (rawCookie) {
+                    headers.set('cookie', rawCookie);
+                }
+                const session = await auth_js_1.auth.api.getSession({ headers });
+                if (session && session.user) {
+                    socket.data.user = session.user;
+                    socket.data.session = session.session;
+                    error_handler_js_1.logger.info({ socketId: socket.id, userId: session.user.id, name: session.user.name }, '[Socket Handshake] Better Auth session verified');
+                    return next();
+                }
+            }
+            catch (err) {
+                error_handler_js_1.logger.debug({ err: err?.message }, '[Socket Handshake] Better Auth getSession returned error');
             }
             // 2. Direct database query fallback against session & user tables
             if (token) {
+                const cleanToken = token.split('.')[0] || token;
                 const [foundSession] = await index_js_1.db
                     .select()
                     .from(auth_schema_js_1.session)
-                    .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(auth_schema_js_1.session.token, token), (0, drizzle_orm_1.gt)(auth_schema_js_1.session.expiresAt, new Date())));
+                    .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(auth_schema_js_1.session.token, cleanToken), (0, drizzle_orm_1.gt)(auth_schema_js_1.session.expiresAt, new Date())));
                 if (foundSession) {
                     const [foundUser] = await index_js_1.db
                         .select()
@@ -59,7 +74,7 @@ const initSocket = (httpServer) => {
                     }
                 }
             }
-            error_handler_js_1.logger.warn({ socketId: socket.id, tokenProvided: !!token }, '[Socket Handshake] Rejected unauthenticated socket connection');
+            error_handler_js_1.logger.warn({ socketId: socket.id, tokenProvided: !!token, cookieProvided: !!rawCookie }, '[Socket Handshake] Rejected unauthenticated socket connection');
             return next(new Error('Unauthorized'));
         }
         catch (err) {

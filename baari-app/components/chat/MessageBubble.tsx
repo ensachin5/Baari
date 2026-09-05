@@ -58,8 +58,8 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
           </TouchableOpacity>
         )}
         <View style={[styles.bubble, styles.bubbleRight, isFailed && styles.failedBubble]}>
-          <Text style={styles.textRight}>{message.content}</Text>
-          <Text style={styles.timeRight}>
+          <Text style={[styles.textRight, isFailed && styles.failedText]}>{message.content}</Text>
+          <Text style={[styles.timeRight, isFailed && styles.failedTime]}>
             {isSending ? 'Sending...' : isFailed ? 'Failed' : formatTime(message.createdAt)}
           </Text>
         </View>
@@ -134,6 +134,12 @@ const styles = StyleSheet.create({
     backgroundColor: '#FEE2E2',
     borderWidth: 1,
     borderColor: '#FCA5A5',
+  },
+  failedText: {
+    color: '#991B1B',
+  },
+  failedTime: {
+    color: '#DC2626',
   },
 
   senderName: {

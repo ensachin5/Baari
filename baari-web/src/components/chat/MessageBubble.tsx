@@ -72,10 +72,18 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
               : "bg-sky text-white"
           }`}
         >
-          <p className="text-[16px] leading-[24px] text-white break-words">
+          <p
+            className={`text-[16px] leading-[24px] break-words ${
+              isFailed ? "text-[#991B1B]" : "text-white"
+            }`}
+          >
             {message.content}
           </p>
-          <span className="block text-[10px] leading-[14px] text-paleSky text-right mt-[2px]">
+          <span
+            className={`block text-[10px] leading-[14px] text-right mt-[2px] ${
+              isFailed ? "text-[#DC2626]" : "text-paleSky"
+            }`}
+          >
             {isSending
               ? "Sending..."
               : isFailed
