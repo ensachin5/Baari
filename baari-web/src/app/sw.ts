@@ -20,6 +20,16 @@ const serwist = new Serwist({
   skipWaiting: true,
   clientsClaim: true,
   navigationPreload: true,
+  fallbacks: {
+    entries: [
+      {
+        url: '/offline.html',
+        matcher({ request }) {
+          return request.destination === 'document';
+        },
+      },
+    ],
+  },
   runtimeCaching: [
     // 1. Explicitly bypass cache for all API & authentication endpoints
     {

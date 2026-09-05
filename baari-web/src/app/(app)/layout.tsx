@@ -7,6 +7,7 @@ import { useAuthSession } from "@/lib/auth-client";
 import { useSession } from "@/store/session";
 import { useSocket } from "@/lib/socket";
 import { Avatar } from "@/components/ui/Avatar";
+import { OfflineBanner } from "@/components/ui/OfflineBanner";
 
 export default function AppLayout({
   children,
@@ -72,6 +73,9 @@ export default function AppLayout({
 
   return (
     <div className="min-h-screen bg-[#F4F6F9] flex flex-col pb-20 md:pb-0">
+      {/* Global Offline Banner */}
+      <OfflineBanner />
+
       {/* Top Header */}
       <header className="sticky top-0 z-30 bg-white border-b border-[#E5E9F0]">
         <div className="max-w-4xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between">

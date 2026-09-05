@@ -50,14 +50,29 @@ export async function apiRequest<T = any>(
     defaultHeaders["Authorization"] = `Bearer ${token}`;
   }
 
-  const response = await fetch(url, {
-    credentials: "include",
-    ...customConfig,
-    headers: {
-      ...defaultHeaders,
-      ...headers,
-    },
-  });
+  let response: Response;
+  try {
+    response = await fetch(url, {
+      credentials: "include",
+      ...customConfig,
+      headers: {
+        ...defaultHeaders,
+        ...headers,
+      },
+    });
+  } catch (err: any) {
+    const isNetworkError =
+      err?.name === "TypeError" ||
+      err?.message?.includes("Failed to fetch") ||
+      err?.message?.includes("NetworkError") ||
+      err?.message?.includes("network") ||
+      (typeof navigator !== "undefined" && !navigator.onLine);
+
+    if (isNetworkError) {
+      throw new ApiError("Check your connection and try again", 0, { networkError: true });
+    }
+    throw err;
+  }
 
   const isJson = response.headers.get("content-type")?.includes("application/json");
   const data = isJson ? await response.json() : null;
