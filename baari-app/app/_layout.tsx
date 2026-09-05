@@ -1,14 +1,16 @@
 import React, { useEffect } from 'react';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
+import * as SplashScreen from 'expo-splash-screen';
 import { useFonts, Inter_400Regular, Inter_500Medium, Inter_600SemiBold, Inter_700Bold } from '@expo-google-fonts/inter';
-import { View, ActivityIndicator, StyleSheet } from 'react-native';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { Colors } from '../lib/theme';
 import { useSession } from '../store/session';
 import { useSocket } from '../lib/socket';
 import { useNotificationObserver } from '../lib/notifications';
 import { OfflineBanner } from '../components/ui/OfflineBanner';
+
+// Prevent native splash screen from auto-hiding before fonts and session are ready
+SplashScreen.preventAutoHideAsync().catch(() => {});
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -33,7 +35,7 @@ export default function RootLayout() {
   const hydrate = useSession((state) => state.hydrate);
   const isHydrated = useSession((state) => state.isHydrated);
 
-  // Mount socket lifecycle manager hook
+  // Mount socket lifecycle manager hook (connects non-blocking in background)
   useSocket();
 
   // Mount push notification response observer hook
@@ -43,12 +45,14 @@ export default function RootLayout() {
     hydrate();
   }, []);
 
+  useEffect(() => {
+    if (fontsLoaded && isHydrated) {
+      SplashScreen.hideAsync().catch(() => {});
+    }
+  }, [fontsLoaded, isHydrated]);
+
   if (!fontsLoaded || !isHydrated) {
-    return (
-      <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color={Colors.navy} />
-      </View>
-    );
+    return null;
   }
 
   return (
@@ -64,12 +68,3 @@ export default function RootLayout() {
     </QueryClientProvider>
   );
 }
-
-const styles = StyleSheet.create({
-  loadingContainer: {
-    flex: 1,
-    backgroundColor: Colors.white,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-});
