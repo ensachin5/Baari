@@ -36,7 +36,7 @@ export interface FlatMember {
 
 export type RecurrenceOption = "once" | "daily" | "weekly" | "custom";
 export type CustomMode = "specific_days" | "interval";
-export type AssignmentMode = "auto_rotate" | "one_person" | "multiple_people";
+export type AssignmentMode = "auto_rotate" | "custom_rotation";
 
 export type CustomRecurrenceConfig =
   | { type: "specific_days"; days: string[] }
@@ -51,6 +51,10 @@ interface CreateKaamModalProps {
     description?: string;
     recurrence: RecurrenceOption;
     customRecurrenceConfig?: CustomRecurrenceConfig | null;
+    assignmentMode?: "auto_rotate" | "custom_rotation";
+    customRotationPool?: string[] | null;
+    customRotationGroupSize?: number;
+    customRotationGroups?: Array<{ groupOrder: number; userIds: string[] }> | null;
     peopleRequired: number;
     assigneeIds: string[];
     occurrenceDate?: string;
@@ -113,6 +117,7 @@ export const CreateKaamModal: React.FC<CreateKaamModalProps> = ({
   // Assignment Mode
   const [assignmentMode, setAssignmentMode] = useState<AssignmentMode>("auto_rotate");
   const [selectedAssignees, setSelectedAssignees] = useState<string[]>([]);
+  const [groupSize, setGroupSize] = useState<number>(1);
 
   // Recurrence
   const [recurrence, setRecurrence] = useState<RecurrenceOption>("daily");
@@ -134,6 +139,22 @@ export const CreateKaamModal: React.FC<CreateKaamModalProps> = ({
       setCategory(firstPreset.category);
     }
   }, [visible, presets, title]);
+
+  // Compute rotation groups based on selectedAssignees and groupSize
+  const rotationGroups = React.useMemo(() => {
+    if (assignmentMode !== "custom_rotation" || selectedAssignees.length === 0) return [];
+    if (selectedAssignees.length === 1) {
+      return [{ groupOrder: 1, userIds: [selectedAssignees[0]] }];
+    }
+    const effectiveSize = Math.min(Math.max(1, groupSize), selectedAssignees.length);
+    const groups: Array<{ groupOrder: number; userIds: string[] }> = [];
+    let order = 1;
+    for (let i = 0; i < selectedAssignees.length; i += effectiveSize) {
+      const chunk = selectedAssignees.slice(i, i + effectiveSize);
+      groups.push({ groupOrder: order++, userIds: chunk });
+    }
+    return groups;
+  }, [assignmentMode, selectedAssignees, groupSize]);
 
   const handleSelectQuickPick = (item: QuickPickPreset) => {
     setSelectedQuickPickId(item.id);
@@ -161,33 +182,23 @@ export const CreateKaamModal: React.FC<CreateKaamModalProps> = ({
     setError("");
     if (mode === "auto_rotate") {
       setSelectedAssignees([]);
-    } else if (mode === "one_person") {
+    } else if (mode === "custom_rotation") {
       if (selectedAssignees.length === 0 && members.length > 0) {
         setSelectedAssignees([members[0].userId]);
-      } else if (selectedAssignees.length > 1) {
-        setSelectedAssignees([selectedAssignees[0]]);
-      }
-    } else if (mode === "multiple_people") {
-      if (selectedAssignees.length < 2 && members.length >= 2) {
-        setSelectedAssignees([members[0].userId, members[1].userId]);
       }
     }
   };
 
   const handleMemberSelect = (userId: string) => {
     setError("");
-    if (assignmentMode === "one_person") {
-      setSelectedAssignees([userId]);
-    } else if (assignmentMode === "multiple_people") {
-      if (selectedAssignees.includes(userId)) {
-        if (selectedAssignees.length <= 1) {
-          setError("Multiple people mode requires at least 2 assignees");
-          return;
-        }
-        setSelectedAssignees(selectedAssignees.filter((id) => id !== userId));
-      } else {
-        setSelectedAssignees([...selectedAssignees, userId]);
+    if (selectedAssignees.includes(userId)) {
+      if (selectedAssignees.length === 1) {
+        setError("Custom rotation requires at least 1 person selected");
+        return;
       }
+      setSelectedAssignees(selectedAssignees.filter((id) => id !== userId));
+    } else {
+      setSelectedAssignees([...selectedAssignees, userId]);
     }
   };
 
@@ -234,6 +245,8 @@ export const CreateKaamModal: React.FC<CreateKaamModalProps> = ({
 
     let finalAssignees: string[] = [];
     let peopleReq = 1;
+    let finalGroups: Array<{ groupOrder: number; userIds: string[] }> | null = null;
+    let finalGroupSize = 1;
 
     if (assignmentMode === "auto_rotate") {
       finalAssignees = members.map((m) => m.userId);
@@ -242,20 +255,19 @@ export const CreateKaamModal: React.FC<CreateKaamModalProps> = ({
         return;
       }
       peopleReq = 1;
-    } else if (assignmentMode === "one_person") {
-      if (selectedAssignees.length !== 1) {
-        setError("Please select exactly 1 flatmate for this Kaam");
+    } else if (assignmentMode === "custom_rotation") {
+      if (selectedAssignees.length === 0) {
+        setError("Please select at least 1 flatmate for custom rotation");
         return;
       }
-      finalAssignees = selectedAssignees;
-      peopleReq = 1;
-    } else if (assignmentMode === "multiple_people") {
-      if (selectedAssignees.length < 2) {
-        setError("Please select at least 2 flatmates for multi-person Kaam");
+      if (rotationGroups.length === 0) {
+        setError("Could not build rotation groups");
         return;
       }
-      finalAssignees = selectedAssignees;
-      peopleReq = selectedAssignees.length;
+      finalGroups = rotationGroups;
+      finalGroupSize = selectedAssignees.length === 1 ? 1 : Math.min(groupSize, selectedAssignees.length);
+      finalAssignees = rotationGroups[0].userIds;
+      peopleReq = finalAssignees.length;
     }
 
     let customConfig: CustomRecurrenceConfig | null = null;
@@ -278,6 +290,10 @@ export const CreateKaamModal: React.FC<CreateKaamModalProps> = ({
         category,
         recurrence,
         customRecurrenceConfig: customConfig,
+        assignmentMode,
+        customRotationPool: assignmentMode === "custom_rotation" ? selectedAssignees : null,
+        customRotationGroupSize: finalGroupSize,
+        customRotationGroups: finalGroups,
         peopleRequired: peopleReq,
         assigneeIds: finalAssignees,
         occurrenceDate: getFormattedDueDate(dueOffsetDays),
@@ -349,7 +365,7 @@ export const CreateKaamModal: React.FC<CreateKaamModalProps> = ({
         />
       </div>
 
-      {/* 3. ASSIGN TO (3 DISTINCT MODES) */}
+      {/* 3. ASSIGN TO (2 MODES: AUTO-ROTATE & CUSTOM ROTATION) */}
       <div className="mb-4">
         <span className="block text-[12px] font-semibold text-deepNavy uppercase tracking-wider mb-2">
           ASSIGN TO
@@ -372,32 +388,19 @@ export const CreateKaamModal: React.FC<CreateKaamModalProps> = ({
 
           <button
             type="button"
-            onClick={() => handleSwitchAssignmentMode("one_person")}
+            onClick={() => handleSwitchAssignmentMode("custom_rotation")}
             className={`flex-1 py-2 flex items-center justify-center gap-1.5 rounded-[6px] text-[12px] font-semibold transition-all cursor-pointer ${
-              assignmentMode === "one_person"
+              assignmentMode === "custom_rotation"
                 ? "bg-navy text-white shadow-[0_1px_2px_rgba(6,23,41,0.15)]"
                 : "text-mutedNavy hover:text-navy"
             }`}
           >
-            <User size={13} />
-            <span>One person</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => handleSwitchAssignmentMode("multiple_people")}
-            className={`flex-1 py-2 flex items-center justify-center gap-1.5 rounded-[6px] text-[12px] font-semibold transition-all cursor-pointer ${
-              assignmentMode === "multiple_people"
-                ? "bg-navy text-white shadow-[0_1px_2px_rgba(6,23,41,0.15)]"
-                : "text-mutedNavy hover:text-navy"
-            }`}
-          >
-            <Users size={13} />
-            <span>Multiple people</span>
+            <SlidersHorizontal size={13} />
+            <span>Custom Rotation</span>
           </button>
         </div>
 
-        {/* Mode A: Auto-rotate Explanation Card */}
+        {/* Mode 1: Auto-rotate Explanation Card */}
         {assignmentMode === "auto_rotate" && (
           <div className="flex items-center gap-3 p-3 rounded-[10px] bg-paleSky/50 border border-sky/30">
             <div className="w-9 h-9 rounded-full bg-paleSky flex items-center justify-center flex-shrink-0">
@@ -414,11 +417,11 @@ export const CreateKaamModal: React.FC<CreateKaamModalProps> = ({
           </div>
         )}
 
-        {/* Mode B: One Person */}
-        {assignmentMode === "one_person" && (
+        {/* Mode 2: Custom Rotation */}
+        {assignmentMode === "custom_rotation" && (
           <div>
             <p className="text-[12px] text-grayBlack mb-2">
-              Tap 1 flatmate to assign (no rotation):
+              Select flatmate(s) for this Kaam ({selectedAssignees.length} selected):
             </p>
             <div className="flex items-center gap-3 overflow-x-auto pb-2 scrollbar-none">
               {members.map((m) => {
@@ -453,48 +456,136 @@ export const CreateKaamModal: React.FC<CreateKaamModalProps> = ({
                 );
               })}
             </div>
-          </div>
-        )}
 
-        {/* Mode C: Multiple People */}
-        {assignmentMode === "multiple_people" && (
-          <div>
-            <p className="text-[12px] text-grayBlack mb-2">
-              Select 2 or more flatmates ({selectedAssignees.length} selected):
-            </p>
-            <div className="flex items-center gap-3 overflow-x-auto pb-2 scrollbar-none">
-              {members.map((m) => {
-                const isSelected = selectedAssignees.includes(m.userId);
-                const firstName = m.name ? m.name.split(" ")[0] : "Member";
-                return (
+            {/* Case A: Exactly 1 Person Selected -> Skip Group Size & Show Direct Assignment Card */}
+            {selectedAssignees.length === 1 && (
+              <div className="flex items-center gap-3 p-3 rounded-[10px] bg-[#F8FAFC] border border-[#E2E8F0] mt-3">
+                <div className="w-9 h-9 rounded-full bg-paleSky flex items-center justify-center flex-shrink-0">
+                  <User size={18} className="text-navy" strokeWidth={2.4} />
+                </div>
+                <div className="flex-1">
+                  <p className="text-[13px] font-semibold text-navy leading-tight">
+                    This Kaam is assigned to {members.find((m) => m.userId === selectedAssignees[0])?.name || "Selected Member"}
+                  </p>
+                  <p className="text-[12px] text-mutedNavy leading-normal mt-0.5">
+                    Assigned to this person on every occurrence (no rotation).
+                  </p>
+                </div>
+              </div>
+            )}
+
+            {/* Case B: Multiple People Selected -> Group Size Selector & Rotation Preview */}
+            {selectedAssignees.length > 1 && (
+              <div className="mt-3">
+                <p className="text-[11px] font-bold tracking-wider text-grayBlack uppercase mb-1.5">
+                  GROUP SIZE PER TURN
+                </p>
+                <div className="flex flex-wrap gap-2 mb-3">
                   <button
-                    key={m.userId}
                     type="button"
-                    onClick={() => handleMemberSelect(m.userId)}
-                    className={`flex flex-col items-center p-2 rounded-[10px] border transition-all cursor-pointer min-w-[70px] ${
-                      isSelected
-                        ? "bg-paleSky/70 border-navy"
-                        : "bg-offWhite border-border"
+                    onClick={() => setGroupSize(1)}
+                    className={`px-3 py-1.5 rounded-full border text-[12px] font-semibold transition-all cursor-pointer ${
+                      groupSize === 1
+                        ? "bg-navy border-navy text-white shadow-xs"
+                        : "bg-offWhite border-border text-navy hover:bg-border/60"
                     }`}
                   >
-                    <div className="relative mb-1">
-                      <Avatar name={m.name} image={m.image} size="md" />
-                      {isSelected && (
-                        <div className="absolute -bottom-1 -right-1 bg-deepNavy rounded-full w-4 h-4 flex items-center justify-center border border-white">
-                          <Check size={10} className="text-white" strokeWidth={3} />
-                        </div>
-                      )}
-                    </div>
-                    <span className="text-[12px] font-semibold text-black truncate max-w-[64px]">
-                      {firstName}
-                    </span>
-                    <span className="text-[10px] text-grayBlack uppercase">
-                      {m.role}
-                    </span>
+                    Individual (1)
                   </button>
-                );
-              })}
-            </div>
+
+                  {selectedAssignees.length >= 2 && (
+                    <button
+                      type="button"
+                      onClick={() => setGroupSize(2)}
+                      className={`px-3 py-1.5 rounded-full border text-[12px] font-semibold transition-all cursor-pointer ${
+                        groupSize === 2
+                          ? "bg-navy border-navy text-white shadow-xs"
+                          : "bg-offWhite border-border text-navy hover:bg-border/60"
+                      }`}
+                    >
+                      Pairs (2)
+                    </button>
+                  )}
+
+                  {selectedAssignees.length >= 3 && (
+                    <button
+                      type="button"
+                      onClick={() => setGroupSize(3)}
+                      className={`px-3 py-1.5 rounded-full border text-[12px] font-semibold transition-all cursor-pointer ${
+                        groupSize === 3
+                          ? "bg-navy border-navy text-white shadow-xs"
+                          : "bg-offWhite border-border text-navy hover:bg-border/60"
+                      }`}
+                    >
+                      Trios (3)
+                    </button>
+                  )}
+
+                  {selectedAssignees.length > 2 && groupSize !== selectedAssignees.length && (
+                    <button
+                      type="button"
+                      onClick={() => setGroupSize(selectedAssignees.length)}
+                      className={`px-3 py-1.5 rounded-full border text-[12px] font-semibold transition-all cursor-pointer ${
+                        groupSize === selectedAssignees.length
+                          ? "bg-navy border-navy text-white shadow-xs"
+                          : "bg-offWhite border-border text-navy hover:bg-border/60"
+                      }`}
+                    >
+                      All Together ({selectedAssignees.length})
+                    </button>
+                  )}
+                </div>
+
+                {/* Confirmation / Rotation Preview */}
+                {rotationGroups.length === 1 ? (
+                  <div className="flex items-center gap-3 p-3 rounded-[10px] bg-[#F8FAFC] border border-[#E2E8F0]">
+                    <div className="w-9 h-9 rounded-full bg-paleSky flex items-center justify-center flex-shrink-0">
+                      <Users size={18} className="text-navy" strokeWidth={2.4} />
+                    </div>
+                    <div className="flex-1">
+                      <p className="text-[13px] font-semibold text-navy leading-tight">
+                        Assigned to {selectedAssignees.map((id) => members.find((m) => m.userId === id)?.name?.split(" ")[0] || "Member").join(", ")} together
+                      </p>
+                      <p className="text-[12px] text-mutedNavy leading-normal mt-0.5">
+                        All {selectedAssignees.length} flatmates are assigned together on every occurrence (no rotation).
+                      </p>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="p-3 rounded-[10px] bg-paleSky/50 border border-sky/30">
+                    <div className="flex items-center gap-1.5 mb-1.5">
+                      <RotateCcw size={14} className="text-navy" />
+                      <p className="text-[12px] font-semibold text-navy">
+                        Rotation Order ({rotationGroups.length} turns):
+                      </p>
+                    </div>
+                    <div className="flex flex-wrap items-center gap-2 mb-1.5">
+                      {rotationGroups.map((grp, idx) => {
+                        const names = grp.userIds
+                          .map((id) => members.find((m) => m.userId === id)?.name?.split(" ")[0] || "Member")
+                          .join(" & ");
+                        return (
+                          <div key={grp.groupOrder} className="flex items-center gap-1.5">
+                            <span className="bg-navy text-white text-[10px] font-semibold px-2 py-0.5 rounded-[4px]">
+                              Turn {grp.groupOrder}
+                            </span>
+                            <span className="text-[12px] font-semibold text-navy">
+                              {names}
+                            </span>
+                            {idx < rotationGroups.length - 1 && (
+                              <span className="text-mutedNavy text-[12px]">→</span>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                    <p className="text-[11px] text-mutedNavy">
+                      Turns rotate automatically across these groups on completion.
+                    </p>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         )}
       </div>

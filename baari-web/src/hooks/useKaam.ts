@@ -136,6 +136,10 @@ export const useKaam = () => {
       | { type: "specific_days"; days: string[] }
       | { type: "interval"; everyNDays: number }
       | null;
+    assignmentMode?: "auto_rotate" | "custom_rotation";
+    customRotationPool?: string[] | null;
+    customRotationGroupSize?: number;
+    customRotationGroups?: Array<{ groupOrder: number; userIds: string[] }> | null;
     assigneeIds: string[];
     occurrenceDate?: string;
   }) => {

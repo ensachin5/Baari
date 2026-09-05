@@ -20,6 +20,7 @@ import { user } from './auth-schema.js';
 export const flatMemberRole = pgEnum('flat_member_role', ['admin', 'member']);
 export const taskCategory = pgEnum('task_category', ['water', 'garbage', 'chore', 'custom']);
 export const taskRecurrence = pgEnum('task_recurrence', ['once', 'daily', 'weekly', 'custom']);
+export const taskAssignmentMode = pgEnum('task_assignment_mode', ['auto_rotate', 'custom_rotation']);
 export const occurrenceStatus = pgEnum('occurrence_status', ['pending', 'in_progress', 'done', 'missed']);
 export const occurrenceMemberStatus = pgEnum('occurrence_member_status', ['assigned', 'completed']);
 export const activityType = pgEnum('activity_type', [
@@ -83,6 +84,12 @@ export const tasks = pgTable('tasks', {
   customRecurrenceConfig: jsonb('custom_recurrence_config').$type<
     | { type: 'specific_days'; days: string[] }
     | { type: 'interval'; everyNDays: number }
+  >(),
+  assignmentMode: taskAssignmentMode('assignment_mode').default('auto_rotate').notNull(),
+  customRotationPool: jsonb('custom_rotation_pool').$type<string[]>(),
+  customRotationGroupSize: integer('custom_rotation_group_size').default(1),
+  customRotationGroups: jsonb('custom_rotation_groups').$type<
+    Array<{ groupOrder: number; userIds: string[] }>
   >(),
   createdBy: uuid('created_by')
     .references(() => user.id)

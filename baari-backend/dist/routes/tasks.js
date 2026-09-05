@@ -144,6 +144,10 @@ exports.tasksRouter.get('/', auth_guard_js_1.requireAuth, async (req, res) => {
         peopleRequired: schema_js_1.tasks.peopleRequired,
         recurrence: schema_js_1.tasks.recurrence,
         customRecurrenceConfig: schema_js_1.tasks.customRecurrenceConfig,
+        assignmentMode: schema_js_1.tasks.assignmentMode,
+        customRotationPool: schema_js_1.tasks.customRotationPool,
+        customRotationGroupSize: schema_js_1.tasks.customRotationGroupSize,
+        customRotationGroups: schema_js_1.tasks.customRotationGroups,
         createdBy: schema_js_1.tasks.createdBy,
         active: schema_js_1.tasks.active,
         createdAt: schema_js_1.tasks.createdAt,
@@ -222,9 +226,19 @@ exports.tasksRouter.get('/', auth_guard_js_1.requireAuth, async (req, res) => {
         const taskOccs = occsByTaskId.get(task.id) || [];
         const latestOccurrence = taskOccs[0] || null;
         let nextAssignee = null;
-        if (task.recurrence !== 'once' && flatMembersList.length > 0) {
-            const rotIdx = (rotMap.get(task.id) || 0) % flatMembersList.length;
-            nextAssignee = flatMembersList[rotIdx];
+        if (task.recurrence !== 'once') {
+            if (task.assignmentMode === 'custom_rotation' && task.customRotationGroups && task.customRotationGroups.length > 0) {
+                const groups = task.customRotationGroups;
+                const rotIdx = (rotMap.get(task.id) || 0) % groups.length;
+                const nextGroupUserIds = groups[rotIdx]?.userIds || [];
+                if (nextGroupUserIds.length > 0) {
+                    nextAssignee = flatMembersList.find((m) => m.id === nextGroupUserIds[0]) || null;
+                }
+            }
+            else if (flatMembersList.length > 0) {
+                const rotIdx = (rotMap.get(task.id) || 0) % flatMembersList.length;
+                nextAssignee = flatMembersList[rotIdx];
+            }
         }
         return {
             ...task,
@@ -237,9 +251,14 @@ exports.tasksRouter.get('/', auth_guard_js_1.requireAuth, async (req, res) => {
 });
 // Create a task
 exports.tasksRouter.post('/', auth_guard_js_1.requireAuth, (0, validate_js_1.validate)(tasks_js_1.createTaskSchema), async (req, res) => {
-    const { flatId, title, category, description, peopleRequired, recurrence, customRecurrenceConfig, assigneeIds, occurrenceDate, } = req.body;
+    const { flatId, title, category, description, peopleRequired, recurrence, customRecurrenceConfig, assignmentMode = 'auto_rotate', customRotationPool, customRotationGroupSize = 1, customRotationGroups, assigneeIds, occurrenceDate, } = req.body;
     const userId = req.user.id;
     const todayStr = occurrenceDate || new Date().toISOString().split('T')[0];
+    // Determine effective initial assignees
+    let effectiveAssigneeIds = assigneeIds;
+    if (assignmentMode === 'custom_rotation' && customRotationGroups && customRotationGroups.length > 0) {
+        effectiveAssigneeIds = customRotationGroups[0].userIds;
+    }
     // 1. Create task
     const [newTask] = await index_js_1.db
         .insert(schema_js_1.tasks)
@@ -248,9 +267,13 @@ exports.tasksRouter.post('/', auth_guard_js_1.requireAuth, (0, validate_js_1.val
         title,
         category,
         description,
-        peopleRequired: peopleRequired || assigneeIds.length,
+        peopleRequired: peopleRequired || effectiveAssigneeIds.length,
         recurrence,
         customRecurrenceConfig: recurrence === 'custom' ? (customRecurrenceConfig || null) : null,
+        assignmentMode,
+        customRotationPool: customRotationPool || null,
+        customRotationGroupSize: customRotationGroupSize || 1,
+        customRotationGroups: customRotationGroups || null,
         createdBy: userId,
         active: true,
     })
@@ -265,7 +288,7 @@ exports.tasksRouter.post('/', auth_guard_js_1.requireAuth, (0, validate_js_1.val
     })
         .returning();
     // 3. Assign members to occurrence
-    const memberValues = assigneeIds.map((assigneeId) => ({
+    const memberValues = effectiveAssigneeIds.map((assigneeId) => ({
         occurrenceId: newOccurrence.id,
         userId: assigneeId,
         status: 'assigned',
@@ -273,16 +296,21 @@ exports.tasksRouter.post('/', auth_guard_js_1.requireAuth, (0, validate_js_1.val
     await index_js_1.db.insert(schema_js_1.taskOccurrenceMembers).values(memberValues);
     // Initialize task rotation state for recurring tasks
     if (recurrence !== 'once') {
-        const allMembers = await index_js_1.db
-            .select({ userId: schema_js_1.flatMembers.userId })
-            .from(schema_js_1.flatMembers)
-            .where((0, drizzle_orm_1.eq)(schema_js_1.flatMembers.flatId, flatId))
-            .orderBy((0, drizzle_orm_1.asc)(schema_js_1.flatMembers.joinedAt));
-        let nextIndex = 1;
-        if (allMembers.length > 0 && assigneeIds.length > 0) {
-            const foundIdx = allMembers.findIndex((m) => m.userId === assigneeIds[0]);
-            if (foundIdx !== -1) {
-                nextIndex = (foundIdx + 1) % allMembers.length;
+        let nextIndex = 0;
+        if (assignmentMode === 'custom_rotation' && customRotationGroups && customRotationGroups.length > 0) {
+            nextIndex = customRotationGroups.length > 1 ? 1 : 0;
+        }
+        else {
+            const allMembers = await index_js_1.db
+                .select({ userId: schema_js_1.flatMembers.userId })
+                .from(schema_js_1.flatMembers)
+                .where((0, drizzle_orm_1.eq)(schema_js_1.flatMembers.flatId, flatId))
+                .orderBy((0, drizzle_orm_1.asc)(schema_js_1.flatMembers.joinedAt));
+            if (allMembers.length > 0 && effectiveAssigneeIds.length > 0) {
+                const foundIdx = allMembers.findIndex((m) => m.userId === effectiveAssigneeIds[0]);
+                if (foundIdx !== -1) {
+                    nextIndex = (foundIdx + 1) % allMembers.length;
+                }
             }
         }
         await index_js_1.db.insert(schema_js_1.taskRotationState).values({
@@ -302,7 +330,8 @@ exports.tasksRouter.post('/', auth_guard_js_1.requireAuth, (0, validate_js_1.val
             taskTitle: title,
             category,
             recurrence,
-            peopleRequired: peopleRequired || assigneeIds.length,
+            assignmentMode,
+            peopleRequired: peopleRequired || effectiveAssigneeIds.length,
         },
     })
         .returning();
@@ -343,6 +372,9 @@ exports.tasksRouter.patch('/occurrences/:id/complete', auth_guard_js_1.requireAu
         taskTitle: schema_js_1.tasks.title,
         recurrence: schema_js_1.tasks.recurrence,
         customRecurrenceConfig: schema_js_1.tasks.customRecurrenceConfig,
+        assignmentMode: schema_js_1.tasks.assignmentMode,
+        customRotationGroups: schema_js_1.tasks.customRotationGroups,
+        customRotationGroupSize: schema_js_1.tasks.customRotationGroupSize,
         peopleRequired: schema_js_1.tasks.peopleRequired,
     })
         .from(schema_js_1.taskOccurrences)
@@ -393,30 +425,41 @@ exports.tasksRouter.patch('/occurrences/:id/complete', auth_guard_js_1.requireAu
                         status: 'pending',
                     })
                         .returning();
-                    const flatMembersList = await index_js_1.db
-                        .select({ userId: schema_js_1.flatMembers.userId })
-                        .from(schema_js_1.flatMembers)
-                        .where((0, drizzle_orm_1.eq)(schema_js_1.flatMembers.flatId, occ.flatId))
-                        .orderBy((0, drizzle_orm_1.asc)(schema_js_1.flatMembers.joinedAt));
-                    if (flatMembersList.length > 0) {
-                        const [rotState] = await index_js_1.db
-                            .select()
-                            .from(schema_js_1.taskRotationState)
-                            .where((0, drizzle_orm_1.eq)(schema_js_1.taskRotationState.taskId, occ.taskId));
-                        const curIdx = rotState ? rotState.currentMemberIndex : 0;
-                        const peopleReq = Math.min(occ.peopleRequired || 1, flatMembersList.length);
-                        const nextAssigneeIds = [];
-                        for (let i = 0; i < peopleReq; i++) {
-                            const assignedUser = flatMembersList[(curIdx + i) % flatMembersList.length];
-                            nextAssigneeIds.push(assignedUser.userId);
+                    const [rotState] = await index_js_1.db
+                        .select()
+                        .from(schema_js_1.taskRotationState)
+                        .where((0, drizzle_orm_1.eq)(schema_js_1.taskRotationState.taskId, occ.taskId));
+                    const curIdx = rotState ? rotState.currentMemberIndex : 0;
+                    let nextAssigneeIds = [];
+                    let newIndex = 0;
+                    if (occ.assignmentMode === 'custom_rotation' && occ.customRotationGroups && occ.customRotationGroups.length > 0) {
+                        const groups = occ.customRotationGroups;
+                        const groupIdx = curIdx % groups.length;
+                        nextAssigneeIds = groups[groupIdx].userIds;
+                        newIndex = groups.length > 1 ? (groupIdx + 1) % groups.length : 0;
+                    }
+                    else {
+                        const flatMembersList = await index_js_1.db
+                            .select({ userId: schema_js_1.flatMembers.userId })
+                            .from(schema_js_1.flatMembers)
+                            .where((0, drizzle_orm_1.eq)(schema_js_1.flatMembers.flatId, occ.flatId))
+                            .orderBy((0, drizzle_orm_1.asc)(schema_js_1.flatMembers.joinedAt));
+                        if (flatMembersList.length > 0) {
+                            const peopleReq = Math.min(occ.peopleRequired || 1, flatMembersList.length);
+                            for (let i = 0; i < peopleReq; i++) {
+                                const assignedUser = flatMembersList[(curIdx + i) % flatMembersList.length];
+                                nextAssigneeIds.push(assignedUser.userId);
+                            }
+                            newIndex = (curIdx + peopleReq) % flatMembersList.length;
                         }
+                    }
+                    if (nextAssigneeIds.length > 0) {
                         const newMemberValues = nextAssigneeIds.map((uId) => ({
                             occurrenceId: newOcc.id,
                             userId: uId,
                             status: 'assigned',
                         }));
                         await index_js_1.db.insert(schema_js_1.taskOccurrenceMembers).values(newMemberValues);
-                        const newIndex = (curIdx + peopleReq) % flatMembersList.length;
                         if (rotState) {
                             await index_js_1.db
                                 .update(schema_js_1.taskRotationState)
@@ -457,23 +500,21 @@ exports.tasksRouter.patch('/occurrences/:id/complete', auth_guard_js_1.requireAu
     // Broadcast realtime event
     try {
         const io = (0, index_js_2.getIO)();
-        (0, handlers_js_1.broadcastTaskCompleted)(io, occ.flatId, {
-            occurrenceId,
-            userId,
-            taskTitle: occ.taskTitle,
-            userName: req.user.name,
-            isFullyDone,
-        });
         (0, handlers_js_1.broadcastActivityEvent)(io, occ.flatId, {
             ...activity,
             actor: { id: req.user.id, name: req.user.name, image: req.user.image },
         });
+        io.to(`flat:${occ.flatId}`).emit('task_completed', {
+            occurrenceId,
+            userId,
+            isFullyDone,
+        });
     }
     catch (_) { }
     res.json({
-        message: 'Task completion marked',
+        occurrence: occ,
+        member: updatedMember,
         isFullyDone,
-        updatedMember,
     });
 });
 // Skip turn for current task occurrence (passes turn to next member in fair rotation)
@@ -489,6 +530,8 @@ exports.tasksRouter.patch('/occurrences/:id/skip-turn', auth_guard_js_1.requireA
         status: schema_js_1.taskOccurrences.status,
         flatId: schema_js_1.tasks.flatId,
         taskTitle: schema_js_1.tasks.title,
+        assignmentMode: schema_js_1.tasks.assignmentMode,
+        customRotationGroups: schema_js_1.tasks.customRotationGroups,
     })
         .from(schema_js_1.taskOccurrences)
         .innerJoin(schema_js_1.tasks, (0, drizzle_orm_1.eq)(schema_js_1.taskOccurrences.taskId, schema_js_1.tasks.id))
@@ -510,55 +553,97 @@ exports.tasksRouter.patch('/occurrences/:id/skip-turn', auth_guard_js_1.requireA
         res.status(400).json({ error: 'Cannot skip an already completed task' });
         return;
     }
-    // 3. Get all flat members sorted by joinedAt
-    const members = await index_js_1.db
-        .select({
-        userId: schema_js_1.flatMembers.userId,
-        name: schema_js_1.user.name,
-        image: schema_js_1.user.image,
-    })
-        .from(schema_js_1.flatMembers)
-        .innerJoin(schema_js_1.user, (0, drizzle_orm_1.eq)(schema_js_1.flatMembers.userId, schema_js_1.user.id))
-        .where((0, drizzle_orm_1.eq)(schema_js_1.flatMembers.flatId, occ.flatId))
-        .orderBy((0, drizzle_orm_1.asc)(schema_js_1.flatMembers.joinedAt));
-    if (members.length <= 1) {
-        res.status(400).json({ error: 'Cannot skip turn: no other members in flat' });
-        return;
+    let nextAssigneeId = null;
+    let nextMemberInfo = null;
+    if (occ.assignmentMode === 'custom_rotation' && occ.customRotationGroups && occ.customRotationGroups.length > 1) {
+        const groups = occ.customRotationGroups;
+        const [rotState] = await index_js_1.db
+            .select()
+            .from(schema_js_1.taskRotationState)
+            .where((0, drizzle_orm_1.eq)(schema_js_1.taskRotationState.taskId, occ.taskId));
+        let nextIndex = rotState ? rotState.currentMemberIndex : 0;
+        let nextGroup = groups[nextIndex % groups.length];
+        if (nextGroup.userIds.includes(userId)) {
+            nextIndex = (nextIndex + 1) % groups.length;
+            nextGroup = groups[nextIndex];
+        }
+        nextAssigneeId = nextGroup.userIds[0];
+        const [nextUser] = await index_js_1.db
+            .select({ userId: schema_js_1.user.id, name: schema_js_1.user.name, image: schema_js_1.user.image })
+            .from(schema_js_1.user)
+            .where((0, drizzle_orm_1.eq)(schema_js_1.user.id, nextAssigneeId));
+        nextMemberInfo = nextUser || { userId: nextAssigneeId, name: 'Flatmate' };
+        const newPointer = (nextIndex + 1) % groups.length;
+        if (rotState) {
+            await index_js_1.db
+                .update(schema_js_1.taskRotationState)
+                .set({ currentMemberIndex: newPointer, updatedAt: new Date() })
+                .where((0, drizzle_orm_1.eq)(schema_js_1.taskRotationState.id, rotState.id));
+        }
+        else {
+            await index_js_1.db.insert(schema_js_1.taskRotationState).values({
+                taskId: occ.taskId,
+                currentMemberIndex: newPointer,
+            });
+        }
     }
-    // 4. Get or initialize task_rotation_state
-    const [rotState] = await index_js_1.db
-        .select()
-        .from(schema_js_1.taskRotationState)
-        .where((0, drizzle_orm_1.eq)(schema_js_1.taskRotationState.taskId, occ.taskId));
-    let nextIndex = rotState ? rotState.currentMemberIndex : 0;
-    let nextMember = members[nextIndex % members.length];
-    if (nextMember.userId === userId) {
-        nextIndex = (nextIndex + 1) % members.length;
-        nextMember = members[nextIndex];
+    else {
+        // 3. Get all flat members sorted by joinedAt
+        const members = await index_js_1.db
+            .select({
+            userId: schema_js_1.flatMembers.userId,
+            name: schema_js_1.user.name,
+            image: schema_js_1.user.image,
+        })
+            .from(schema_js_1.flatMembers)
+            .innerJoin(schema_js_1.user, (0, drizzle_orm_1.eq)(schema_js_1.flatMembers.userId, schema_js_1.user.id))
+            .where((0, drizzle_orm_1.eq)(schema_js_1.flatMembers.flatId, occ.flatId))
+            .orderBy((0, drizzle_orm_1.asc)(schema_js_1.flatMembers.joinedAt));
+        if (members.length <= 1) {
+            res.status(400).json({ error: 'Cannot skip turn: no other members in flat' });
+            return;
+        }
+        // 4. Get or initialize task_rotation_state
+        const [rotState] = await index_js_1.db
+            .select()
+            .from(schema_js_1.taskRotationState)
+            .where((0, drizzle_orm_1.eq)(schema_js_1.taskRotationState.taskId, occ.taskId));
+        let nextIndex = rotState ? rotState.currentMemberIndex : 0;
+        let nextMember = members[nextIndex % members.length];
+        if (nextMember.userId === userId) {
+            nextIndex = (nextIndex + 1) % members.length;
+            nextMember = members[nextIndex];
+        }
+        nextAssigneeId = nextMember.userId;
+        nextMemberInfo = nextMember;
+        // Advance rotation pointer to next person
+        const newPointer = (nextIndex + 1) % members.length;
+        if (rotState) {
+            await index_js_1.db
+                .update(schema_js_1.taskRotationState)
+                .set({ currentMemberIndex: newPointer, updatedAt: new Date() })
+                .where((0, drizzle_orm_1.eq)(schema_js_1.taskRotationState.id, rotState.id));
+        }
+        else {
+            await index_js_1.db.insert(schema_js_1.taskRotationState).values({
+                taskId: occ.taskId,
+                currentMemberIndex: newPointer,
+            });
+        }
+    }
+    if (!nextAssigneeId || !nextMemberInfo) {
+        res.status(400).json({ error: 'Could not resolve next turn assignee' });
+        return;
     }
     // 5. Update assignment in task_occurrence_members
     await index_js_1.db
         .update(schema_js_1.taskOccurrenceMembers)
         .set({
-        userId: nextMember.userId,
+        userId: nextAssigneeId,
         status: 'assigned',
         completedAt: null,
     })
         .where((0, drizzle_orm_1.eq)(schema_js_1.taskOccurrenceMembers.id, myAssignment.id));
-    // 6. Advance rotation pointer to next person so rotation remains fair
-    const newPointer = (nextIndex + 1) % members.length;
-    if (rotState) {
-        await index_js_1.db
-            .update(schema_js_1.taskRotationState)
-            .set({ currentMemberIndex: newPointer, updatedAt: new Date() })
-            .where((0, drizzle_orm_1.eq)(schema_js_1.taskRotationState.id, rotState.id));
-    }
-    else {
-        await index_js_1.db.insert(schema_js_1.taskRotationState).values({
-            taskId: occ.taskId,
-            currentMemberIndex: newPointer,
-        });
-    }
     // 7. Log to activity_log
     const [activity] = await index_js_1.db
         .insert(schema_js_1.activityLog)
@@ -570,8 +655,8 @@ exports.tasksRouter.patch('/occurrences/:id/skip-turn', auth_guard_js_1.requireA
         metadata: {
             taskTitle: occ.taskTitle,
             skippedByName: req.user.name,
-            passedToName: nextMember.name,
-            passedToUserId: nextMember.userId,
+            passedToName: nextMemberInfo.name,
+            passedToUserId: nextMemberInfo.userId,
             reason: reason ? String(reason).trim() : null,
         },
     })
@@ -586,19 +671,19 @@ exports.tasksRouter.patch('/occurrences/:id/skip-turn', auth_guard_js_1.requireA
         io.to(`flat:${occ.flatId}`).emit('task_updated', {
             occurrenceId,
             taskId: occ.taskId,
-            reassignedTo: nextMember,
+            reassignedTo: nextMemberInfo,
         });
     }
     catch (_) { }
     // 9. Push notification
-    (0, push_js_1.sendPushNotification)([nextMember.userId], {
+    (0, push_js_1.sendPushNotification)([nextMemberInfo.userId], {
         title: `Kaam Passed to You: ${occ.taskTitle}`,
         body: `${req.user.name} passed their turn to you.${reason ? ` Reason: "${reason}"` : ''}`,
         data: { type: 'task', taskId: occ.taskId, occurrenceId },
     });
     res.json({
-        message: `Turn passed to ${nextMember.name}`,
-        passedTo: nextMember,
+        message: `Turn passed to ${nextMemberInfo.name}`,
+        passedTo: nextMemberInfo,
         occurrenceId,
     });
 });

@@ -14,7 +14,7 @@ var __exportStar = (this && this.__exportStar) || function(m, exports) {
     for (var p in m) if (p !== "default" && !Object.prototype.hasOwnProperty.call(exports, p)) __createBinding(exports, m, p);
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.verification = exports.account = exports.session = exports.user = exports.activityLogRelations = exports.settlementsRelations = exports.expenseSplitsRelations = exports.expensesRelations = exports.messagesRelations = exports.taskOccurrenceMembersRelations = exports.taskOccurrencesRelations = exports.tasksRelations = exports.flatMembersRelations = exports.quickPickPresetsRelations = exports.groceryItemsRelations = exports.announcementsRelations = exports.flatsRelations = exports.groceryItems = exports.announcements = exports.quickPickPresets = exports.pushTokens = exports.activityLog = exports.settlements = exports.expenseComments = exports.expenseSplits = exports.expenses = exports.messageReads = exports.messages = exports.taskRotationState = exports.taskOccurrenceMembers = exports.taskOccurrences = exports.tasks = exports.flatMembers = exports.flats = exports.groceryItemStatus = exports.expenseRecurrence = exports.settlementStatus = exports.pushDeviceType = exports.activityType = exports.occurrenceMemberStatus = exports.occurrenceStatus = exports.taskRecurrence = exports.taskCategory = exports.flatMemberRole = void 0;
+exports.verification = exports.account = exports.session = exports.user = exports.activityLogRelations = exports.settlementsRelations = exports.expenseSplitsRelations = exports.expensesRelations = exports.messagesRelations = exports.taskOccurrenceMembersRelations = exports.taskOccurrencesRelations = exports.tasksRelations = exports.flatMembersRelations = exports.quickPickPresetsRelations = exports.groceryItemsRelations = exports.announcementsRelations = exports.flatsRelations = exports.groceryItems = exports.announcements = exports.quickPickPresets = exports.pushTokens = exports.activityLog = exports.settlements = exports.expenseComments = exports.expenseSplits = exports.expenses = exports.messageReads = exports.messages = exports.taskRotationState = exports.taskOccurrenceMembers = exports.taskOccurrences = exports.tasks = exports.flatMembers = exports.flats = exports.groceryItemStatus = exports.expenseRecurrence = exports.settlementStatus = exports.pushDeviceType = exports.activityType = exports.occurrenceMemberStatus = exports.occurrenceStatus = exports.taskAssignmentMode = exports.taskRecurrence = exports.taskCategory = exports.flatMemberRole = void 0;
 const pg_core_1 = require("drizzle-orm/pg-core");
 const drizzle_orm_1 = require("drizzle-orm");
 __exportStar(require("./auth-schema.js"), exports);
@@ -23,6 +23,7 @@ const auth_schema_js_1 = require("./auth-schema.js");
 exports.flatMemberRole = (0, pg_core_1.pgEnum)('flat_member_role', ['admin', 'member']);
 exports.taskCategory = (0, pg_core_1.pgEnum)('task_category', ['water', 'garbage', 'chore', 'custom']);
 exports.taskRecurrence = (0, pg_core_1.pgEnum)('task_recurrence', ['once', 'daily', 'weekly', 'custom']);
+exports.taskAssignmentMode = (0, pg_core_1.pgEnum)('task_assignment_mode', ['auto_rotate', 'custom_rotation']);
 exports.occurrenceStatus = (0, pg_core_1.pgEnum)('occurrence_status', ['pending', 'in_progress', 'done', 'missed']);
 exports.occurrenceMemberStatus = (0, pg_core_1.pgEnum)('occurrence_member_status', ['assigned', 'completed']);
 exports.activityType = (0, pg_core_1.pgEnum)('activity_type', [
@@ -77,6 +78,10 @@ exports.tasks = (0, pg_core_1.pgTable)('tasks', {
     peopleRequired: (0, pg_core_1.integer)('people_required').default(1).notNull(),
     recurrence: (0, exports.taskRecurrence)('recurrence').notNull(),
     customRecurrenceConfig: (0, pg_core_1.jsonb)('custom_recurrence_config').$type(),
+    assignmentMode: (0, exports.taskAssignmentMode)('assignment_mode').default('auto_rotate').notNull(),
+    customRotationPool: (0, pg_core_1.jsonb)('custom_rotation_pool').$type(),
+    customRotationGroupSize: (0, pg_core_1.integer)('custom_rotation_group_size').default(1),
+    customRotationGroups: (0, pg_core_1.jsonb)('custom_rotation_groups').$type(),
     createdBy: (0, pg_core_1.uuid)('created_by')
         .references(() => auth_schema_js_1.user.id)
         .notNull(),

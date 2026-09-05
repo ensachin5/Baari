@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   View,
   Text,
@@ -39,7 +39,7 @@ export interface FlatMember {
 
 export type RecurrenceOption = 'once' | 'daily' | 'weekly' | 'custom';
 export type CustomMode = 'specific_days' | 'interval';
-export type AssignmentMode = 'auto_rotate' | 'one_person' | 'multiple_people';
+export type AssignmentMode = 'auto_rotate' | 'custom_rotation';
 
 export type CustomRecurrenceConfig =
   | { type: 'specific_days'; days: string[] }
@@ -54,6 +54,10 @@ interface CreateKaamModalProps {
     description?: string;
     recurrence: RecurrenceOption;
     customRecurrenceConfig?: CustomRecurrenceConfig | null;
+    assignmentMode?: 'auto_rotate' | 'custom_rotation';
+    customRotationPool?: string[] | null;
+    customRotationGroupSize?: number;
+    customRotationGroups?: Array<{ groupOrder: number; userIds: string[] }> | null;
     peopleRequired: number;
     assigneeIds: string[];
     occurrenceDate?: string;
@@ -89,9 +93,10 @@ export const CreateKaamModal: React.FC<CreateKaamModalProps> = ({
   const [category, setCategory] = useState<'water' | 'garbage' | 'chore' | 'custom'>('water');
   const [isEditPresetsOpen, setIsEditPresetsOpen] = useState(false);
 
-  // 3 Distinct Assignment Modes: 'auto_rotate' | 'one_person' | 'multiple_people'
+  // 2 Distinct Assignment Modes: 'auto_rotate' | 'custom_rotation'
   const [assignmentMode, setAssignmentMode] = useState<AssignmentMode>('auto_rotate');
   const [selectedAssignees, setSelectedAssignees] = useState<string[]>([]);
+  const [groupSize, setGroupSize] = useState<number>(1);
 
   // Recurrence state
   const [recurrence, setRecurrence] = useState<RecurrenceOption>('daily');
@@ -113,6 +118,22 @@ export const CreateKaamModal: React.FC<CreateKaamModalProps> = ({
       setCategory(firstPreset.category);
     }
   }, [visible, presets]);
+
+  // Compute rotation groups based on selectedAssignees and groupSize
+  const rotationGroups = useMemo(() => {
+    if (assignmentMode !== 'custom_rotation' || selectedAssignees.length === 0) return [];
+    if (selectedAssignees.length === 1) {
+      return [{ groupOrder: 1, userIds: [selectedAssignees[0]] }];
+    }
+    const effectiveSize = Math.min(Math.max(1, groupSize), selectedAssignees.length);
+    const groups: Array<{ groupOrder: number; userIds: string[] }> = [];
+    let order = 1;
+    for (let i = 0; i < selectedAssignees.length; i += effectiveSize) {
+      const chunk = selectedAssignees.slice(i, i + effectiveSize);
+      groups.push({ groupOrder: order++, userIds: chunk });
+    }
+    return groups;
+  }, [assignmentMode, selectedAssignees, groupSize]);
 
   // 1. Quick Pick Selection
   const handleSelectQuickPick = (item: QuickPickPreset) => {
@@ -141,35 +162,23 @@ export const CreateKaamModal: React.FC<CreateKaamModalProps> = ({
     setError('');
     if (mode === 'auto_rotate') {
       setSelectedAssignees([]);
-    } else if (mode === 'one_person') {
-      // Pick first member if none selected or if multiple selected
+    } else if (mode === 'custom_rotation') {
       if (selectedAssignees.length === 0 && members.length > 0) {
         setSelectedAssignees([members[0].userId]);
-      } else if (selectedAssignees.length > 1) {
-        setSelectedAssignees([selectedAssignees[0]]);
-      }
-    } else if (mode === 'multiple_people') {
-      // Pick at least 2 members if available
-      if (selectedAssignees.length < 2 && members.length >= 2) {
-        setSelectedAssignees([members[0].userId, members[1].userId]);
       }
     }
   };
 
   const handleMemberSelect = (userId: string) => {
     setError('');
-    if (assignmentMode === 'one_person') {
-      setSelectedAssignees([userId]);
-    } else if (assignmentMode === 'multiple_people') {
-      if (selectedAssignees.includes(userId)) {
-        if (selectedAssignees.length <= 1) {
-          setError('Multiple people mode requires at least 2 assignees');
-          return;
-        }
-        setSelectedAssignees(selectedAssignees.filter((id) => id !== userId));
-      } else {
-        setSelectedAssignees([...selectedAssignees, userId]);
+    if (selectedAssignees.includes(userId)) {
+      if (selectedAssignees.length === 1) {
+        setError('Custom rotation requires at least 1 person selected');
+        return;
       }
+      setSelectedAssignees(selectedAssignees.filter((id) => id !== userId));
+    } else {
+      setSelectedAssignees([...selectedAssignees, userId]);
     }
   };
 
@@ -218,6 +227,8 @@ export const CreateKaamModal: React.FC<CreateKaamModalProps> = ({
 
     let finalAssignees: string[] = [];
     let peopleReq = 1;
+    let finalGroups: Array<{ groupOrder: number; userIds: string[] }> | null = null;
+    let finalGroupSize = 1;
 
     if (assignmentMode === 'auto_rotate') {
       finalAssignees = members.map((m) => m.userId);
@@ -226,20 +237,19 @@ export const CreateKaamModal: React.FC<CreateKaamModalProps> = ({
         return;
       }
       peopleReq = 1;
-    } else if (assignmentMode === 'one_person') {
-      if (selectedAssignees.length !== 1) {
-        setError('Please select exactly 1 flatmate for this Kaam');
+    } else if (assignmentMode === 'custom_rotation') {
+      if (selectedAssignees.length === 0) {
+        setError('Please select at least 1 flatmate for custom rotation');
         return;
       }
-      finalAssignees = selectedAssignees;
-      peopleReq = 1;
-    } else if (assignmentMode === 'multiple_people') {
-      if (selectedAssignees.length < 2) {
-        setError('Please select at least 2 flatmates for multi-person Kaam');
+      if (rotationGroups.length === 0) {
+        setError('Could not build rotation groups');
         return;
       }
-      finalAssignees = selectedAssignees;
-      peopleReq = selectedAssignees.length;
+      finalGroups = rotationGroups;
+      finalGroupSize = selectedAssignees.length === 1 ? 1 : Math.min(groupSize, selectedAssignees.length);
+      finalAssignees = rotationGroups[0].userIds;
+      peopleReq = finalAssignees.length;
     }
 
     let customConfig: CustomRecurrenceConfig | null = null;
@@ -262,6 +272,10 @@ export const CreateKaamModal: React.FC<CreateKaamModalProps> = ({
         category,
         recurrence,
         customRecurrenceConfig: customConfig,
+        assignmentMode,
+        customRotationPool: assignmentMode === 'custom_rotation' ? selectedAssignees : null,
+        customRotationGroupSize: finalGroupSize,
+        customRotationGroups: finalGroups,
         peopleRequired: peopleReq,
         assigneeIds: finalAssignees,
         occurrenceDate: getFormattedDueDate(dueOffsetDays),
@@ -275,6 +289,7 @@ export const CreateKaamModal: React.FC<CreateKaamModalProps> = ({
       }
       setAssignmentMode('auto_rotate');
       setSelectedAssignees([]);
+      setGroupSize(1);
       setRecurrence('daily');
       setCustomMode('specific_days');
       setSelectedWeekdays(['mon', 'thu']);
@@ -362,7 +377,7 @@ export const CreateKaamModal: React.FC<CreateKaamModalProps> = ({
           </View>
         </View>
 
-        {/* 3. ASSIGN TO (3 DISTINCT MODES) */}
+        {/* 3. ASSIGN TO (2 MODES: AUTO-ROTATE & CUSTOM ROTATION) */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>ASSIGN TO</Text>
 
@@ -392,50 +407,28 @@ export const CreateKaamModal: React.FC<CreateKaamModalProps> = ({
 
             <TouchableOpacity
               activeOpacity={0.8}
-              onPress={() => handleSwitchAssignmentMode('one_person')}
+              onPress={() => handleSwitchAssignmentMode('custom_rotation')}
               style={[
                 styles.assignmentModeTab,
-                assignmentMode === 'one_person' && styles.assignmentModeTabActive,
+                assignmentMode === 'custom_rotation' && styles.assignmentModeTabActive,
               ]}
             >
-              <User
+              <SlidersHorizontal
                 size={13}
-                color={assignmentMode === 'one_person' ? Colors.white : Colors.mutedNavy}
+                color={assignmentMode === 'custom_rotation' ? Colors.white : Colors.mutedNavy}
               />
               <Text
                 style={[
                   styles.assignmentModeTabText,
-                  assignmentMode === 'one_person' && styles.assignmentModeTabTextActive,
+                  assignmentMode === 'custom_rotation' && styles.assignmentModeTabTextActive,
                 ]}
               >
-                One person
-              </Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              activeOpacity={0.8}
-              onPress={() => handleSwitchAssignmentMode('multiple_people')}
-              style={[
-                styles.assignmentModeTab,
-                assignmentMode === 'multiple_people' && styles.assignmentModeTabActive,
-              ]}
-            >
-              <Users
-                size={13}
-                color={assignmentMode === 'multiple_people' ? Colors.white : Colors.mutedNavy}
-              />
-              <Text
-                style={[
-                  styles.assignmentModeTabText,
-                  assignmentMode === 'multiple_people' && styles.assignmentModeTabTextActive,
-                ]}
-              >
-                Multiple people
+                Custom Rotation
               </Text>
             </TouchableOpacity>
           </View>
 
-          {/* Mode A: Auto-rotate Explanation Card */}
+          {/* Mode 1: Auto-rotate Explanation Card */}
           {assignmentMode === 'auto_rotate' && (
             <View style={styles.autoRotateCard}>
               <View style={styles.autoRotateIconWrap}>
@@ -450,63 +443,14 @@ export const CreateKaamModal: React.FC<CreateKaamModalProps> = ({
             </View>
           )}
 
-          {/* Mode B: One Person (Single Select Avatars) */}
-          {assignmentMode === 'one_person' && (
+          {/* Mode 2: Custom Rotation */}
+          {assignmentMode === 'custom_rotation' && (
             <View>
               <Text style={styles.modeHelperText}>
-                Tap 1 flatmate to assign (no rotation):
+                Select flatmate(s) for this Kaam ({selectedAssignees.length} selected):
               </Text>
-              <ScrollView
-                horizontal
-                showsHorizontalScrollIndicator={false}
-                contentContainerStyle={styles.assigneesScroll}
-              >
-                {members.map((m) => {
-                  const isSelected = selectedAssignees.includes(m.userId);
-                  const firstName = m.name ? m.name.split(' ')[0] : 'Member';
-                  return (
-                    <TouchableOpacity
-                      key={m.userId}
-                      activeOpacity={0.7}
-                      onPress={() => handleMemberSelect(m.userId)}
-                      style={[
-                        styles.assigneeItem,
-                        isSelected && styles.assigneeItemActive,
-                      ]}
-                    >
-                      <View style={styles.avatarWrap}>
-                        <Avatar name={m.name} image={m.image} size="md" />
-                        {isSelected && (
-                          <View style={styles.checkBadge}>
-                            <Check size={10} color={Colors.white} strokeWidth={3} />
-                          </View>
-                        )}
-                      </View>
-                      <Text
-                        style={[
-                          styles.assigneeName,
-                          isSelected && styles.assigneeNameActive,
-                        ]}
-                        numberOfLines={1}
-                      >
-                        {firstName}
-                      </Text>
-                      <Text style={styles.assigneeSub}>{m.role}</Text>
-                    </TouchableOpacity>
-                  );
-                })}
-              </ScrollView>
-            </View>
-          )}
 
-          {/* Mode C: Multiple People (Multi-Select Avatars) */}
-          {assignmentMode === 'multiple_people' && (
-            <View>
-              <View style={styles.multiPeopleHeader}>
-                <Text style={styles.modeHelperText}>
-                  Select 2 or more flatmates ({selectedAssignees.length} selected):
-                </Text>
-              </View>
+              {/* Members horizontal selector */}
               <ScrollView
                 horizontal
                 showsHorizontalScrollIndicator={false}
@@ -547,6 +491,160 @@ export const CreateKaamModal: React.FC<CreateKaamModalProps> = ({
                   );
                 })}
               </ScrollView>
+
+              {/* Case A: Exactly 1 Person Selected -> Skip Group Size & Show Direct Assignment Card */}
+              {selectedAssignees.length === 1 && (
+                <View style={styles.singlePersonCard}>
+                  <View style={styles.singlePersonIconWrap}>
+                    <User size={18} color={Colors.navy} strokeWidth={2.4} />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.singlePersonTitle}>
+                      This Kaam is assigned to {members.find((m) => m.userId === selectedAssignees[0])?.name || 'Selected Member'}
+                    </Text>
+                    <Text style={styles.singlePersonDesc}>
+                      Assigned to this person on every occurrence (no rotation).
+                    </Text>
+                  </View>
+                </View>
+              )}
+
+              {/* Case B: Multiple People Selected -> Show Group Size & Rotation Preview */}
+              {selectedAssignees.length > 1 && (
+                <View style={{ marginTop: Spacing.sm }}>
+                  <Text style={styles.subSectionLabel}>GROUP SIZE PER TURN</Text>
+                  <View style={styles.groupSizeRow}>
+                    {/* Individual (1 person per turn) */}
+                    <TouchableOpacity
+                      activeOpacity={0.8}
+                      onPress={() => setGroupSize(1)}
+                      style={[
+                        styles.groupSizeChip,
+                        groupSize === 1 && styles.groupSizeChipActive,
+                      ]}
+                    >
+                      <Text
+                        style={[
+                          styles.groupSizeChipText,
+                          groupSize === 1 && styles.groupSizeChipTextActive,
+                        ]}
+                      >
+                        Individual (1)
+                      </Text>
+                    </TouchableOpacity>
+
+                    {/* Pairs (2 per turn) if pool >= 2 */}
+                    {selectedAssignees.length >= 2 && (
+                      <TouchableOpacity
+                        activeOpacity={0.8}
+                        onPress={() => setGroupSize(2)}
+                        style={[
+                          styles.groupSizeChip,
+                          groupSize === 2 && styles.groupSizeChipActive,
+                        ]}
+                      >
+                        <Text
+                          style={[
+                            styles.groupSizeChipText,
+                            groupSize === 2 && styles.groupSizeChipTextActive,
+                          ]}
+                        >
+                          Pairs (2)
+                        </Text>
+                      </TouchableOpacity>
+                    )}
+
+                    {/* Trios (3 per turn) if pool >= 3 */}
+                    {selectedAssignees.length >= 3 && (
+                      <TouchableOpacity
+                        activeOpacity={0.8}
+                        onPress={() => setGroupSize(3)}
+                        style={[
+                          styles.groupSizeChip,
+                          groupSize === 3 && styles.groupSizeChipActive,
+                        ]}
+                      >
+                        <Text
+                          style={[
+                            styles.groupSizeChipText,
+                            groupSize === 3 && styles.groupSizeChipTextActive,
+                          ]}
+                        >
+                          Trios (3)
+                        </Text>
+                      </TouchableOpacity>
+                    )}
+
+                    {/* All together (single group containing all selected) if pool > 2 */}
+                    {selectedAssignees.length > 2 && groupSize !== selectedAssignees.length && (
+                      <TouchableOpacity
+                        activeOpacity={0.8}
+                        onPress={() => setGroupSize(selectedAssignees.length)}
+                        style={[
+                          styles.groupSizeChip,
+                          groupSize === selectedAssignees.length && styles.groupSizeChipActive,
+                        ]}
+                      >
+                        <Text
+                          style={[
+                            styles.groupSizeChipText,
+                            groupSize === selectedAssignees.length && styles.groupSizeChipTextActive,
+                          ]}
+                        >
+                          All Together ({selectedAssignees.length})
+                        </Text>
+                      </TouchableOpacity>
+                    )}
+                  </View>
+
+                  {/* Confirmation / Rotation Preview */}
+                  {rotationGroups.length === 1 ? (
+                    <View style={styles.singlePersonCard}>
+                      <View style={styles.singlePersonIconWrap}>
+                        <Users size={18} color={Colors.navy} strokeWidth={2.4} />
+                      </View>
+                      <View style={{ flex: 1 }}>
+                        <Text style={styles.singlePersonTitle}>
+                          Assigned to {selectedAssignees.map((id) => members.find((m) => m.userId === id)?.name?.split(' ')[0] || 'Member').join(', ')} together
+                        </Text>
+                        <Text style={styles.singlePersonDesc}>
+                          All {selectedAssignees.length} flatmates are assigned together on every occurrence (no rotation).
+                        </Text>
+                      </View>
+                    </View>
+                  ) : (
+                    <View style={styles.rotationPreviewCard}>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 6 }}>
+                        <RotateCcw size={14} color={Colors.navy} />
+                        <Text style={styles.rotationPreviewTitle}>
+                          Rotation Order ({rotationGroups.length} turns):
+                        </Text>
+                      </View>
+                      <View style={styles.rotationStepsWrap}>
+                        {rotationGroups.map((grp: { groupOrder: number; userIds: string[] }, idx: number) => {
+                          const names = grp.userIds
+                            .map((id: string) => members.find((m) => m.userId === id)?.name?.split(' ')[0] || 'Member')
+                            .join(' & ');
+                          return (
+                            <View key={grp.groupOrder} style={styles.rotationStepRow}>
+                              <View style={styles.rotationStepBadge}>
+                                <Text style={styles.rotationStepBadgeText}>Turn {grp.groupOrder}</Text>
+                              </View>
+                              <Text style={styles.rotationStepNames}>{names}</Text>
+                              {idx < rotationGroups.length - 1 && (
+                                <Text style={styles.rotationStepArrow}>→</Text>
+                              )}
+                            </View>
+                          );
+                        })}
+                      </View>
+                      <Text style={styles.rotationPreviewDesc}>
+                        Turns rotate automatically across these groups on completion.
+                      </Text>
+                    </View>
+                  )}
+                </View>
+              )}
             </View>
           )}
         </View>
@@ -1066,6 +1164,122 @@ const styles = StyleSheet.create({
     ...Typography.Caption,
     fontSize: 9,
     color: Colors.mutedNavy,
+  },
+  // Custom Rotation & Single Person Cards
+  singlePersonCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.sm,
+    padding: Spacing.md,
+    borderRadius: BorderRadius.md,
+    backgroundColor: '#F8FAFC',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    marginTop: Spacing.sm,
+  },
+  singlePersonIconWrap: {
+    width: 36,
+    height: 36,
+    borderRadius: BorderRadius.full,
+    backgroundColor: Colors.paleSky,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  singlePersonTitle: {
+    fontFamily: 'Inter_600SemiBold',
+    fontSize: 12,
+    color: Colors.deepNavy,
+  },
+  singlePersonDesc: {
+    ...Typography.Caption,
+    fontSize: 10,
+    color: Colors.mutedNavy,
+    marginTop: 2,
+  },
+  subSectionLabel: {
+    ...Typography.Caption,
+    fontFamily: 'Inter_700Bold',
+    fontSize: 10,
+    letterSpacing: 0.6,
+    color: Colors.grayBlack,
+    marginBottom: 6,
+  },
+  groupSizeRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: Spacing.xs,
+    marginBottom: Spacing.sm,
+  },
+  groupSizeChip: {
+    paddingVertical: 6,
+    paddingHorizontal: Spacing.md,
+    borderRadius: BorderRadius.full,
+    backgroundColor: Colors.offWhite,
+    borderWidth: 1,
+    borderColor: Colors.border,
+  },
+  groupSizeChipActive: {
+    backgroundColor: Colors.navy,
+    borderColor: Colors.navy,
+  },
+  groupSizeChipText: {
+    ...Typography.Caption,
+    fontFamily: 'Inter_600SemiBold',
+    color: Colors.deepNavy,
+  },
+  groupSizeChipTextActive: {
+    color: Colors.white,
+  },
+  rotationPreviewCard: {
+    padding: Spacing.md,
+    borderRadius: BorderRadius.md,
+    backgroundColor: '#F0F9FF',
+    borderWidth: 1,
+    borderColor: '#BAE6FD',
+  },
+  rotationPreviewTitle: {
+    fontFamily: 'Inter_600SemiBold',
+    fontSize: 12,
+    color: Colors.deepNavy,
+  },
+  rotationStepsWrap: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    alignItems: 'center',
+    gap: 6,
+    marginVertical: 4,
+  },
+  rotationStepRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  rotationStepBadge: {
+    backgroundColor: Colors.navy,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: BorderRadius.sm,
+  },
+  rotationStepBadgeText: {
+    fontFamily: 'Inter_600SemiBold',
+    fontSize: 10,
+    color: Colors.white,
+  },
+  rotationStepNames: {
+    fontFamily: 'Inter_600SemiBold',
+    fontSize: 11,
+    color: Colors.deepNavy,
+  },
+  rotationStepArrow: {
+    fontSize: 12,
+    color: Colors.mutedNavy,
+    marginHorizontal: 2,
+  },
+  rotationPreviewDesc: {
+    ...Typography.Caption,
+    fontSize: 10,
+    color: Colors.mutedNavy,
+    marginTop: 4,
   },
   // Recurrence
   recurrenceGrid: {

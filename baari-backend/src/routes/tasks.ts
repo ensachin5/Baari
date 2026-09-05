@@ -187,6 +187,10 @@ tasksRouter.get('/', requireAuth, async (req: AuthenticatedRequest, res: Respons
       peopleRequired: tasks.peopleRequired,
       recurrence: tasks.recurrence,
       customRecurrenceConfig: tasks.customRecurrenceConfig,
+      assignmentMode: tasks.assignmentMode,
+      customRotationPool: tasks.customRotationPool,
+      customRotationGroupSize: tasks.customRotationGroupSize,
+      customRotationGroups: tasks.customRotationGroups,
       createdBy: tasks.createdBy,
       active: tasks.active,
       createdAt: tasks.createdAt,
@@ -277,9 +281,18 @@ tasksRouter.get('/', requireAuth, async (req: AuthenticatedRequest, res: Respons
     const latestOccurrence = taskOccs[0] || null;
 
     let nextAssignee = null;
-    if (task.recurrence !== 'once' && flatMembersList.length > 0) {
-      const rotIdx = (rotMap.get(task.id) || 0) % flatMembersList.length;
-      nextAssignee = flatMembersList[rotIdx];
+    if (task.recurrence !== 'once') {
+      if (task.assignmentMode === 'custom_rotation' && task.customRotationGroups && task.customRotationGroups.length > 0) {
+        const groups = task.customRotationGroups;
+        const rotIdx = (rotMap.get(task.id) || 0) % groups.length;
+        const nextGroupUserIds = groups[rotIdx]?.userIds || [];
+        if (nextGroupUserIds.length > 0) {
+          nextAssignee = flatMembersList.find((m) => m.id === nextGroupUserIds[0]) || null;
+        }
+      } else if (flatMembersList.length > 0) {
+        const rotIdx = (rotMap.get(task.id) || 0) % flatMembersList.length;
+        nextAssignee = flatMembersList[rotIdx];
+      }
     }
 
     return {
@@ -307,12 +320,22 @@ tasksRouter.post(
       peopleRequired,
       recurrence,
       customRecurrenceConfig,
+      assignmentMode = 'auto_rotate',
+      customRotationPool,
+      customRotationGroupSize = 1,
+      customRotationGroups,
       assigneeIds,
       occurrenceDate,
     } = req.body;
     const userId = req.user!.id;
 
     const todayStr = occurrenceDate || new Date().toISOString().split('T')[0];
+
+    // Determine effective initial assignees
+    let effectiveAssigneeIds = assigneeIds;
+    if (assignmentMode === 'custom_rotation' && customRotationGroups && customRotationGroups.length > 0) {
+      effectiveAssigneeIds = customRotationGroups[0].userIds;
+    }
 
     // 1. Create task
     const [newTask] = await db
@@ -322,9 +345,13 @@ tasksRouter.post(
         title,
         category,
         description,
-        peopleRequired: peopleRequired || assigneeIds.length,
+        peopleRequired: peopleRequired || effectiveAssigneeIds.length,
         recurrence,
         customRecurrenceConfig: recurrence === 'custom' ? (customRecurrenceConfig || null) : null,
+        assignmentMode,
+        customRotationPool: customRotationPool || null,
+        customRotationGroupSize: customRotationGroupSize || 1,
+        customRotationGroups: customRotationGroups || null,
         createdBy: userId,
         active: true,
       })
@@ -341,7 +368,7 @@ tasksRouter.post(
       .returning();
 
     // 3. Assign members to occurrence
-    const memberValues = assigneeIds.map((assigneeId: string) => ({
+    const memberValues = effectiveAssigneeIds.map((assigneeId: string) => ({
       occurrenceId: newOccurrence.id,
       userId: assigneeId,
       status: 'assigned' as const,
@@ -351,17 +378,21 @@ tasksRouter.post(
 
     // Initialize task rotation state for recurring tasks
     if (recurrence !== 'once') {
-      const allMembers = await db
-        .select({ userId: flatMembers.userId })
-        .from(flatMembers)
-        .where(eq(flatMembers.flatId, flatId))
-        .orderBy(asc(flatMembers.joinedAt));
+      let nextIndex = 0;
+      if (assignmentMode === 'custom_rotation' && customRotationGroups && customRotationGroups.length > 0) {
+        nextIndex = customRotationGroups.length > 1 ? 1 : 0;
+      } else {
+        const allMembers = await db
+          .select({ userId: flatMembers.userId })
+          .from(flatMembers)
+          .where(eq(flatMembers.flatId, flatId))
+          .orderBy(asc(flatMembers.joinedAt));
 
-      let nextIndex = 1;
-      if (allMembers.length > 0 && assigneeIds.length > 0) {
-        const foundIdx = allMembers.findIndex((m) => m.userId === assigneeIds[0]);
-        if (foundIdx !== -1) {
-          nextIndex = (foundIdx + 1) % allMembers.length;
+        if (allMembers.length > 0 && effectiveAssigneeIds.length > 0) {
+          const foundIdx = allMembers.findIndex((m) => m.userId === effectiveAssigneeIds[0]);
+          if (foundIdx !== -1) {
+            nextIndex = (foundIdx + 1) % allMembers.length;
+          }
         }
       }
 
@@ -383,7 +414,8 @@ tasksRouter.post(
           taskTitle: title,
           category,
           recurrence,
-          peopleRequired: peopleRequired || assigneeIds.length,
+          assignmentMode,
+          peopleRequired: peopleRequired || effectiveAssigneeIds.length,
         },
       })
       .returning();
@@ -432,6 +464,9 @@ tasksRouter.patch(
         taskTitle: tasks.title,
         recurrence: tasks.recurrence,
         customRecurrenceConfig: tasks.customRecurrenceConfig,
+        assignmentMode: tasks.assignmentMode,
+        customRotationGroups: tasks.customRotationGroups,
+        customRotationGroupSize: tasks.customRotationGroupSize,
         peopleRequired: tasks.peopleRequired,
       })
       .from(taskOccurrences)
@@ -506,27 +541,38 @@ tasksRouter.patch(
               })
               .returning();
 
-            const flatMembersList = await db
-              .select({ userId: flatMembers.userId })
-              .from(flatMembers)
-              .where(eq(flatMembers.flatId, occ.flatId))
-              .orderBy(asc(flatMembers.joinedAt));
+            const [rotState] = await db
+              .select()
+              .from(taskRotationState)
+              .where(eq(taskRotationState.taskId, occ.taskId));
 
-            if (flatMembersList.length > 0) {
-              const [rotState] = await db
-                .select()
-                .from(taskRotationState)
-                .where(eq(taskRotationState.taskId, occ.taskId));
+            const curIdx = rotState ? rotState.currentMemberIndex : 0;
+            let nextAssigneeIds: string[] = [];
+            let newIndex = 0;
 
-              const curIdx = rotState ? rotState.currentMemberIndex : 0;
-              const peopleReq = Math.min(occ.peopleRequired || 1, flatMembersList.length);
-              const nextAssigneeIds: string[] = [];
+            if (occ.assignmentMode === 'custom_rotation' && occ.customRotationGroups && occ.customRotationGroups.length > 0) {
+              const groups = occ.customRotationGroups;
+              const groupIdx = curIdx % groups.length;
+              nextAssigneeIds = groups[groupIdx].userIds;
+              newIndex = groups.length > 1 ? (groupIdx + 1) % groups.length : 0;
+            } else {
+              const flatMembersList = await db
+                .select({ userId: flatMembers.userId })
+                .from(flatMembers)
+                .where(eq(flatMembers.flatId, occ.flatId))
+                .orderBy(asc(flatMembers.joinedAt));
 
-              for (let i = 0; i < peopleReq; i++) {
-                const assignedUser = flatMembersList[(curIdx + i) % flatMembersList.length];
-                nextAssigneeIds.push(assignedUser.userId);
+              if (flatMembersList.length > 0) {
+                const peopleReq = Math.min(occ.peopleRequired || 1, flatMembersList.length);
+                for (let i = 0; i < peopleReq; i++) {
+                  const assignedUser = flatMembersList[(curIdx + i) % flatMembersList.length];
+                  nextAssigneeIds.push(assignedUser.userId);
+                }
+                newIndex = (curIdx + peopleReq) % flatMembersList.length;
               }
+            }
 
+            if (nextAssigneeIds.length > 0) {
               const newMemberValues = nextAssigneeIds.map((uId) => ({
                 occurrenceId: newOcc.id,
                 userId: uId,
@@ -535,7 +581,6 @@ tasksRouter.patch(
 
               await db.insert(taskOccurrenceMembers).values(newMemberValues);
 
-              const newIndex = (curIdx + peopleReq) % flatMembersList.length;
               if (rotState) {
                 await db
                   .update(taskRotationState)
@@ -576,24 +621,21 @@ tasksRouter.patch(
     // Broadcast realtime event
     try {
       const io = getIO();
-      broadcastTaskCompleted(io, occ.flatId, {
-        occurrenceId,
-        userId,
-        taskTitle: occ.taskTitle,
-        userName: req.user!.name,
-        isFullyDone,
-      });
-
       broadcastActivityEvent(io, occ.flatId, {
         ...activity,
         actor: { id: req.user!.id, name: req.user!.name, image: req.user!.image },
       });
+      io.to(`flat:${occ.flatId}`).emit('task_completed', {
+        occurrenceId,
+        userId,
+        isFullyDone,
+      });
     } catch (_) {}
 
     res.json({
-      message: 'Task completion marked',
+      occurrence: occ,
+      member: updatedMember,
       isFullyDone,
-      updatedMember,
     });
   }
 );
@@ -615,6 +657,8 @@ tasksRouter.patch(
         status: taskOccurrences.status,
         flatId: tasks.flatId,
         taskTitle: tasks.title,
+        assignmentMode: tasks.assignmentMode,
+        customRotationGroups: tasks.customRotationGroups,
       })
       .from(taskOccurrences)
       .innerJoin(tasks, eq(taskOccurrences.taskId, tasks.id))
@@ -646,59 +690,105 @@ tasksRouter.patch(
       return;
     }
 
-    // 3. Get all flat members sorted by joinedAt
-    const members = await db
-      .select({
-        userId: flatMembers.userId,
-        name: user.name,
-        image: user.image,
-      })
-      .from(flatMembers)
-      .innerJoin(user, eq(flatMembers.userId, user.id))
-      .where(eq(flatMembers.flatId, occ.flatId))
-      .orderBy(asc(flatMembers.joinedAt));
+    let nextAssigneeId: string | null = null;
+    let nextMemberInfo: { userId: string; name: string; image?: string | null } | null = null;
 
-    if (members.length <= 1) {
-      res.status(400).json({ error: 'Cannot skip turn: no other members in flat' });
-      return;
+    if (occ.assignmentMode === 'custom_rotation' && occ.customRotationGroups && occ.customRotationGroups.length > 1) {
+      const groups = occ.customRotationGroups;
+      const [rotState] = await db
+        .select()
+        .from(taskRotationState)
+        .where(eq(taskRotationState.taskId, occ.taskId));
+
+      let nextIndex = rotState ? rotState.currentMemberIndex : 0;
+      let nextGroup = groups[nextIndex % groups.length];
+      if (nextGroup.userIds.includes(userId)) {
+        nextIndex = (nextIndex + 1) % groups.length;
+        nextGroup = groups[nextIndex];
+      }
+      nextAssigneeId = nextGroup.userIds[0];
+
+      const [nextUser] = await db
+        .select({ userId: user.id, name: user.name, image: user.image })
+        .from(user)
+        .where(eq(user.id, nextAssigneeId));
+
+      nextMemberInfo = nextUser || { userId: nextAssigneeId, name: 'Flatmate' };
+
+      const newPointer = (nextIndex + 1) % groups.length;
+      if (rotState) {
+        await db
+          .update(taskRotationState)
+          .set({ currentMemberIndex: newPointer, updatedAt: new Date() })
+          .where(eq(taskRotationState.id, rotState.id));
+      } else {
+        await db.insert(taskRotationState).values({
+          taskId: occ.taskId,
+          currentMemberIndex: newPointer,
+        });
+      }
+    } else {
+      // 3. Get all flat members sorted by joinedAt
+      const members = await db
+        .select({
+          userId: flatMembers.userId,
+          name: user.name,
+          image: user.image,
+        })
+        .from(flatMembers)
+        .innerJoin(user, eq(flatMembers.userId, user.id))
+        .where(eq(flatMembers.flatId, occ.flatId))
+        .orderBy(asc(flatMembers.joinedAt));
+
+      if (members.length <= 1) {
+        res.status(400).json({ error: 'Cannot skip turn: no other members in flat' });
+        return;
+      }
+
+      // 4. Get or initialize task_rotation_state
+      const [rotState] = await db
+        .select()
+        .from(taskRotationState)
+        .where(eq(taskRotationState.taskId, occ.taskId));
+
+      let nextIndex = rotState ? rotState.currentMemberIndex : 0;
+      let nextMember = members[nextIndex % members.length];
+      if (nextMember.userId === userId) {
+        nextIndex = (nextIndex + 1) % members.length;
+        nextMember = members[nextIndex];
+      }
+      nextAssigneeId = nextMember.userId;
+      nextMemberInfo = nextMember;
+
+      // Advance rotation pointer to next person
+      const newPointer = (nextIndex + 1) % members.length;
+      if (rotState) {
+        await db
+          .update(taskRotationState)
+          .set({ currentMemberIndex: newPointer, updatedAt: new Date() })
+          .where(eq(taskRotationState.id, rotState.id));
+      } else {
+        await db.insert(taskRotationState).values({
+          taskId: occ.taskId,
+          currentMemberIndex: newPointer,
+        });
+      }
     }
 
-    // 4. Get or initialize task_rotation_state
-    const [rotState] = await db
-      .select()
-      .from(taskRotationState)
-      .where(eq(taskRotationState.taskId, occ.taskId));
-
-    let nextIndex = rotState ? rotState.currentMemberIndex : 0;
-    let nextMember = members[nextIndex % members.length];
-    if (nextMember.userId === userId) {
-      nextIndex = (nextIndex + 1) % members.length;
-      nextMember = members[nextIndex];
+    if (!nextAssigneeId || !nextMemberInfo) {
+      res.status(400).json({ error: 'Could not resolve next turn assignee' });
+      return;
     }
 
     // 5. Update assignment in task_occurrence_members
     await db
       .update(taskOccurrenceMembers)
       .set({
-        userId: nextMember.userId,
+        userId: nextAssigneeId,
         status: 'assigned',
         completedAt: null,
       })
       .where(eq(taskOccurrenceMembers.id, myAssignment.id));
-
-    // 6. Advance rotation pointer to next person so rotation remains fair
-    const newPointer = (nextIndex + 1) % members.length;
-    if (rotState) {
-      await db
-        .update(taskRotationState)
-        .set({ currentMemberIndex: newPointer, updatedAt: new Date() })
-        .where(eq(taskRotationState.id, rotState.id));
-    } else {
-      await db.insert(taskRotationState).values({
-        taskId: occ.taskId,
-        currentMemberIndex: newPointer,
-      });
-    }
 
     // 7. Log to activity_log
     const [activity] = await db
@@ -711,8 +801,8 @@ tasksRouter.patch(
         metadata: {
           taskTitle: occ.taskTitle,
           skippedByName: req.user!.name,
-          passedToName: nextMember.name,
-          passedToUserId: nextMember.userId,
+          passedToName: nextMemberInfo.name,
+          passedToUserId: nextMemberInfo.userId,
           reason: reason ? String(reason).trim() : null,
         },
       })
@@ -728,20 +818,20 @@ tasksRouter.patch(
       io.to(`flat:${occ.flatId}`).emit('task_updated', {
         occurrenceId,
         taskId: occ.taskId,
-        reassignedTo: nextMember,
+        reassignedTo: nextMemberInfo,
       });
     } catch (_) {}
 
     // 9. Push notification
-    sendPushNotification([nextMember.userId], {
+    sendPushNotification([nextMemberInfo.userId], {
       title: `Kaam Passed to You: ${occ.taskTitle}`,
       body: `${req.user!.name} passed their turn to you.${reason ? ` Reason: "${reason}"` : ''}`,
       data: { type: 'task', taskId: occ.taskId, occurrenceId },
     });
 
     res.json({
-      message: `Turn passed to ${nextMember.name}`,
-      passedTo: nextMember,
+      message: `Turn passed to ${nextMemberInfo.name}`,
+      passedTo: nextMemberInfo,
       occurrenceId,
     });
   }

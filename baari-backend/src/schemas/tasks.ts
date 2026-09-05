@@ -11,6 +11,11 @@ export const customRecurrenceConfigSchema = z.union([
   }),
 ]);
 
+export const customRotationGroupSchema = z.object({
+  groupOrder: z.number().int().min(1),
+  userIds: z.array(z.string().uuid()).min(1, 'Group must have at least one member'),
+});
+
 export const createTaskSchema = z.object({
   flatId: z.string().uuid('Invalid flat ID'),
   title: z.string().min(2, 'Title is required').max(100),
@@ -19,6 +24,10 @@ export const createTaskSchema = z.object({
   peopleRequired: z.number().int().min(1).default(1),
   recurrence: z.enum(['once', 'daily', 'weekly', 'custom']),
   customRecurrenceConfig: customRecurrenceConfigSchema.optional().nullable(),
+  assignmentMode: z.enum(['auto_rotate', 'custom_rotation']).default('auto_rotate'),
+  customRotationPool: z.array(z.string().uuid()).optional().nullable(),
+  customRotationGroupSize: z.number().int().min(1).default(1),
+  customRotationGroups: z.array(customRotationGroupSchema).optional().nullable(),
   assigneeIds: z.array(z.string().uuid()).min(1, 'At least one assignee is required'),
   occurrenceDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Date must be YYYY-MM-DD').optional(),
 });
