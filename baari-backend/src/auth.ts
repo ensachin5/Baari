@@ -41,6 +41,9 @@ export const auth = betterAuth({
       secure: true,
       httpOnly: true,
     },
+    ipAddress: {
+      ipAddressHeaders: ['x-forwarded-for', 'cf-connecting-ip', 'x-real-ip'],
+    },
   },
   socialProviders: {
     ...(process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET

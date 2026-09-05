@@ -73,6 +73,9 @@ exports.auth = (0, better_auth_1.betterAuth)({
             secure: true,
             httpOnly: true,
         },
+        ipAddress: {
+            ipAddressHeaders: ['x-forwarded-for', 'cf-connecting-ip', 'x-real-ip'],
+        },
     },
     socialProviders: {
         ...(process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET
