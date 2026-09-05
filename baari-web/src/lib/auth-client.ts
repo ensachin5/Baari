@@ -36,6 +36,15 @@ export async function fetchUserProfile(): Promise<{
  */
 export async function syncSessionToStore(authResultData?: any): Promise<void> {
   const rawUser = authResultData?.user || authResultData?.data?.user;
+  const rawToken =
+    authResultData?.session?.token ||
+    authResultData?.token ||
+    authResultData?.data?.session?.token;
+
+  if (rawToken) {
+    useSession.getState().setToken(rawToken);
+  }
+
   if (rawUser) {
     useSession.getState().setUser({
       id: rawUser.id,
@@ -47,6 +56,9 @@ export async function syncSessionToStore(authResultData?: any): Promise<void> {
 
   try {
     const session = await getSession();
+    if (session.data?.session?.token) {
+      useSession.getState().setToken(session.data.session.token);
+    }
     if (session.data?.user) {
       useSession.getState().setUser({
         id: session.data.user.id,

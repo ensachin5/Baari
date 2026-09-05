@@ -22,7 +22,7 @@ import { Button } from "@/components/ui/Button";
 export default function SignInPage() {
   const router = useRouter();
   const { data: session, isPending: sessionLoading } = useAuthSession();
-  const { setUser, setActiveFlat, hydrate } = useSession();
+  const { setUser, setActiveFlat, setToken, hydrate } = useSession();
   const [googleLoading, setGoogleLoading] = useState(false);
   const [error, setError] = useState("");
 
@@ -44,6 +44,9 @@ export default function SignInPage() {
   // If already authenticated via session, resolve flat and redirect
   useEffect(() => {
     if (!sessionLoading && session?.user) {
+      if (session.session?.token) {
+        setToken(session.session.token);
+      }
       setUser({
         id: session.user.id,
         name: session.user.name || "User",

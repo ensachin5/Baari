@@ -57,8 +57,9 @@ body {
   body:has(textarea:focus) .mobile-bottom-nav,
   html:has(input:focus) .mobile-bottom-nav,
   html:has(textarea:focus) .mobile-bottom-nav,
-  body:has(.chat-view-active) .mobile-bottom-nav,
-  html:has(.chat-view-active) .mobile-bottom-nav {
+  body.keyboard-open .mobile-bottom-nav,
+  html.keyboard-open .mobile-bottom-nav,
+  .keyboard-open .mobile-bottom-nav {
     display: none !important;
     visibility: hidden !important;
     opacity: 0 !important;

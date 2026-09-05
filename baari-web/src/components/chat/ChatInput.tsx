@@ -41,6 +41,20 @@ export const ChatInput: React.FC<ChatInputProps> = ({
     }
   };
 
+  const handleFocus = () => {
+    if (typeof document !== "undefined") {
+      document.body.classList.add("keyboard-open");
+      document.documentElement.classList.add("keyboard-open");
+    }
+  };
+
+  const handleBlur = () => {
+    if (typeof document !== "undefined") {
+      document.body.classList.remove("keyboard-open");
+      document.documentElement.classList.remove("keyboard-open");
+    }
+  };
+
   return (
     <div className="px-3 py-2 bg-white border-t border-border">
       <form
@@ -53,6 +67,8 @@ export const ChatInput: React.FC<ChatInputProps> = ({
           value={text}
           onChange={(e) => handleChangeText(e.target.value)}
           onKeyDown={handleKeyDown}
+          onFocus={handleFocus}
+          onBlur={handleBlur}
           maxLength={1000}
           className="flex-1 bg-transparent text-[16px] leading-[24px] text-black placeholder:text-grayBlack focus:outline-none py-1.5"
         />

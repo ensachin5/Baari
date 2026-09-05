@@ -34,6 +34,7 @@ interface SessionState {
 
 const USER_STORAGE_KEY = "baari_web_user";
 const FLAT_STORAGE_KEY = "baari_web_flat";
+const TOKEN_STORAGE_KEY = "baari_web_token";
 
 export const useSession = create<SessionState>((set) => ({
   user: null,
@@ -66,6 +67,13 @@ export const useSession = create<SessionState>((set) => ({
 
   setToken: (token) => {
     set({ token });
+    if (typeof window !== "undefined") {
+      if (token) {
+        localStorage.setItem(TOKEN_STORAGE_KEY, token);
+      } else {
+        localStorage.removeItem(TOKEN_STORAGE_KEY);
+      }
+    }
   },
 
   setSocketConnected: (socketConnected) => set({ socketConnected }),
@@ -75,9 +83,11 @@ export const useSession = create<SessionState>((set) => ({
       try {
         const storedUser = localStorage.getItem(USER_STORAGE_KEY);
         const storedFlat = localStorage.getItem(FLAT_STORAGE_KEY);
+        const storedToken = localStorage.getItem(TOKEN_STORAGE_KEY);
         set({
           user: storedUser ? JSON.parse(storedUser) : null,
           activeFlat: storedFlat ? JSON.parse(storedFlat) : null,
+          token: storedToken || null,
           isHydrated: true,
         });
       } catch {
@@ -93,6 +103,7 @@ export const useSession = create<SessionState>((set) => ({
     if (typeof window !== "undefined") {
       localStorage.removeItem(USER_STORAGE_KEY);
       localStorage.removeItem(FLAT_STORAGE_KEY);
+      localStorage.removeItem(TOKEN_STORAGE_KEY);
     }
     try {
       const { disconnectSocket } = await import("@/lib/socket");

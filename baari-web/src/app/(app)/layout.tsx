@@ -80,6 +80,9 @@ export default function AppLayout({
   }, []);
 
   useEffect(() => {
+    if (session?.session?.token) {
+      useSession.getState().setToken(session.session.token);
+    }
     if (!sessionLoading && !session?.user && isHydrated && !user) {
       router.replace("/sign-in");
     }
