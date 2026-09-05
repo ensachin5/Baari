@@ -188,7 +188,33 @@ export const useChat = () => {
       );
     };
 
+    const handleMessageEdited = (data: { messageId: string; content: string; editedAt: string }) => {
+      if (!data?.messageId) return;
+      console.log("[useChat] Received message_edited event:", data.messageId);
+      setMessages((prev) =>
+        prev.map((msg) =>
+          msg.id === data.messageId
+            ? { ...msg, content: data.content, editedAt: data.editedAt }
+            : msg
+        )
+      );
+    };
+
+    const handleMessageDeleted = (data: { messageId: string; deletedAt: string }) => {
+      if (!data?.messageId) return;
+      console.log("[useChat] Received message_deleted event:", data.messageId);
+      setMessages((prev) =>
+        prev.map((msg) =>
+          msg.id === data.messageId
+            ? { ...msg, content: "", deletedAt: data.deletedAt }
+            : msg
+        )
+      );
+    };
+
     socket.on("new_message", handleNewMessage);
+    socket.on("message_edited", handleMessageEdited);
+    socket.on("message_deleted", handleMessageDeleted);
     socket.on("user_typing", handleUserTyping);
     socket.on("message_read", handleMessageRead);
 
@@ -196,6 +222,8 @@ export const useChat = () => {
       console.log(`[useChat] Cleaning up socket listeners for flat room: ${flatId}`);
       socket.off("connect", joinRoom);
       socket.off("new_message", handleNewMessage);
+      socket.off("message_edited", handleMessageEdited);
+      socket.off("message_deleted", handleMessageDeleted);
       socket.off("user_typing", handleUserTyping);
       socket.off("message_read", handleMessageRead);
     };
@@ -240,6 +268,51 @@ export const useChat = () => {
       }
     },
     [activeFlat?.id]
+  );
+
+  // Edit message
+  const editMessage = useCallback(
+    async (messageId: string, newContent: string) => {
+      const trimmed = newContent.trim();
+      if (!messageId || !trimmed) return;
+
+      const editedAt = new Date().toISOString();
+      // Optimistic update
+      setMessages((prev) =>
+        prev.map((m) =>
+          m.id === messageId ? { ...m, content: trimmed, editedAt } : m
+        )
+      );
+
+      try {
+        await api.patch(`/api/messages/${messageId}`, { content: trimmed });
+      } catch (err) {
+        console.error("[useChat] Failed to edit message:", err);
+      }
+    },
+    []
+  );
+
+  // Soft delete message
+  const deleteMessage = useCallback(
+    async (messageId: string) => {
+      if (!messageId) return;
+
+      const deletedAt = new Date().toISOString();
+      // Optimistic update
+      setMessages((prev) =>
+        prev.map((m) =>
+          m.id === messageId ? { ...m, content: "", deletedAt } : m
+        )
+      );
+
+      try {
+        await api.delete(`/api/messages/${messageId}`);
+      } catch (err) {
+        console.error("[useChat] Failed to delete message:", err);
+      }
+    },
+    []
   );
 
   // Optimistic message send with Socket.io (with 5s ack timeout) & REST fallback
@@ -380,6 +453,8 @@ export const useChat = () => {
     typingUsers,
     sendMessage,
     retryMessage,
+    editMessage,
+    deleteMessage,
     emitTyping,
     markReadUpTo,
     loadMore,

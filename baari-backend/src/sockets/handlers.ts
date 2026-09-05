@@ -174,3 +174,26 @@ export const broadcastAnnouncementUpdated = (
 ) => {
   io.to(flatId).emit('announcement_updated', data || {});
 };
+
+export const broadcastMessageEdited = (
+  io: SocketIOServer,
+  flatId: string,
+  data: {
+    messageId: string;
+    content: string;
+    editedAt: string | Date;
+  }
+) => {
+  io.to(flatId).emit('message_edited', data);
+};
+
+export const broadcastMessageDeleted = (
+  io: SocketIOServer,
+  flatId: string,
+  data: {
+    messageId: string;
+    deletedAt: string | Date;
+  }
+) => {
+  io.to(flatId).emit('message_deleted', data);
+};

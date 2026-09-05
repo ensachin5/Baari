@@ -154,6 +154,8 @@ export const messages = pgTable(
       .notNull(),
     content: text('content').notNull(),
     createdAt: timestamp('created_at').defaultNow().notNull(),
+    editedAt: timestamp('edited_at'),
+    deletedAt: timestamp('deleted_at'),
   },
   (table) => [index('idx_messages_flat_id').on(table.flatId)]
 );

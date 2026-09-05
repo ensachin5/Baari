@@ -138,6 +138,8 @@ export default function HomeScreen() {
     typingUsers,
     sendMessage,
     retryMessage,
+    editMessage,
+    deleteMessage,
     emitTyping,
     markReadUpTo,
     loadMore,
@@ -419,6 +421,8 @@ export default function HomeScreen() {
                         isCurrentUser={item.senderId === currentUser?.id}
                         showSenderHeader={isDifferentSender}
                         onRetry={retryMessage}
+                        onEdit={editMessage}
+                        onDelete={deleteMessage}
                       />
                     </View>
                   );

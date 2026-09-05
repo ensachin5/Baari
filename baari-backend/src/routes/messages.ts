@@ -4,8 +4,11 @@ import { messages, user, flatMembers, messageReads } from '../db/schema.js';
 import { requireAuth, AuthenticatedRequest } from '../middleware/auth-guard.js';
 import { eq, and, desc, lt, lte, inArray } from 'drizzle-orm';
 import { getIO } from '../sockets/index.js';
+import { broadcastMessageEdited, broadcastMessageDeleted } from '../sockets/handlers.js';
 
 export const messagesRouter = Router();
+
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 // GET /api/messages?flatId=&cursor=
 messagesRouter.get('/', requireAuth, async (req: AuthenticatedRequest, res: Response): Promise<void> => {
@@ -39,7 +42,7 @@ messagesRouter.get('/', requireAuth, async (req: AuthenticatedRequest, res: Resp
     }
   }
 
-  // 3. Query messages with sender info
+  // 3. Query messages with sender info, editedAt, deletedAt
   const fetchedMessages = await db
     .select({
       id: messages.id,
@@ -47,6 +50,8 @@ messagesRouter.get('/', requireAuth, async (req: AuthenticatedRequest, res: Resp
       senderId: messages.senderId,
       content: messages.content,
       createdAt: messages.createdAt,
+      editedAt: messages.editedAt,
+      deletedAt: messages.deletedAt,
       sender: {
         id: user.id,
         name: user.name,
@@ -93,6 +98,8 @@ messagesRouter.get('/', requireAuth, async (req: AuthenticatedRequest, res: Resp
 
   const enrichedMessages = fetchedMessages.map((m) => ({
     ...m,
+    // If soft-deleted, blank out the content server-side so it's not retrievable
+    content: m.deletedAt ? '' : m.content,
     reads: readsMap.get(m.id) || [],
   }));
 
@@ -158,7 +165,140 @@ messagesRouter.post('/', requireAuth, async (req: AuthenticatedRequest, res: Res
   res.status(201).json({ message: messagePayload });
 });
 
-const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+// PATCH /api/messages/:id — Edit message (sender only)
+messagesRouter.patch('/:id', requireAuth, async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+  const messageId = req.params.id as string;
+  const { content } = req.body;
+  const userId = req.user!.id;
+
+  if (!messageId || typeof messageId !== 'string' || !UUID_REGEX.test(messageId)) {
+    res.status(400).json({ error: 'Valid UUID messageId is required' });
+    return;
+  }
+
+  if (!content || typeof content !== 'string' || !content.trim()) {
+    res.status(400).json({ error: 'Message content cannot be empty' });
+    return;
+  }
+
+  // 1. Fetch message
+  const [existingMessage] = await db
+    .select()
+    .from(messages)
+    .where(eq(messages.id, messageId));
+
+  if (!existingMessage) {
+    res.status(404).json({ error: 'Message not found' });
+    return;
+  }
+
+  // 2. Sender check
+  if (existingMessage.senderId !== userId) {
+    res.status(403).json({ error: 'You can only edit your own messages' });
+    return;
+  }
+
+  // 3. Cannot edit deleted message
+  if (existingMessage.deletedAt) {
+    res.status(400).json({ error: 'Cannot edit a deleted message' });
+    return;
+  }
+
+  // 4. Update message
+  const editedAt = new Date();
+  const trimmedContent = content.trim();
+
+  const [updatedMessage] = await db
+    .update(messages)
+    .set({
+      content: trimmedContent,
+      editedAt,
+    })
+    .where(eq(messages.id, messageId))
+    .returning();
+
+  // Fetch sender info
+  const [sender] = await db
+    .select({
+      id: user.id,
+      name: user.name,
+      image: user.image,
+    })
+    .from(user)
+    .where(eq(user.id, existingMessage.senderId));
+
+  const messagePayload = {
+    ...updatedMessage,
+    sender: sender || { id: userId, name: req.user!.name, image: req.user!.image },
+  };
+
+  // 5. Broadcast message_edited via Socket.io
+  try {
+    const io = getIO();
+    broadcastMessageEdited(io, existingMessage.flatId, {
+      messageId: updatedMessage.id,
+      content: updatedMessage.content,
+      editedAt: updatedMessage.editedAt!,
+    });
+  } catch (_) {}
+
+  res.json({ message: messagePayload });
+});
+
+// DELETE /api/messages/:id — Soft-delete message (sender only)
+messagesRouter.delete('/:id', requireAuth, async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+  const messageId = req.params.id as string;
+  const userId = req.user!.id;
+
+  if (!messageId || typeof messageId !== 'string' || !UUID_REGEX.test(messageId)) {
+    res.status(400).json({ error: 'Valid UUID messageId is required' });
+    return;
+  }
+
+  // 1. Fetch message
+  const [existingMessage] = await db
+    .select()
+    .from(messages)
+    .where(eq(messages.id, messageId));
+
+  if (!existingMessage) {
+    res.status(404).json({ error: 'Message not found' });
+    return;
+  }
+
+  // 2. Sender check
+  if (existingMessage.senderId !== userId) {
+    res.status(403).json({ error: 'You can only delete your own messages' });
+    return;
+  }
+
+  // 3. Soft-delete by setting deleted_at = now() and blanking out content server-side
+  const deletedAt = new Date();
+
+  const [deletedMessage] = await db
+    .update(messages)
+    .set({
+      content: '',
+      deletedAt,
+    })
+    .where(eq(messages.id, messageId))
+    .returning();
+
+  // 4. Broadcast message_deleted via Socket.io
+  try {
+    const io = getIO();
+    broadcastMessageDeleted(io, existingMessage.flatId, {
+      messageId: deletedMessage.id,
+      deletedAt: deletedMessage.deletedAt!,
+    });
+  } catch (_) {}
+
+  res.json({
+    success: true,
+    messageId: deletedMessage.id,
+    deletedAt: deletedMessage.deletedAt,
+  });
+});
 
 // POST /api/messages/read-up-to — body: { messageId }
 messagesRouter.post('/read-up-to', requireAuth, async (req: AuthenticatedRequest, res: Response): Promise<void> => {

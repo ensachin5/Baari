@@ -81,6 +81,8 @@ export default function HomePage() {
     typingUsers,
     sendMessage,
     retryMessage,
+    editMessage,
+    deleteMessage,
     emitTyping,
     markReadUpTo,
     loadMore,
@@ -418,6 +420,8 @@ export default function HomePage() {
                       isCurrentUser={item.senderId === currentUser?.id}
                       showSenderHeader={isDifferentSender}
                       onRetry={retryMessage}
+                      onEdit={editMessage}
+                      onDelete={deleteMessage}
                     />
                   </div>
                 );
