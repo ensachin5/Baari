@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useMemo, useRef } from "react";
+import React, { useState, useEffect, useLayoutEffect, useCallback, useMemo, useRef } from "react";
 import { useSession } from "@/store/session";
 import { useKaam } from "@/hooks/useKaam";
 import { useChat } from "@/hooks/useChat";
@@ -108,12 +108,55 @@ export default function HomePage() {
     }
   }, [messages.length, activeTab, markReadUpTo]);
 
-  // Auto scroll to bottom of chat when new message arrives
-  useEffect(() => {
-    if (activeTab === 1) {
-      chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  const prevMessagesCountRef = useRef(0);
+
+  // Instant scroll to bottom helper (both direct scrollTop and scrollIntoView fallback)
+  const scrollToBottomInstant = useCallback(() => {
+    if (chatScrollContainerRef.current) {
+      chatScrollContainerRef.current.scrollTop =
+        chatScrollContainerRef.current.scrollHeight;
     }
-  }, [messages, activeTab]);
+    chatEndRef.current?.scrollIntoView({ behavior: "instant" as any });
+  }, []);
+
+  // Instant scroll to bottom when switching to Chat tab
+  useLayoutEffect(() => {
+    if (activeTab === 1) {
+      scrollToBottomInstant();
+      const rafId = requestAnimationFrame(() => {
+        scrollToBottomInstant();
+      });
+      const timer = setTimeout(() => {
+        scrollToBottomInstant();
+      }, 50);
+      return () => {
+        cancelAnimationFrame(rafId);
+        clearTimeout(timer);
+      };
+    }
+  }, [activeTab, scrollToBottomInstant]);
+
+  // Handle message changes: instant scroll on initial fetch, smooth scroll on incoming message
+  useEffect(() => {
+    if (activeTab === 1 && messages.length > 0) {
+      if (prevMessagesCountRef.current === 0) {
+        scrollToBottomInstant();
+        const rafId = requestAnimationFrame(() => {
+          scrollToBottomInstant();
+        });
+        const timer = setTimeout(() => {
+          scrollToBottomInstant();
+        }, 50);
+        return () => {
+          cancelAnimationFrame(rafId);
+          clearTimeout(timer);
+        };
+      } else if (messages.length > prevMessagesCountRef.current) {
+        chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
+      }
+    }
+    prevMessagesCountRef.current = messages.length;
+  }, [messages, activeTab, scrollToBottomInstant]);
 
   // Filter tasks
   const filteredTasks = useMemo(() => {

@@ -9,8 +9,8 @@ import { useSocket } from "@/lib/socket";
 import { Avatar } from "@/components/ui/Avatar";
 import { OfflineBanner } from "@/components/ui/OfflineBanner";
 import {
-  Home,
-  Receipt,
+  House,
+  Wallet,
   Activity,
   User,
   Copy,
@@ -111,7 +111,7 @@ export default function AppLayout({
       name: "Home",
       href: "/home",
       icon: (active: boolean) => (
-        <Home
+        <House
           size={18}
           className={active ? "text-navy stroke-[2.5]" : "text-mutedNavy"}
         />
@@ -121,7 +121,7 @@ export default function AppLayout({
       name: "Expense",
       href: "/expense",
       icon: (active: boolean) => (
-        <Receipt
+        <Wallet
           size={18}
           className={active ? "text-navy stroke-[2.5]" : "text-mutedNavy"}
         />
