@@ -56,25 +56,35 @@ export const requireAuth = async (
       return next();
     }
 
-    // 2. Direct fallback verification: check Authorization: Bearer <token> in session table
+    // 2. Direct fallback verification: check Authorization: Bearer <token> or Cookie
     const authHeader = req.headers.authorization;
-    if (authHeader && authHeader.startsWith('Bearer ')) {
-      const token = authHeader.substring(7).trim();
-      if (token) {
-        const foundSession = await db.query.session.findFirst({
-          where: and(eq(sessionTable.token, token), gt(sessionTable.expiresAt, new Date())),
-        });
+    const cookieHeader = req.headers.cookie;
+    let token = authHeader && authHeader.startsWith('Bearer ') ? authHeader.substring(7).trim() : null;
 
-        if (foundSession) {
-          const foundUser = await db.query.user.findFirst({
-            where: eq(userTable.id, foundSession.userId),
-          });
+    if (!token && cookieHeader) {
+      const match = cookieHeader.match(/(?:better-auth\.session_token|session_token|baari_session_token)=([^;]+)/);
+      if (match?.[1]) {
+        token = decodeURIComponent(match[1]);
+      }
+    }
 
-          if (foundUser) {
-            req.user = foundUser as any;
-            req.session = foundSession as any;
-            return next();
-          }
+    if (token) {
+      const cleanToken = token.split('.')[0] || token;
+      const [foundSession] = await db
+        .select()
+        .from(sessionTable)
+        .where(and(eq(sessionTable.token, cleanToken), gt(sessionTable.expiresAt, new Date())));
+
+      if (foundSession) {
+        const [foundUser] = await db
+          .select()
+          .from(userTable)
+          .where(eq(userTable.id, foundSession.userId));
+
+        if (foundUser) {
+          req.user = foundUser as any;
+          req.session = foundSession as any;
+          return next();
         }
       }
     }
