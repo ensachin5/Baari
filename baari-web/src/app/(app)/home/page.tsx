@@ -333,9 +333,18 @@ export default function HomePage() {
                   currentDate && currentDate !== prevDate;
 
                 return (
-                  <div key={item.id}>
+                  <div
+                    key={item.id}
+                    className={
+                      showDateDivider
+                        ? ""
+                        : isDifferentSender
+                        ? "mt-2"
+                        : "mt-[2px]"
+                    }
+                  >
                     {showDateDivider && (
-                      <div className="flex justify-center my-2">
+                      <div className="flex justify-center my-3">
                         <div className="bg-offWhite px-3 py-1 rounded-full border border-border">
                           <span className="text-[11px] font-semibold text-grayBlack">
                             {currentDate}

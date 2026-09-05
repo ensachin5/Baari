@@ -51,7 +51,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
   if (isCurrentUser) {
     return (
       <div
-        className={`flex items-end justify-end my-[2px] px-3 ${
+        className={`flex items-end justify-end px-3 ${
           isSending ? "opacity-65" : ""
         }`}
       >
@@ -89,7 +89,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
 
   // ── Other user's message (left-aligned) ─────────────────────────────────
   return (
-    <div className="flex items-end my-[2px] px-3">
+    <div className="flex items-end px-3">
       {/* Avatar column: 36px wide */}
       <div className="w-[36px] flex items-end pb-[2px] mr-1 flex-shrink-0">
         {showSenderHeader ? (

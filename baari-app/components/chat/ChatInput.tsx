@@ -43,6 +43,10 @@ export const ChatInput: React.FC<ChatInputProps> = ({ onSend, onTyping, disabled
           onChangeText={handleChangeText}
           multiline
           maxLength={1000}
+          cursorColor={Colors.navy}
+          selectionColor={Colors.paleSky}
+          underlineColorAndroid="transparent"
+          textAlignVertical="center"
         />
         <TouchableOpacity
           activeOpacity={0.8}
@@ -70,16 +74,19 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.white,
     borderTopWidth: 1,
     borderTopColor: Colors.border,
+    overflow: 'hidden',
   },
   inputWrapper: {
     flexDirection: 'row',
-    alignItems: 'flex-end',
+    alignItems: 'center',
     backgroundColor: Colors.offWhite,
     borderRadius: BorderRadius.xl,
     paddingHorizontal: Spacing.md,
     paddingVertical: Platform.OS === 'ios' ? Spacing.xs : 2,
     borderWidth: 1,
     borderColor: Colors.border,
+    overflow: 'hidden',
+    minHeight: 44,
   },
   textInput: {
     flex: 1,
@@ -96,7 +103,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     marginLeft: Spacing.xs,
-    marginBottom: 2,
   },
   sendButtonActive: {
     backgroundColor: Colors.navy,

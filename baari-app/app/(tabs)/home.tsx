@@ -403,7 +403,12 @@ export default function HomeScreen() {
                   const showDateDivider = currentDate && currentDate !== olderDate;
 
                   return (
-                    <View key={item.id}>
+                    <View
+                      key={item.id}
+                      style={{
+                        marginTop: showDateDivider ? 0 : isDifferentSender ? Spacing.sm : 2,
+                      }}
+                    >
                       {showDateDivider && (
                         <View style={styles.dateDivider}>
                           <Text style={styles.dateDividerText}>{currentDate}</Text>
@@ -676,7 +681,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.md,
     paddingVertical: 3,
     borderRadius: BorderRadius.full,
-    marginVertical: Spacing.sm,
+    marginVertical: Spacing.md,
     borderWidth: 1,
     borderColor: Colors.border,
   },

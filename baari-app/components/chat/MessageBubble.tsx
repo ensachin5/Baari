@@ -99,7 +99,6 @@ const styles = StyleSheet.create({
   row: {
     flexDirection: 'row',
     alignItems: 'flex-end',
-    marginVertical: 2,
     paddingHorizontal: Spacing.md,
   },
   rowRight: {
