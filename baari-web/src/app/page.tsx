@@ -13,8 +13,17 @@ export default function RootIndexPage() {
     useSession();
   const [slowServerHint, setSlowServerHint] = useState(false);
 
+  const [isStandalone, setIsStandalone] = useState(false);
+
   useEffect(() => {
     hydrate();
+    // Detect if running as installed standalone PWA
+    if (typeof window !== "undefined") {
+      const isPwa =
+        window.matchMedia("(display-mode: standalone)").matches ||
+        (window.navigator as any).standalone === true;
+      setIsStandalone(isPwa);
+    }
   }, [hydrate]);
 
   // Show helpful hint if cold start takes longer than 3.5 seconds
@@ -81,8 +90,42 @@ export default function RootIndexPage() {
       });
   }, [session, sessionLoading, isHydrated, router, setUser, setActiveFlat]);
 
+  // ── Standalone / Installed PWA Launch Screen (Matching baari-app) ──────────
+  if (isStandalone) {
+    return (
+      <div className="min-h-screen bg-navy text-white flex flex-col items-center justify-center p-6 select-none">
+        <div className="flex flex-col items-center text-center max-w-xs">
+          {/* Logo Badge */}
+          <div className="w-[68px] h-[68px] rounded-[14px] bg-white text-navy flex items-center justify-center font-bold text-[36px] shadow-[0_4px_16px_rgba(0,0,0,0.3)] animate-pulse">
+            B
+          </div>
+
+          <h1 className="text-[32px] leading-[38px] font-bold text-white mt-4">
+            Baari
+          </h1>
+          <p className="text-[14px] leading-[20px] text-paleSky text-center mt-1 max-w-[280px]">
+            Coordinate flat chores, expenses & communication in one place
+          </p>
+
+          {/* Progressive cold-start indicator */}
+          <div className="mt-8 flex flex-col items-center gap-2">
+            <div className="w-6 h-6 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+            {slowServerHint && (
+              <div className="mt-2 px-3 py-1.5 rounded-full bg-white/10 backdrop-blur-md border border-white/20">
+                <p className="text-[12px] leading-[16px] text-white/90">
+                  Waking up backend server... thank you! ✨
+                </p>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // ── Standard Web Browser Loading Screen ──────────────────────────────────
   return (
-    <div className="min-h-screen bg-white flex flex-col items-center justify-center p-6">
+    <div className="min-h-screen bg-white flex flex-col items-center justify-center p-6 select-none">
       <div className="flex flex-col items-center gap-4 text-center max-w-xs">
         {/* Navy Logo Badge */}
         <div className="w-16 h-16 rounded-2xl bg-navy text-white flex items-center justify-center font-bold text-3xl shadow-md animate-pulse">
@@ -100,7 +143,7 @@ export default function RootIndexPage() {
 
         {/* Cold-start progressive indicator */}
         {slowServerHint && (
-          <div className="mt-2 px-3 py-2 bg-offWhite rounded-[10px] border border-border transition-opacity animate-fade-in">
+          <div className="mt-2 px-3 py-2 bg-offWhite rounded-[10px] border border-border transition-opacity">
             <p className="text-[12px] leading-[16px] text-mutedNavy">
               Waking up backend server... thank you for your patience! ✨
             </p>
