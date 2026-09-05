@@ -316,7 +316,7 @@ export const useChat = () => {
 
   const markReadUpTo = useCallback(
     async (messageId: string) => {
-      if (!activeFlat?.id || !messageId) return;
+      if (!activeFlat?.id || !messageId || messageId.startsWith("temp-")) return;
       try {
         await api.post("/api/messages/read-up-to", { messageId });
       } catch (_) {}

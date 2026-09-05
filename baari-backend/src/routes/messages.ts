@@ -158,13 +158,15 @@ messagesRouter.post('/', requireAuth, async (req: AuthenticatedRequest, res: Res
   res.status(201).json({ message: messagePayload });
 });
 
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
 // POST /api/messages/read-up-to — body: { messageId }
 messagesRouter.post('/read-up-to', requireAuth, async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   const { messageId } = req.body;
   const userId = req.user!.id;
 
-  if (!messageId) {
-    res.status(400).json({ error: 'messageId is required' });
+  if (!messageId || typeof messageId !== 'string' || !UUID_REGEX.test(messageId)) {
+    res.status(400).json({ error: 'Valid UUID messageId is required' });
     return;
   }
 

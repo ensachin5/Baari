@@ -98,7 +98,7 @@ export default function HomePage() {
   useEffect(() => {
     if (messages.length > 0 && activeTab === 1) {
       const lastMsg = messages[messages.length - 1];
-      if (lastMsg?.id) {
+      if (lastMsg?.id && !lastMsg.id.startsWith("temp-")) {
         markReadUpTo(lastMsg.id);
       }
     }
