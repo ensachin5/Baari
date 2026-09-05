@@ -80,8 +80,9 @@ export const useChat = () => {
     }
 
     const joinRoom = () => {
-      console.log(`[useChat] Socket connected (ID: ${socket.id}). Emitting join_flat for room: ${flatId}`);
+      console.log(`[useChat] [join_flat] Immediately BEFORE emitting join_flat. flatId: ${flatId}, socketId: ${socket.id}, connected: ${socket.connected}`);
       socket.emit('join_flat', { flatId });
+      console.log(`[useChat] [join_flat] Immediately AFTER emitting join_flat for flatId: ${flatId}`);
     };
 
     if (socket.connected) {
@@ -92,7 +93,7 @@ export const useChat = () => {
     socket.on('connect', joinRoom);
 
     const handleNewMessage = (data: { message: ChatMessage }) => {
-      console.log('[useChat] Received new_message event:', data?.message?.id, 'content:', data?.message?.content);
+      console.log('[useChat] [new_message] LISTENER FIRED! Received payload:', JSON.stringify(data, null, 2));
       if (data?.message) {
         const incoming = {
           ...data.message,
@@ -115,6 +116,7 @@ export const useChat = () => {
               m.senderId === incoming.senderId
           );
           if (tempIdx !== -1) {
+            console.log('[useChat] [new_message] Replaced optimistic temp message with confirmed message:', incoming.id);
             const next = [...prev];
             next[tempIdx] = incoming;
             return next;
@@ -122,9 +124,11 @@ export const useChat = () => {
 
           // If message already exists in array (e.g. from history or ack), avoid duplication
           if (prev.some((m) => m.id === incoming.id)) {
+            console.log('[useChat] [new_message] Message already exists in state, skipping duplicate:', incoming.id);
             return prev;
           }
 
+          console.log('[useChat] [new_message] Appending new message to state. ID:', incoming.id, 'Sender:', incoming.sender?.name);
           // Immutably create a new array reference so React detects the update and re-renders
           return [...prev, incoming];
         });
@@ -320,12 +324,19 @@ export const useChat = () => {
       if (!socket.connected) {
         connectSocket();
       }
-      console.log(`[useChat] Attempting send_message. Socket connected: ${socket.connected}, socketId: ${socket.id}, flatId: ${activeFlat.id}`);
 
       let sentViaSocket = false;
 
       if (socket.connected) {
         try {
+          console.log('[useChat] [send_message] Immediately BEFORE emitting send_message:', {
+            event: 'send_message',
+            flatId: activeFlat.id,
+            content: trimmed,
+            socketId: socket.id,
+            connected: socket.connected,
+          });
+
           // Emit with 3-second ack timeout
           const socketPromise = new Promise<{ success?: boolean; message?: ChatMessage; error?: string }>((resolve, reject) => {
             const timeoutTimer = setTimeout(() => {
@@ -340,6 +351,7 @@ export const useChat = () => {
               },
               (res: any) => {
                 clearTimeout(timeoutTimer);
+                console.log('[useChat] [send_message] ACK CALLBACK FIRED! Response from server:', JSON.stringify(res, null, 2));
                 resolve(res || {});
               }
             );
@@ -347,16 +359,16 @@ export const useChat = () => {
 
           const response = await socketPromise;
           if (response?.error) {
-            console.warn('[useChat] Socket send returned error from server:', response.error);
+            console.warn('[useChat] [send_message] Socket send returned error from server ack:', response.error);
           } else if (response?.message) {
-            console.log('[useChat] Message sent successfully via Socket.io ack:', response.message.id);
+            console.log('[useChat] [send_message] Message confirmed sent via Socket.io ack:', response.message.id);
             sentViaSocket = true;
             setMessages((prev) =>
               prev.map((m) => (m.id === tempId ? { ...response.message!, status: 'sent' } : m))
             );
           }
         } catch (socketErr: any) {
-          console.warn('[useChat] Socket send timed out or threw error:', socketErr?.message);
+          console.warn('[useChat] [send_message] Socket send timed out or threw error:', socketErr?.message);
         }
       }
 

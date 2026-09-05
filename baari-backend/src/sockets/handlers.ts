@@ -14,7 +14,13 @@ export const registerSocketHandlers = (io: SocketIOServer, socket: Authenticated
     const senderName = socket.data.user.name;
 
     logger.info(
-      { socketId: socket.id, senderId, senderName, flatId: data?.flatId, contentLength: data?.content?.length },
+      {
+        socketId: socket.id,
+        senderId,
+        senderName,
+        flatId: data?.flatId,
+        payload: { flatId: data?.flatId, contentLength: data?.content?.length, contentPreview: data?.content?.slice(0, 30) },
+      },
       '[Socket send_message] Received send_message event'
     );
 
@@ -22,7 +28,10 @@ export const registerSocketHandlers = (io: SocketIOServer, socket: Authenticated
       const parsed = sendMessageSchema.safeParse(data);
       if (!parsed.success) {
         const errorMsg = parsed.error.issues[0]?.message || 'Invalid message payload';
-        logger.warn({ socketId: socket.id, senderId, errorMsg }, '[Socket send_message] Validation failed');
+        logger.warn(
+          { socketId: socket.id, senderId, errorMsg, issues: parsed.error.issues },
+          '[Socket send_message] Validation failed'
+        );
         if (callback) callback({ error: errorMsg });
         return;
       }
@@ -55,8 +64,14 @@ export const registerSocketHandlers = (io: SocketIOServer, socket: Authenticated
         .returning();
 
       logger.info(
-        { socketId: socket.id, messageId: newMessage.id, flatId, senderId },
-        '[Socket send_message] Saved message to DB'
+        {
+          socketId: socket.id,
+          messageId: newMessage.id,
+          flatId,
+          senderId,
+          dbInsertSucceeded: true,
+        },
+        '[Socket send_message] DB insert succeeded'
       );
 
       // Fetch sender info for frontend rendering
@@ -74,11 +89,27 @@ export const registerSocketHandlers = (io: SocketIOServer, socket: Authenticated
         sender: sender || { id: senderId, name: senderName, image: socket.data.user.image },
       };
 
+      // Check how many sockets are currently in the flat room at broadcast time
+      const roomSize = io.sockets.adapter.rooms.get(flatId)?.size || 0;
+      const roomSockets = await io.in(flatId).fetchSockets();
+      const connectedUserIdsInRoom = roomSockets.map((s) => ({
+        socketId: s.id,
+        userId: (s as any).data?.user?.id,
+        userName: (s as any).data?.user?.name,
+      }));
+
       // Broadcast new message to everyone in the flat room (including sender)
       io.to(flatId).emit('new_message', { message: messagePayload });
+
       logger.info(
-        { socketId: socket.id, messageId: newMessage.id, flatId },
-        '[Socket send_message] Broadcast new_message to flat room'
+        {
+          socketId: socket.id,
+          messageId: newMessage.id,
+          flatId,
+          roomSocketCount: roomSize,
+          connectedUsersInRoom: connectedUserIdsInRoom,
+        },
+        '[Socket send_message] Broadcasted new_message to flat room'
       );
 
       // Send push notification to offline/disconnected members
@@ -88,7 +119,6 @@ export const registerSocketHandlers = (io: SocketIOServer, socket: Authenticated
           .from(flatMembers)
           .where(eq(flatMembers.flatId, flatId));
 
-        const roomSockets = await io.in(flatId).fetchSockets();
         const activeUserIdsInRoom = new Set(roomSockets.map((s) => (s as any).data?.user?.id));
 
         const offlineUserIds = allMembers
@@ -102,14 +132,23 @@ export const registerSocketHandlers = (io: SocketIOServer, socket: Authenticated
             body: truncated,
             data: { type: 'chat', flatId },
           });
+          logger.info(
+            { flatId, offlineUserCount: offlineUserIds.length, offlineUserIds },
+            '[Socket send_message] Sent push notifications to offline members'
+          );
         }
-      } catch (_) {}
+      } catch (pushErr: any) {
+        logger.warn({ pushErr: pushErr?.message, flatId }, '[Socket send_message] Failed to dispatch push notification');
+      }
 
       if (callback) {
         callback({ success: true, message: messagePayload });
       }
-    } catch (error) {
-      logger.error({ error, socketId: socket.id, senderId }, 'Error in send_message socket handler');
+    } catch (error: any) {
+      logger.error(
+        { error: error?.message || error, socketId: socket.id, senderId },
+        'Error in send_message socket handler'
+      );
       if (callback) callback({ error: 'Failed to send message' });
     }
   });
@@ -137,6 +176,8 @@ export const broadcastTaskCompleted = (
     isFullyDone: boolean;
   }
 ) => {
+  const roomSize = io.sockets.adapter.rooms.get(flatId)?.size || 0;
+  logger.info({ flatId, roomSocketCount: roomSize, occurrenceId: data.occurrenceId }, 'Broadcasting task_completed');
   io.to(flatId).emit('task_completed', data);
 };
 
@@ -148,6 +189,8 @@ export const broadcastTaskDeleted = (
     taskTitle: string;
   }
 ) => {
+  const roomSize = io.sockets.adapter.rooms.get(flatId)?.size || 0;
+  logger.info({ flatId, roomSocketCount: roomSize, taskId: data.taskId }, 'Broadcasting task_deleted');
   io.to(flatId).emit('task_deleted', data);
 };
 
@@ -156,6 +199,8 @@ export const broadcastActivityEvent = (
   flatId: string,
   entry: any
 ) => {
+  const roomSize = io.sockets.adapter.rooms.get(flatId)?.size || 0;
+  logger.info({ flatId, roomSocketCount: roomSize }, 'Broadcasting activity_event');
   io.to(flatId).emit('activity_event', { entry });
 };
 
@@ -164,6 +209,8 @@ export const broadcastGroceryUpdated = (
   flatId: string,
   data?: any
 ) => {
+  const roomSize = io.sockets.adapter.rooms.get(flatId)?.size || 0;
+  logger.info({ flatId, roomSocketCount: roomSize }, 'Broadcasting grocery_updated');
   io.to(flatId).emit('grocery_updated', data || {});
 };
 
@@ -172,6 +219,8 @@ export const broadcastAnnouncementUpdated = (
   flatId: string,
   data?: any
 ) => {
+  const roomSize = io.sockets.adapter.rooms.get(flatId)?.size || 0;
+  logger.info({ flatId, roomSocketCount: roomSize }, 'Broadcasting announcement_updated');
   io.to(flatId).emit('announcement_updated', data || {});
 };
 
@@ -184,6 +233,11 @@ export const broadcastMessageEdited = (
     editedAt: string | Date;
   }
 ) => {
+  const roomSize = io.sockets.adapter.rooms.get(flatId)?.size || 0;
+  logger.info(
+    { flatId, messageId: data.messageId, roomSocketCount: roomSize },
+    'Broadcasting message_edited to flat room'
+  );
   io.to(flatId).emit('message_edited', data);
 };
 
@@ -195,5 +249,10 @@ export const broadcastMessageDeleted = (
     deletedAt: string | Date;
   }
 ) => {
+  const roomSize = io.sockets.adapter.rooms.get(flatId)?.size || 0;
+  logger.info(
+    { flatId, messageId: data.messageId, roomSocketCount: roomSize },
+    'Broadcasting message_deleted to flat room'
+  );
   io.to(flatId).emit('message_deleted', data);
 };

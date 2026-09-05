@@ -53,7 +53,7 @@ export const initSocket = (httpServer: HTTPServer): SocketIOServer => {
 
       logger.info(
         { socketId: socket.id, hasToken: !!token, hasCookie: !!rawCookie },
-        '[Socket Handshake] Authenticating incoming connection'
+        '[Socket Handshake] Authenticating incoming socket connection'
       );
 
       // 1. Try Better Auth getSession
@@ -70,13 +70,13 @@ export const initSocket = (httpServer: HTTPServer): SocketIOServer => {
           socket.data.user = session.user as any;
           socket.data.session = session.session;
           logger.info(
-            { socketId: socket.id, userId: session.user.id, name: session.user.name },
-            '[Socket Handshake] Better Auth session verified'
+            { socketId: socket.id, userId: session.user.id, name: session.user.name, authenticated: true, method: 'better-auth' },
+            '[Socket Handshake] Authentication succeeded via Better Auth'
           );
           return next();
         }
       } catch (err: any) {
-        logger.debug({ err: err?.message }, '[Socket Handshake] Better Auth getSession returned error');
+        logger.debug({ err: err?.message, socketId: socket.id }, '[Socket Handshake] Better Auth getSession returned error');
       }
 
       // 2. Direct database query fallback against session & user tables
@@ -97,8 +97,8 @@ export const initSocket = (httpServer: HTTPServer): SocketIOServer => {
             socket.data.user = foundUser as any;
             socket.data.session = foundSession as any;
             logger.info(
-              { socketId: socket.id, userId: foundUser.id, name: foundUser.name },
-              '[Socket Handshake] DB fallback session verified'
+              { socketId: socket.id, userId: foundUser.id, name: foundUser.name, authenticated: true, method: 'db-fallback' },
+              '[Socket Handshake] Authentication succeeded via DB fallback'
             );
             return next();
           }
@@ -106,12 +106,12 @@ export const initSocket = (httpServer: HTTPServer): SocketIOServer => {
       }
 
       logger.warn(
-        { socketId: socket.id, tokenProvided: !!token, cookieProvided: !!rawCookie },
+        { socketId: socket.id, authenticated: false, tokenProvided: !!token, cookieProvided: !!rawCookie },
         '[Socket Handshake] Rejected unauthenticated socket connection'
       );
       return next(new Error('Unauthorized'));
     } catch (err: any) {
-      logger.error({ err, socketId: socket.id }, '[Socket Handshake] Authentication error');
+      logger.error({ err: err?.message || err, socketId: socket.id, authenticated: false }, '[Socket Handshake] Authentication exception');
       next(new Error('Authentication failed'));
     }
   });
@@ -121,12 +121,27 @@ export const initSocket = (httpServer: HTTPServer): SocketIOServer => {
     const authSocket = socket as AuthenticatedSocket;
     const user = authSocket.data.user;
 
-    logger.info({ socketId: socket.id, userId: user.id, email: user.email }, 'Authenticated socket connected');
+    // Track joined flats on this socket for disconnect logging
+    (authSocket.data as any).joinedFlats = (authSocket.data as any).joinedFlats || new Set<string>();
+
+    logger.info(
+      { socketId: socket.id, userId: user?.id, userName: user?.name, email: user?.email, authenticated: true },
+      'Socket connected'
+    );
 
     // Room-per-flat join handler with DB membership verification
     socket.on('join_flat', async (data: { flatId: string }) => {
+      const flatId = data?.flatId;
+      logger.info(
+        { socketId: socket.id, userId: user.id, flatId },
+        '[Socket join_flat] Received join_flat request'
+      );
+
       try {
-        if (!data?.flatId) return;
+        if (!flatId) {
+          logger.warn({ socketId: socket.id, userId: user.id }, '[Socket join_flat] Missing flatId in payload');
+          return;
+        }
 
         // Verify user is actually a member of this flat
         const [membership] = await db
@@ -134,42 +149,72 @@ export const initSocket = (httpServer: HTTPServer): SocketIOServer => {
           .from(flatMembers)
           .where(
             and(
-              eq(flatMembers.flatId, data.flatId),
+              eq(flatMembers.flatId, flatId),
               eq(flatMembers.userId, user.id)
             )
           );
 
         if (!membership) {
           logger.warn(
-            { socketId: socket.id, userId: user.id, flatId: data.flatId },
-            'Unauthorized attempt to join flat room'
+            { socketId: socket.id, userId: user.id, flatId, membershipPassed: false },
+            '[Socket join_flat] Unauthorized: user is not a member of requested flat'
           );
           socket.emit('error', { message: 'Not a member of this flat' });
           return;
         }
 
-        socket.join(data.flatId);
+        // Join room and record
+        socket.join(flatId);
+        (authSocket.data as any).joinedFlats.add(flatId);
+
+        const roomSize = io?.sockets.adapter.rooms.get(flatId)?.size || 0;
+
         logger.info(
-          { socketId: socket.id, userId: user.id, flatId: data.flatId },
-          'User joined flat socket room'
+          {
+            socketId: socket.id,
+            userId: user.id,
+            userName: user.name,
+            flatId,
+            membershipPassed: true,
+            roomSocketCount: roomSize,
+          },
+          'Socket joined flat room'
         );
-      } catch (error) {
-        logger.error({ error, socketId: socket.id }, 'Error joining flat socket room');
+      } catch (error: any) {
+        logger.error(
+          { error: error?.message || error, socketId: socket.id, userId: user.id, flatId },
+          '[Socket join_flat] Error joining flat socket room'
+        );
       }
     });
 
     socket.on('leave_flat', (data: { flatId: string }) => {
       if (data?.flatId) {
         socket.leave(data.flatId);
-        logger.info({ socketId: socket.id, flatId: data.flatId }, 'User left flat socket room');
+        (authSocket.data as any).joinedFlats?.delete(data.flatId);
+        const roomSize = io?.sockets.adapter.rooms.get(data.flatId)?.size || 0;
+        logger.info(
+          { socketId: socket.id, userId: user.id, flatId: data.flatId, remainingInRoom: roomSize },
+          'Socket left flat room'
+        );
       }
     });
 
     // Register event handlers (e.g. send_message)
     registerSocketHandlers(io!, authSocket);
 
-    socket.on('disconnect', (reason) => {
-      logger.info({ socketId: socket.id, userId: user.id, reason }, 'Socket disconnected');
+    socket.on('disconnect', (reason: string) => {
+      const joinedFlats = Array.from((authSocket.data as any).joinedFlats || []);
+      logger.info(
+        {
+          socketId: socket.id,
+          userId: user.id,
+          userName: user.name,
+          joinedFlats,
+          reason,
+        },
+        'Socket disconnected'
+      );
     });
   });
 

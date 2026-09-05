@@ -19,32 +19,34 @@ export const getSocket = (): Socket => {
     });
 
     socket.on("connect", () => {
-      console.log("[Socket] Connected successfully with ID:", socket?.id);
+      console.log('[Socket] Event "connect" - Connected successfully. socketId:', socket?.id);
       useSession.getState().setSocketConnected(true);
       const activeFlat = useSession.getState().activeFlat;
       if (activeFlat?.id) {
-        console.log("[Socket] Joining flat room on connect:", activeFlat.id, "Socket ID:", socket?.id);
+        console.log('[Socket] [join_flat] Auto-joining flat room on connect. flatId:', activeFlat.id, 'socketId:', socket?.id);
         socket?.emit("join_flat", { flatId: activeFlat.id });
+        console.log('[Socket] [join_flat] Emitted join_flat for flatId:', activeFlat.id);
       }
     });
 
     socket.io.on("reconnect", (attempt) => {
-      console.log("[Socket] Reconnected successfully on attempt:", attempt, "Socket ID:", socket?.id);
+      console.log('[Socket] Event "reconnect" - Reconnected on attempt:', attempt, 'socketId:', socket?.id);
       useSession.getState().setSocketConnected(true);
       const activeFlat = useSession.getState().activeFlat;
       if (activeFlat?.id) {
-        console.log("[Socket] Re-joining flat room on reconnect:", activeFlat.id, "Socket ID:", socket?.id);
+        console.log('[Socket] [join_flat] Re-joining flat room on reconnect. flatId:', activeFlat.id, 'socketId:', socket?.id);
         socket?.emit("join_flat", { flatId: activeFlat.id });
+        console.log('[Socket] [join_flat] Emitted join_flat for flatId:', activeFlat.id);
       }
     });
 
     socket.on("disconnect", (reason) => {
-      console.log("[Socket] Disconnected:", reason);
+      console.log('[Socket] Event "disconnect" - Disconnected with reason:', reason, 'socketId:', socket?.id);
       useSession.getState().setSocketConnected(false);
     });
 
     socket.on("connect_error", (error) => {
-      console.warn("[Socket] Connection error:", error.message);
+      console.error('[Socket] Event "connect_error" - Connection error:', error.message, error);
       if (
         error.message === "Unauthorized" ||
         error.message === "Authentication failed"
@@ -64,12 +66,14 @@ export const connectSocket = () => {
     s.auth = { token };
   }
   if (!s.connected) {
+    console.log('[Socket] Initiating socket.connect(). Token present:', !!token);
     s.connect();
   }
 };
 
 export const disconnectSocket = () => {
   if (socket) {
+    console.log('[Socket] Explicitly disconnecting socket. socketId:', socket.id);
     socket.disconnect();
     socket = null;
     useSession.getState().setSocketConnected(false);
@@ -80,8 +84,11 @@ export const joinFlatRoom = (flatId: string) => {
   const s = getSocket();
   if (flatId) {
     if (s.connected) {
+      console.log('[Socket] [join_flat] Emitting join_flat for room:', flatId, 'socketId:', s.id);
       s.emit("join_flat", { flatId });
+      console.log('[Socket] [join_flat] Emitted join_flat for room:', flatId);
     } else {
+      console.log('[Socket] joinFlatRoom called while socket disconnected. Connecting first...');
       connectSocket();
     }
   }
