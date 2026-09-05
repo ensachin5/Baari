@@ -25,10 +25,14 @@ export interface AuthenticatedSocket extends Socket {
 export const initSocket = (httpServer: HTTPServer): SocketIOServer => {
   io = new SocketIOServer(httpServer, {
     cors: {
-      origin: '*',
+      origin: (origin, callback) => {
+        // Echo back request origin to support withCredentials: true across all web and mobile clients
+        callback(null, true);
+      },
+      credentials: true,
       methods: ['GET', 'POST'],
     },
-    transports: ['polling', 'websocket'],
+    transports: ['websocket', 'polling'],
     allowUpgrades: true,
   });
 

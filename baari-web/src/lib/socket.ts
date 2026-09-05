@@ -9,7 +9,7 @@ export const getSocket = (): Socket => {
   if (!socket) {
     socket = io(API_BASE_URL, {
       autoConnect: false,
-      transports: ["polling", "websocket"],
+      transports: ["websocket", "polling"],
       withCredentials: true,
       upgrade: true,
       auth: (cb) => {
@@ -96,21 +96,22 @@ export const joinFlatRoom = (flatId: string) => {
 
 export function useSocket() {
   const user = useSession((state) => state.user);
+  const token = useSession((state) => state.token);
   const activeFlat = useSession((state) => state.activeFlat);
   const isHydrated = useSession((state) => state.isHydrated);
 
   useEffect(() => {
     if (!isHydrated) return;
 
-    if (user) {
+    if (user && token) {
       connectSocket();
       if (activeFlat?.id) {
         joinFlatRoom(activeFlat.id);
       }
-    } else {
+    } else if (!user) {
       disconnectSocket();
     }
-  }, [user, activeFlat?.id, isHydrated]);
+  }, [user, token, activeFlat?.id, isHydrated]);
 
   return user ? getSocket() : null;
 }

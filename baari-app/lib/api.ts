@@ -2,7 +2,9 @@ import { Platform } from 'react-native';
 import * as SecureStore from 'expo-secure-store';
 import { useSession } from '../store/session';
 
-export const API_BASE_URL = (process.env.EXPO_PUBLIC_API_URL || 'http://localhost:3000').replace(/\/+$/, '');
+export const API_BASE_URL = (
+  process.env.EXPO_PUBLIC_API_URL || 'https://baari-wkqq.onrender.com'
+).replace(/\/+$/, '');
 
 interface RequestOptions extends RequestInit {
   params?: Record<string, string | number | boolean | undefined>;

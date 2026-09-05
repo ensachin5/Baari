@@ -36,7 +36,7 @@ export const getSocket = (): Socket => {
   if (!socket) {
     socket = io(API_BASE_URL, {
       autoConnect: false,
-      transports: ['polling', 'websocket'],
+      transports: ['websocket', 'polling'],
       upgrade: true,
       auth: (cb) => {
         resolveSocketToken().then((tok) => {

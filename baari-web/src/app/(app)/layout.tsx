@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect } from "react";
+import React, { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useAuthSession } from "@/lib/auth-client";
@@ -8,6 +8,14 @@ import { useSession } from "@/store/session";
 import { useSocket } from "@/lib/socket";
 import { Avatar } from "@/components/ui/Avatar";
 import { OfflineBanner } from "@/components/ui/OfflineBanner";
+import {
+  Home,
+  Receipt,
+  Activity,
+  User,
+  Copy,
+  Check,
+} from "lucide-react";
 
 export default function AppLayout({
   children,
@@ -18,7 +26,8 @@ export default function AppLayout({
   const router = useRouter();
   const { data: session, isPending: sessionLoading } = useAuthSession();
   const { user, activeFlat, isHydrated, hydrate } = useSession();
-  const [isKeyboardVisible, setIsKeyboardVisible] = React.useState(false);
+  const [isKeyboardVisible, setIsKeyboardVisible] = useState(false);
+  const [copiedInvite, setCopiedInvite] = useState(false);
 
   // Initialize socket lifecycle
   useSocket();
@@ -44,7 +53,7 @@ export default function AppLayout({
       if (
         target &&
         (target.tagName === "INPUT" || target.tagName === "TEXTAREA") &&
-        window.innerWidth < 768
+        window.innerWidth < 1024
       ) {
         setIsKeyboardVisible(true);
       }
@@ -88,59 +97,163 @@ export default function AppLayout({
     }
   }, [session, sessionLoading, user, isHydrated, router]);
 
+  const handleCopyInvite = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (activeFlat?.inviteCode) {
+      navigator.clipboard.writeText(activeFlat.inviteCode);
+      setCopiedInvite(true);
+      setTimeout(() => setCopiedInvite(false), 2000);
+    }
+  };
+
   const navTabs = [
     {
       name: "Home",
       href: "/home",
       icon: (active: boolean) => (
-        <svg className={`w-5 h-5 ${active ? "text-navy stroke-[2.5]" : "text-black-light"}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
-        </svg>
+        <Home
+          size={18}
+          className={active ? "text-navy stroke-[2.5]" : "text-mutedNavy"}
+        />
       ),
     },
     {
       name: "Expense",
       href: "/expense",
       icon: (active: boolean) => (
-        <svg className={`w-5 h-5 ${active ? "text-navy stroke-[2.5]" : "text-black-light"}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-        </svg>
+        <Receipt
+          size={18}
+          className={active ? "text-navy stroke-[2.5]" : "text-mutedNavy"}
+        />
       ),
     },
     {
       name: "Activity",
       href: "/activity",
       icon: (active: boolean) => (
-        <svg className={`w-5 h-5 ${active ? "text-navy stroke-[2.5]" : "text-black-light"}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
-        </svg>
+        <Activity
+          size={18}
+          className={active ? "text-navy stroke-[2.5]" : "text-mutedNavy"}
+        />
       ),
     },
     {
       name: "Profile",
       href: "/profile",
       icon: (active: boolean) => (
-        <svg className={`w-5 h-5 ${active ? "text-navy stroke-[2.5]" : "text-black-light"}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-        </svg>
+        <User
+          size={18}
+          className={active ? "text-navy stroke-[2.5]" : "text-mutedNavy"}
+        />
       ),
     },
   ];
 
   return (
-    <div className="min-h-screen bg-[#F4F6F9] flex flex-col">
+    <div className="min-h-screen bg-[#F4F6F9] flex flex-col lg:flex-row">
       {/* Global Offline Banner */}
       <OfflineBanner />
 
-      {/* Top Header */}
-      <header className="sticky top-0 z-30 bg-white border-b border-[#E5E9F0]">
+      {/* ────────────────────────────────────────────────────────────────────────
+          DESKTOP LEFT SIDEBAR (Visible only on lg: breakpoint and above)
+      ────────────────────────────────────────────────────────────────────────── */}
+      <aside className="hidden lg:flex flex-col w-64 h-screen sticky top-0 bg-white border-r border-[#E5E9F0] flex-shrink-0 z-30 select-none">
+        {/* Flat Brand Header */}
+        <div className="p-5 border-b border-[#E5E9F0]">
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 rounded-xl bg-navy text-white flex items-center justify-center font-bold text-lg shadow-xs flex-shrink-0">
+              B
+            </div>
+            <div className="min-w-0 flex-1">
+              <p className="text-[10px] font-bold text-mutedNavy tracking-wider uppercase leading-tight">
+                BAARI
+              </p>
+              <h2 className="font-bold text-navy text-[16px] leading-tight truncate">
+                {activeFlat?.name || "My Flat"}
+              </h2>
+            </div>
+          </div>
+
+          {/* Invite Code Pill with Copy Action */}
+          {activeFlat?.inviteCode && (
+            <div className="mt-3 flex items-center justify-between bg-offWhite px-2.5 py-1.5 rounded-lg border border-border">
+              <span className="text-xs text-mutedNavy font-medium">Invite Code:</span>
+              <button
+                type="button"
+                onClick={handleCopyInvite}
+                className="flex items-center gap-1 px-1.5 py-0.5 rounded bg-white border border-border text-xs font-mono font-bold text-navy hover:bg-paleSky transition-colors cursor-pointer"
+                title="Copy invite code"
+              >
+                <span>#{activeFlat.inviteCode}</span>
+                {copiedInvite ? (
+                  <Check size={11} className="text-[#16A34A]" />
+                ) : (
+                  <Copy size={11} className="text-mutedNavy" />
+                )}
+              </button>
+            </div>
+          )}
+        </div>
+
+        {/* Navigation Links */}
+        <nav className="flex-1 p-3 space-y-1 overflow-y-auto">
+          {navTabs.map((tab) => {
+            const isActive = pathname.startsWith(tab.href);
+            return (
+              <Link
+                key={tab.name}
+                href={tab.href}
+                className={`flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-[14px] leading-[20px] transition-all ${
+                  isActive
+                    ? "bg-sky-light text-navy font-semibold shadow-2xs"
+                    : "text-grayBlack hover:bg-offWhite hover:text-black font-medium"
+                }`}
+              >
+                {tab.icon(isActive)}
+                <span>{tab.name}</span>
+              </Link>
+            );
+          })}
+        </nav>
+
+        {/* User Profile Footer */}
+        <div className="p-3 border-t border-[#E5E9F0]">
+          <Link
+            href="/profile"
+            className={`flex items-center gap-3 p-2 rounded-xl transition-all ${
+              pathname.startsWith("/profile")
+                ? "bg-sky-light/60"
+                : "hover:bg-offWhite"
+            }`}
+          >
+            <Avatar
+              src={user?.image || session?.user?.image}
+              name={user?.name || session?.user?.name || "User"}
+              size="sm"
+            />
+            <div className="min-w-0 flex-1">
+              <p className="text-[13px] font-semibold text-navy truncate leading-tight">
+                {user?.name || session?.user?.name || "User"}
+              </p>
+              <p className="text-[11px] text-grayBlack truncate leading-tight mt-0.5">
+                {user?.email || session?.user?.email || "Flatmate"}
+              </p>
+            </div>
+          </Link>
+        </div>
+      </aside>
+
+      {/* ────────────────────────────────────────────────────────────────────────
+          MOBILE TOP HEADER (Visible only below lg: breakpoint, exactly as before)
+      ────────────────────────────────────────────────────────────────────────── */}
+      <header className="lg:hidden sticky top-0 z-30 bg-white border-b border-[#E5E9F0]">
         <div className="max-w-4xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <div className="w-8 h-8 rounded-xl bg-navy text-white flex items-center justify-center font-bold text-base">
               B
             </div>
             <div>
-              <span className="font-bold text-navy text-h2 tracking-tight">
+              <span className="font-bold text-navy text-[18px] tracking-tight">
                 {activeFlat?.name || "Baari"}
               </span>
               {activeFlat?.inviteCode && (
@@ -151,29 +264,11 @@ export default function AppLayout({
             </div>
           </div>
 
-          {/* Desktop Navigation Links */}
-          <nav className="hidden md:flex items-center space-x-1">
-            {navTabs.map((tab) => {
-              const isActive = pathname.startsWith(tab.href);
-              return (
-                <Link
-                  key={tab.name}
-                  href={tab.href}
-                  className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-body-small font-medium transition-all ${
-                    isActive
-                      ? "bg-sky-light/80 text-navy font-semibold"
-                      : "text-black-light hover:bg-white-off hover:text-black"
-                  }`}
-                >
-                  {tab.icon(isActive)}
-                  <span>{tab.name}</span>
-                </Link>
-              );
-            })}
-          </nav>
-
-          {/* User profile avatar */}
-          <Link href="/profile" className="flex items-center gap-2 hover:opacity-90 transition-opacity">
+          {/* User profile avatar link */}
+          <Link
+            href="/profile"
+            className="flex items-center gap-2 hover:opacity-90 transition-opacity"
+          >
             <Avatar
               src={user?.image || session?.user?.image}
               name={user?.name || session?.user?.name || "User"}
@@ -183,15 +278,21 @@ export default function AppLayout({
         </div>
       </header>
 
-      {/* Main Page Content */}
-      <main className="flex-1 max-w-4xl w-full mx-auto flex flex-col min-h-0">
+      {/* ────────────────────────────────────────────────────────────────────────
+          MAIN PAGE CONTENT
+      ────────────────────────────────────────────────────────────────────────── */}
+      <main className="flex-1 flex flex-col min-h-0 w-full min-w-0">
         {children}
       </main>
 
-      {/* Mobile Bottom Tab Bar */}
+      {/* ────────────────────────────────────────────────────────────────────────
+          MOBILE BOTTOM TAB BAR (Visible only below lg: breakpoint)
+      ────────────────────────────────────────────────────────────────────────── */}
       <nav
-        className={`mobile-bottom-nav md:hidden fixed bottom-0 left-0 right-0 z-30 bg-white border-t border-[#E5E9F0] h-16 flex items-center justify-around px-2 shadow-lg transition-all duration-150 ${
-          isKeyboardVisible ? "hidden pointer-events-none -translate-y-full opacity-0" : "flex"
+        className={`mobile-bottom-nav lg:hidden fixed bottom-0 left-0 right-0 z-30 bg-white border-t border-[#E5E9F0] h-16 flex items-center justify-around px-2 shadow-lg transition-all duration-150 ${
+          isKeyboardVisible
+            ? "hidden pointer-events-none -translate-y-full opacity-0"
+            : "flex"
         }`}
       >
         {navTabs.map((tab) => {
@@ -201,7 +302,7 @@ export default function AppLayout({
               key={tab.name}
               href={tab.href}
               className={`flex flex-col items-center justify-center flex-1 py-1 ${
-                isActive ? "text-navy" : "text-black-light"
+                isActive ? "text-navy" : "text-grayBlack"
               }`}
             >
               {tab.icon(isActive)}
