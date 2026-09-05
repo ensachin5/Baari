@@ -8,7 +8,6 @@ import {
   RefreshControl,
   FlatList,
   KeyboardAvoidingView,
-  Keyboard,
   Platform,
   ActivityIndicator,
 } from 'react-native';
@@ -75,25 +74,6 @@ export default function HomeScreen() {
   });
 
   const chatFlatListRef = useRef<FlatList>(null);
-
-  const [keyboardHeight, setKeyboardHeight] = useState(0);
-
-  useEffect(() => {
-    const showEvent = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';
-    const hideEvent = Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide';
-
-    const showSub = Keyboard.addListener(showEvent, (e) => {
-      setKeyboardHeight(e.endCoordinates.height);
-    });
-    const hideSub = Keyboard.addListener(hideEvent, () => {
-      setKeyboardHeight(0);
-    });
-
-    return () => {
-      showSub.remove();
-      hideSub.remove();
-    };
-  }, []);
 
   const handleSwitchPage = (pageIndex: number) => {
     setActivePage(pageIndex);
@@ -345,114 +325,107 @@ export default function HomeScreen() {
         </View>
 
         {/* PAGE 1: REALTIME GROUP CHAT */}
-        <View
+        <KeyboardAvoidingView
           key="1"
-          style={[
-            styles.page,
-            { paddingBottom: Platform.OS === 'android' ? keyboardHeight : 0 },
-          ]}
+          style={styles.page}
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+          keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
         >
-          <KeyboardAvoidingView
-            style={styles.page}
-            behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-            keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
-          >
-            <View style={styles.chatHeader}>
-              <Text style={Typography.H2}>Flat Group Chat</Text>
-              <Text style={[Typography.Caption, styles.chatSubtext]}>
-                Realtime chat with flatmates
+          <View style={styles.chatHeader}>
+            <Text style={Typography.H2}>Flat Group Chat</Text>
+            <Text style={[Typography.Caption, styles.chatSubtext]}>
+              Realtime chat with flatmates
+            </Text>
+          </View>
+
+          {chatLoading && messages.length === 0 ? (
+            <View style={styles.chatLoadingContainer}>
+              <ActivityIndicator size="large" color={Colors.navy} />
+            </View>
+          ) : (
+            <FlatList
+              ref={chatFlatListRef}
+              data={reversedMessages}
+              keyExtractor={(item) => item.id}
+              inverted={true}
+              style={styles.chatFlatList}
+              contentContainerStyle={styles.chatListContent}
+              showsVerticalScrollIndicator={false}
+              keyboardShouldPersistTaps="handled"
+              keyboardDismissMode="on-drag"
+              onEndReachedThreshold={0.4}
+              onEndReached={() => {
+                if (hasMore && !loadingMore) {
+                  loadMore();
+                }
+              }}
+              ListFooterComponent={
+                loadingMore ? (
+                  <View style={styles.loadMoreIndicator}>
+                    <ActivityIndicator size="small" color={Colors.navy} />
+                  </View>
+                ) : null
+              }
+              renderItem={({ item, index }) => {
+                // In inverted FlatList:
+                // item is reversedMessages[index]
+                // older message is reversedMessages[index + 1] (visually above)
+                const nextOlderMsg = index < reversedMessages.length - 1 ? reversedMessages[index + 1] : null;
+                const isDifferentSender = !nextOlderMsg || nextOlderMsg.senderId !== item.senderId;
+                const currentDate = formatDateDivider(item.createdAt);
+                const olderDate = nextOlderMsg ? formatDateDivider(nextOlderMsg.createdAt) : null;
+                const showDateDivider = currentDate && currentDate !== olderDate;
+
+                return (
+                  <View
+                    key={item.id}
+                    style={{
+                      marginTop: showDateDivider ? 0 : isDifferentSender ? Spacing.sm : 2,
+                    }}
+                  >
+                    {showDateDivider && (
+                      <View style={styles.dateDivider}>
+                        <Text style={styles.dateDividerText}>{currentDate}</Text>
+                      </View>
+                    )}
+                    <MessageBubble
+                      message={item}
+                      isCurrentUser={item.senderId === currentUser?.id}
+                      showSenderHeader={isDifferentSender}
+                      onRetry={retryMessage}
+                    />
+                  </View>
+                );
+              }}
+              ListEmptyComponent={
+                <View style={styles.emptyChat}>
+                  <MessageCircle size={44} color={Colors.sky} strokeWidth={1.75} />
+                  <Text style={[Typography.H2, styles.emptyChatTitle]}>
+                    No messages yet
+                  </Text>
+                  <Text style={[Typography.BodySmall, styles.emptyChatText]}>
+                    Say hi to your flatmates to kick off the conversation!
+                  </Text>
+                </View>
+              }
+            />
+          )}
+
+          {/* Typing Indicator Bar */}
+          {typingUsers.length > 0 && (
+            <View style={styles.typingBar}>
+              <Text style={styles.typingText}>
+                {typingUsers.length === 1
+                  ? `${typingUsers[0].userName} is typing...`
+                  : typingUsers.length === 2
+                  ? `${typingUsers[0].userName} and ${typingUsers[1].userName} are typing...`
+                  : `${typingUsers.length} people are typing...`}
               </Text>
             </View>
+          )}
 
-            {chatLoading && messages.length === 0 ? (
-              <View style={styles.chatLoadingContainer}>
-                <ActivityIndicator size="large" color={Colors.navy} />
-              </View>
-            ) : (
-              <FlatList
-                ref={chatFlatListRef}
-                data={reversedMessages}
-                keyExtractor={(item) => item.id}
-                inverted={true}
-                style={styles.chatFlatList}
-                contentContainerStyle={styles.chatListContent}
-                showsVerticalScrollIndicator={false}
-                keyboardShouldPersistTaps="handled"
-                keyboardDismissMode="on-drag"
-                onEndReachedThreshold={0.4}
-                onEndReached={() => {
-                  if (hasMore && !loadingMore) {
-                    loadMore();
-                  }
-                }}
-                ListFooterComponent={
-                  loadingMore ? (
-                    <View style={styles.loadMoreIndicator}>
-                      <ActivityIndicator size="small" color={Colors.navy} />
-                    </View>
-                  ) : null
-                }
-                renderItem={({ item, index }) => {
-                  // In inverted FlatList:
-                  // item is reversedMessages[index]
-                  // older message is reversedMessages[index + 1] (visually above)
-                  const nextOlderMsg = index < reversedMessages.length - 1 ? reversedMessages[index + 1] : null;
-                  const isDifferentSender = !nextOlderMsg || nextOlderMsg.senderId !== item.senderId;
-                  const currentDate = formatDateDivider(item.createdAt);
-                  const olderDate = nextOlderMsg ? formatDateDivider(nextOlderMsg.createdAt) : null;
-                  const showDateDivider = currentDate && currentDate !== olderDate;
-
-                  return (
-                    <View
-                      key={item.id}
-                      style={{
-                        marginTop: showDateDivider ? 0 : isDifferentSender ? Spacing.sm : 2,
-                      }}
-                    >
-                      {showDateDivider && (
-                        <View style={styles.dateDivider}>
-                          <Text style={styles.dateDividerText}>{currentDate}</Text>
-                        </View>
-                      )}
-                      <MessageBubble
-                        message={item}
-                        isCurrentUser={item.senderId === currentUser?.id}
-                        showSenderHeader={isDifferentSender}
-                        onRetry={retryMessage}
-                      />
-                    </View>
-                  );
-                }}
-                ListEmptyComponent={
-                  <View style={styles.emptyChat}>
-                    <MessageCircle size={44} color={Colors.sky} strokeWidth={1.75} />
-                    <Text style={[Typography.H2, styles.emptyChatTitle]}>
-                      No messages yet
-                    </Text>
-                    <Text style={[Typography.BodySmall, styles.emptyChatText]}>
-                      Say hi to your flatmates to kick off the conversation!
-                    </Text>
-                  </View>
-                }
-              />
-            )}
-
-            {/* Typing Indicator Bar */}
-            {typingUsers.length > 0 && (
-              <View style={styles.typingBar}>
-                <Text style={styles.typingText}>
-                  {typingUsers.length === 1
-                    ? `${typingUsers[0].userName} is typing...`
-                    : typingUsers.length === 2
-                    ? `${typingUsers[0].userName} and ${typingUsers[1].userName} are typing...`
-                    : `${typingUsers.length} people are typing...`}
-                </Text>
-              </View>
-            )}
-
-            <ChatInput onSend={sendMessage} onTyping={emitTyping} />
-          </KeyboardAvoidingView>
-        </View>
+          <ChatInput onSend={sendMessage} onTyping={emitTyping} />
+        </KeyboardAvoidingView>
       </PagerView>
 
       {/* Create Kaam Sheet */}
