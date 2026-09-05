@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useRef } from "react";
 import { Avatar } from "../ui/Avatar";
 import { RefreshCw, MoreVertical, Edit2, Trash2, Check, X } from "lucide-react";
 
@@ -44,6 +44,50 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
   const [isEditing, setIsEditing] = useState(false);
   const [editContent, setEditContent] = useState(message.content);
   const [showMenu, setShowMenu] = useState(false);
+  const [menuCoords, setMenuCoords] = useState<{ left: number; top: number } | null>(null);
+  const menuTriggerRef = useRef<HTMLDivElement>(null);
+
+  const openMenuAtTarget = (targetElement?: HTMLElement | null) => {
+    const el = targetElement || menuTriggerRef.current;
+    if (el && typeof window !== "undefined") {
+      const rect = el.getBoundingClientRect();
+      const menuWidth = 130;
+      const menuHeight = 80;
+      const viewportWidth = window.innerWidth;
+      const viewportHeight = window.innerHeight;
+
+      // Calculate horizontal coordinate (default: right-aligned with anchor)
+      let left = rect.right - menuWidth;
+      // If overflowing left (< 12px), flip to align with left of anchor
+      if (left < 12) {
+        left = Math.max(12, rect.left);
+      }
+      // Guarantee left stays strictly within [12px, viewportWidth - menuWidth - 12px]
+      left = Math.max(12, Math.min(left, viewportWidth - menuWidth - 12));
+
+      // Calculate vertical coordinate (default: open above anchor)
+      let top: number;
+      if (rect.top - menuHeight < 12) {
+        // Open downwards below anchor
+        top = Math.min(rect.bottom + 4, viewportHeight - menuHeight - 12);
+      } else {
+        // Open upwards above anchor
+        top = Math.max(12, rect.top - menuHeight - 4);
+      }
+
+      setMenuCoords({ left, top });
+      setShowMenu(true);
+    }
+  };
+
+  const handleToggleMenu = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (showMenu) {
+      setShowMenu(false);
+    } else {
+      openMenuAtTarget(menuTriggerRef.current);
+    }
+  };
 
   const formatTime = (iso: string) => {
     try {
@@ -110,10 +154,13 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
 
         {/* Action button: persistent on touch/mobile-web viewports, reveals on hover on desktop */}
         {!isDeleted && !isSending && !isFailed && !isEditing && (
-          <div className="relative mr-1 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 sm:focus-within:opacity-100 transition-opacity">
+          <div
+            ref={menuTriggerRef}
+            className="relative mr-1 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 sm:focus-within:opacity-100 transition-opacity"
+          >
             <button
               type="button"
-              onClick={() => setShowMenu((prev) => !prev)}
+              onClick={handleToggleMenu}
               className="p-1 rounded-full text-mutedNavy hover:bg-offWhite hover:text-navy cursor-pointer transition-colors"
               title="Message options"
               aria-label="Message options"
@@ -121,13 +168,21 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
               <MoreVertical size={14} />
             </button>
 
-            {showMenu && (
+            {showMenu && menuCoords && (
               <>
                 <div
                   className="fixed inset-0 z-40"
                   onClick={() => setShowMenu(false)}
                 />
-                <div className="absolute right-0 bottom-full mb-1 z-50 min-w-[120px] bg-white border border-border rounded-lg shadow-lg py-1">
+                <div
+                  style={{
+                    position: "fixed",
+                    left: `${menuCoords.left}px`,
+                    top: `${menuCoords.top}px`,
+                    minWidth: "125px",
+                  }}
+                  className="z-50 bg-white border border-border rounded-lg shadow-xl py-1 animate-in fade-in zoom-in-95 duration-100"
+                >
                   <button
                     type="button"
                     onClick={handleStartEdit}
@@ -192,7 +247,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
             onContextMenu={(e) => {
               if (!isDeleted && !isSending && !isFailed) {
                 e.preventDefault();
-                setShowMenu(true);
+                openMenuAtTarget(e.currentTarget);
               }
             }}
             className={`max-w-[75%] py-2 px-3 rounded-[14px] rounded-br-[2px] ${
