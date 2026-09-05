@@ -291,7 +291,7 @@ export default function HomePage() {
           {/* Chat Messages List */}
           <div
             ref={chatScrollContainerRef}
-            className="flex-1 overflow-y-auto p-3 space-y-1 min-h-[350px] max-h-[60vh] md:max-h-[65vh]"
+            className="flex-1 overflow-y-auto px-3 py-2 min-h-[350px] max-h-[60vh] md:max-h-[65vh]"
           >
             {hasMore && (
               <div className="text-center py-2">
@@ -344,7 +344,7 @@ export default function HomePage() {
                     }
                   >
                     {showDateDivider && (
-                      <div className="flex justify-center my-3">
+                      <div className="flex justify-center my-2">
                         <div className="bg-offWhite px-3 py-1 rounded-full border border-border">
                           <span className="text-[11px] font-semibold text-grayBlack">
                             {currentDate}

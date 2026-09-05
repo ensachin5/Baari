@@ -673,7 +673,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   chatListContent: {
-    paddingVertical: Spacing.md,
+    paddingVertical: Spacing.sm,
   },
   dateDivider: {
     alignSelf: 'center',
@@ -681,7 +681,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.md,
     paddingVertical: 3,
     borderRadius: BorderRadius.full,
-    marginVertical: Spacing.md,
+    marginVertical: Spacing.sm,
     borderWidth: 1,
     borderColor: Colors.border,
   },
