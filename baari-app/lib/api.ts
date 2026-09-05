@@ -138,14 +138,30 @@ export async function apiRequest<T = any>(endpoint: string, options: RequestOpti
     defaultHeaders['Cookie'] = cookie;
   }
 
-  const response = await fetch(url, {
-    credentials: 'include',
-    ...customConfig,
-    headers: {
-      ...defaultHeaders,
-      ...headers,
-    },
-  });
+  let response: Response;
+  try {
+    response = await fetch(url, {
+      credentials: 'include',
+      ...customConfig,
+      headers: {
+        ...defaultHeaders,
+        ...headers,
+      },
+    });
+  } catch (err: any) {
+    // Distinguish network/offline errors from HTTP errors
+    const isNetworkError =
+      err?.name === 'TypeError' ||
+      err?.message?.includes('Network request failed') ||
+      err?.message?.includes('network') ||
+      err?.message?.includes('Failed to fetch') ||
+      err?.message?.includes('The Internet connection appears to be offline');
+
+    if (isNetworkError) {
+      throw new ApiError('Check your connection and try again', 0, { networkError: true });
+    }
+    throw err;
+  }
 
   const isJson = response.headers.get('content-type')?.includes('application/json');
   const data = isJson ? await response.json() : null;
