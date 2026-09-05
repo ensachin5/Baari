@@ -8,16 +8,23 @@ import * as dotenv from 'dotenv';
 
 dotenv.config();
 
-// Safely resolve the base URL to prevent mismatches between baari-backend.onrender.com and baari-wkqq.onrender.com
+// Safely resolve the base URL to prevent mismatches
 const getBaseURL = () => {
   const envUrl = process.env.BETTER_AUTH_URL;
   if (envUrl && envUrl.includes('baari-backend.onrender.com')) {
     return 'https://baari-wkqq.onrender.com';
   }
-  return (envUrl || 'http://localhost:3000').replace(/\/+$/, '');
+  if (envUrl && envUrl.trim() !== '') {
+    return envUrl.trim().replace(/\/+$/, '');
+  }
+  if (process.env.NODE_ENV === 'production' || process.env.RENDER) {
+    return 'https://baari-wkqq.onrender.com';
+  }
+  return 'http://localhost:3000';
 };
 
 const resolvedBaseURL = getBaseURL();
+console.log(`[Better Auth Init] Resolved baseURL: ${resolvedBaseURL} (process.env.BETTER_AUTH_URL: ${process.env.BETTER_AUTH_URL})`);
 
 export const auth = betterAuth({
   database: drizzleAdapter(db, {

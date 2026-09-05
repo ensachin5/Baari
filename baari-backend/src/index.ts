@@ -105,7 +105,8 @@ app.get('/health-ping', (_req, res) => {
 });
 
 app.get('/', (req, res) => {
-  const clientUrl = process.env.CLIENT_URL || 'http://localhost:3000';
+  const isProd = process.env.NODE_ENV === 'production' || !!process.env.RENDER;
+  const clientUrl = (process.env.CLIENT_URL || (isProd ? 'https://baari-app.vercel.app' : 'http://localhost:3000')).replace(/\/+$/, '');
   if (req.accepts('html')) {
     const query = new URLSearchParams(req.query as Record<string, string>).toString();
     const target = query ? `${clientUrl}?${query}` : clientUrl;
@@ -138,7 +139,73 @@ app.get('/health', async (_req, res) => {
   }
 });
 
-// 6. Better Auth Rate Limiting & Handler
+// 6. Auth Diagnostic Middleware & Better Auth Handler
+app.use('/api/auth/*', async (req, res, next) => {
+  const start = Date.now();
+  const reqState = (req.query.state as string) || (req.body?.state as string);
+  const logPrefix = `[Auth Diagnostic ${req.method} ${req.originalUrl}]`;
+
+  logger.info({
+    msg: `${logPrefix} Incoming auth request`,
+    method: req.method,
+    url: req.originalUrl,
+    query: req.query,
+    body: req.method === 'POST' ? req.body : undefined,
+    headers: {
+      host: req.headers.host,
+      origin: req.headers.origin,
+      referer: req.headers.referer,
+      cookie: req.headers.cookie ? 'present' : 'none',
+      'x-forwarded-proto': req.headers['x-forwarded-proto'],
+      'x-forwarded-host': req.headers['x-forwarded-host'],
+    },
+  });
+
+  // If OAuth callback or state is present, check verification table in DB
+  if (reqState) {
+    try {
+      const verRes = await pool.query(
+        'SELECT id, identifier, value, expires_at, created_at FROM verification WHERE identifier = $1',
+        [reqState]
+      );
+      if (verRes.rowCount && verRes.rowCount > 0) {
+        logger.info({
+          msg: `${logPrefix} Verification record FOUND in DB for state`,
+          state: reqState,
+          record: verRes.rows[0],
+          isExpired: new Date(verRes.rows[0].expires_at).getTime() < Date.now(),
+        });
+      } else {
+        logger.warn({
+          msg: `${logPrefix} Verification record NOT FOUND in DB for state!`,
+          state: reqState,
+        });
+      }
+    } catch (dbErr: any) {
+      logger.error({
+        msg: `${logPrefix} Error querying verification table in DB`,
+        error: dbErr.message,
+      });
+    }
+  }
+
+  // Intercept redirect to log where Better Auth is sending the user
+  const originalRedirect = res.redirect.bind(res);
+  res.redirect = function (statusOrUrl: any, url?: any) {
+    const finalUrl = typeof statusOrUrl === 'string' ? statusOrUrl : url;
+    const finalStatus = typeof statusOrUrl === 'number' ? statusOrUrl : 302;
+    logger.info({
+      msg: `${logPrefix} Auth response REDIRECT`,
+      statusCode: finalStatus,
+      location: finalUrl,
+      durationMs: Date.now() - start,
+    });
+    return (originalRedirect as any)(statusOrUrl, url);
+  };
+
+  next();
+});
+
 app.all('/api/auth/*', lenientAuthRateLimiter, toNodeHandler(auth));
 
 // 7. API Routes with general rate limiting
