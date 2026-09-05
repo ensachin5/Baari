@@ -60,7 +60,7 @@ export default function TabsLayout() {
           tabBarIcon: ({ color, focused }) => (
             <House
               size={22}
-              color={focused ? Colors.navy : color}
+              color={color}
               strokeWidth={focused ? 2.3 : 1.8}
             />
           ),
@@ -73,7 +73,7 @@ export default function TabsLayout() {
           tabBarIcon: ({ color, focused }) => (
             <Wallet
               size={22}
-              color={focused ? Colors.navy : color}
+              color={color}
               strokeWidth={focused ? 2.3 : 1.8}
             />
           ),
@@ -86,7 +86,7 @@ export default function TabsLayout() {
           tabBarIcon: ({ color, focused }) => (
             <Zap
               size={22}
-              color={focused ? Colors.navy : color}
+              color={color}
               strokeWidth={focused ? 2.3 : 1.8}
             />
           ),
@@ -99,7 +99,7 @@ export default function TabsLayout() {
           tabBarIcon: ({ color, focused }) => (
             <User
               size={22}
-              color={focused ? Colors.navy : color}
+              color={color}
               strokeWidth={focused ? 2.3 : 1.8}
             />
           ),

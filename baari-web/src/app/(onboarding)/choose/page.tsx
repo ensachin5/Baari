@@ -32,8 +32,8 @@ export default function ChooseFlatPage() {
           className="p-4 cursor-pointer"
         >
           <div className="flex items-center">
-            <div className="w-12 h-12 rounded-[10px] bg-navy flex items-center justify-center mr-3 flex-shrink-0">
-              <House size={24} className="text-white" strokeWidth={2} />
+            <div className="w-11 h-11 flex items-center justify-center mr-3 flex-shrink-0">
+              <House size={26} className="text-navy" strokeWidth={2} />
             </div>
             <div className="flex-1 mr-2">
               <h2 className="text-[18px] leading-[24px] font-semibold text-black">

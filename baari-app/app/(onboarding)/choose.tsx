@@ -27,8 +27,8 @@ export default function ChooseFlatScreen() {
           variant="elevated"
         >
           <View style={styles.optionRow}>
-            <View style={[styles.iconBadge, { backgroundColor: Colors.navy }]}>
-              <House size={24} color={Colors.white} strokeWidth={2} />
+            <View style={styles.iconContainer}>
+              <House size={26} color={Colors.navy} strokeWidth={2} />
             </View>
             <View style={styles.optionTextCol}>
               <Text style={Typography.H2}>Create a new Flat</Text>
@@ -88,9 +88,16 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
   },
+  iconContainer: {
+    width: 44,
+    height: 44,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: Spacing.md,
+  },
   iconBadge: {
-    width: 48,
-    height: 48,
+    width: 44,
+    height: 44,
     borderRadius: BorderRadius.md,
     alignItems: 'center',
     justifyContent: 'center',

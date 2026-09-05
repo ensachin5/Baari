@@ -122,7 +122,7 @@ export default function AppLayout({
       icon: (active: boolean) => (
         <House
           size={18}
-          className={active ? "text-navy stroke-[2.5]" : "text-mutedNavy"}
+          className={active ? "text-navy stroke-[2.5]" : "text-mutedNavy stroke-[1.8]"}
         />
       ),
     },
@@ -132,7 +132,7 @@ export default function AppLayout({
       icon: (active: boolean) => (
         <Wallet
           size={18}
-          className={active ? "text-navy stroke-[2.5]" : "text-mutedNavy"}
+          className={active ? "text-navy stroke-[2.5]" : "text-mutedNavy stroke-[1.8]"}
         />
       ),
     },
@@ -142,7 +142,7 @@ export default function AppLayout({
       icon: (active: boolean) => (
         <Activity
           size={18}
-          className={active ? "text-navy stroke-[2.5]" : "text-mutedNavy"}
+          className={active ? "text-navy stroke-[2.5]" : "text-mutedNavy stroke-[1.8]"}
         />
       ),
     },
@@ -152,7 +152,7 @@ export default function AppLayout({
       icon: (active: boolean) => (
         <User
           size={18}
-          className={active ? "text-navy stroke-[2.5]" : "text-mutedNavy"}
+          className={active ? "text-navy stroke-[2.5]" : "text-mutedNavy stroke-[1.8]"}
         />
       ),
     },
