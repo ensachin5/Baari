@@ -50,3 +50,19 @@ body {
   color: var(--foreground);
   font-family: var(--font-inter), -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
 }
+
+/* Instantly hide mobile bottom navigation bar when virtual keyboard opens / any input is focused / in chat view */
+@media (max-width: 768px) {
+  body:has(input:focus) .mobile-bottom-nav,
+  body:has(textarea:focus) .mobile-bottom-nav,
+  html:has(input:focus) .mobile-bottom-nav,
+  html:has(textarea:focus) .mobile-bottom-nav,
+  body:has(.chat-view-active) .mobile-bottom-nav,
+  html:has(.chat-view-active) .mobile-bottom-nav {
+    display: none !important;
+    visibility: hidden !important;
+    opacity: 0 !important;
+    pointer-events: none !important;
+    transform: translateY(100%) !important;
+  }
+}

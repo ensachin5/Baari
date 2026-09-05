@@ -187,7 +187,7 @@ export default function AppLayout({
 
       {/* Mobile Bottom Tab Bar */}
       <nav
-        className={`md:hidden fixed bottom-0 left-0 right-0 z-30 bg-white border-t border-[#E5E9F0] h-16 flex items-center justify-around px-2 shadow-lg transition-all duration-150 ${
+        className={`mobile-bottom-nav md:hidden fixed bottom-0 left-0 right-0 z-30 bg-white border-t border-[#E5E9F0] h-16 flex items-center justify-around px-2 shadow-lg transition-all duration-150 ${
           isKeyboardVisible ? "hidden pointer-events-none -translate-y-full opacity-0" : "flex"
         }`}
       >

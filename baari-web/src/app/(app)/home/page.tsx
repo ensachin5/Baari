@@ -191,9 +191,7 @@ export default function HomePage() {
       className={`flex flex-col max-w-4xl mx-auto w-full min-h-0 flex-1 ${
         activeTab === 0
           ? "min-h-[calc(100vh-4rem)] pb-20 md:pb-6"
-          : isKeyboardVisible
-          ? "h-[calc(100dvh-4rem)] pb-0 md:pb-0"
-          : "h-[calc(100dvh-4rem)] pb-16 md:pb-0"
+          : "chat-view-active h-[calc(100dvh-4rem)] pb-0 md:pb-0"
       }`}
     >
       {/* Top Header Row matching baari-app styles.topHeader */}
