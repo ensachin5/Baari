@@ -50,7 +50,17 @@ export const getSocket = (): Socket => {
       useSession.getState().setSocketConnected(true);
       const activeFlat = useSession.getState().activeFlat;
       if (activeFlat?.id) {
-        console.log('[Socket] Joining flat room on connect:', activeFlat.id);
+        console.log('[Socket] Joining flat room on connect:', activeFlat.id, 'Socket ID:', socket?.id);
+        socket?.emit('join_flat', { flatId: activeFlat.id });
+      }
+    });
+
+    socket.io.on('reconnect', (attempt) => {
+      console.log('[Socket] Reconnected successfully on attempt:', attempt, 'Socket ID:', socket?.id);
+      useSession.getState().setSocketConnected(true);
+      const activeFlat = useSession.getState().activeFlat;
+      if (activeFlat?.id) {
+        console.log('[Socket] Re-joining flat room on reconnect:', activeFlat.id, 'Socket ID:', socket?.id);
         socket?.emit('join_flat', { flatId: activeFlat.id });
       }
     });

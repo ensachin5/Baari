@@ -50,40 +50,94 @@ export const useChat = () => {
     fetchMessages();
   }, [fetchMessages]);
 
+  // Ref to hold currentUser to avoid re-binding socket listeners when currentUser object updates
+  const currentUserRef = useRef(currentUser);
+  useEffect(() => {
+    currentUserRef.current = currentUser;
+  }, [currentUser]);
+
+  // Mark read up to message
+  const markReadUpTo = useCallback(
+    async (messageId: string) => {
+      if (!activeFlat?.id || !messageId || messageId.startsWith('temp')) return;
+      try {
+        await api.post('/api/messages/read-up-to', { messageId });
+      } catch (_) {}
+    },
+    [activeFlat?.id]
+  );
+
   // Socket.io Realtime Listeners for new_message, user_typing, message_read
   useEffect(() => {
     if (!activeFlat?.id) return;
 
+    const flatId = activeFlat.id;
     const socket = getSocket();
-    if (socket.connected) {
-      socket.emit('join_flat', { flatId: activeFlat.id });
+
+    // Ensure socket is connecting/connected
+    if (!socket.connected) {
+      connectSocket();
     }
 
+    const joinRoom = () => {
+      console.log(`[useChat] Socket connected (ID: ${socket.id}). Emitting join_flat for room: ${flatId}`);
+      socket.emit('join_flat', { flatId });
+    };
+
+    if (socket.connected) {
+      joinRoom();
+    }
+
+    // Re-join room on connect and reconnect
+    socket.on('connect', joinRoom);
+
     const handleNewMessage = (data: { message: ChatMessage }) => {
+      console.log('[useChat] Received new_message event:', data?.message?.id, 'content:', data?.message?.content);
       if (data?.message) {
-        const incoming = { ...data.message, status: 'sent' as const, reads: data.message.reads || [] };
+        const incoming = {
+          ...data.message,
+          status: 'sent' as const,
+          reads: data.message.reads || [],
+        };
+
+        // Filter out messages for other flats if any
+        if (incoming.flatId && incoming.flatId !== flatId) {
+          console.warn('[useChat] Received message for different flat:', incoming.flatId, 'expected:', flatId);
+          return;
+        }
+
         setMessages((prev) => {
+          // If message was sent optimistically by this client, replace the temp message
           const tempIdx = prev.findIndex(
-            (m) => m.status === 'sending' && m.content === incoming.content && m.senderId === incoming.senderId
+            (m) =>
+              m.status === 'sending' &&
+              m.content === incoming.content &&
+              m.senderId === incoming.senderId
           );
           if (tempIdx !== -1) {
             const next = [...prev];
             next[tempIdx] = incoming;
             return next;
           }
-          if (prev.some((m) => m.id === incoming.id)) return prev;
+
+          // If message already exists in array (e.g. from history or ack), avoid duplication
+          if (prev.some((m) => m.id === incoming.id)) {
+            return prev;
+          }
+
+          // Immutably create a new array reference so React detects the update and re-renders
           return [...prev, incoming];
         });
 
         // If incoming message is from a flatmate, mark it read in real time
-        if (incoming.senderId !== currentUser?.id) {
+        if (incoming.senderId !== currentUserRef.current?.id) {
           markReadUpTo(incoming.id);
         }
       }
     };
 
     const handleUserTyping = (data: { userId: string; userName: string; isTyping: boolean }) => {
-      if (!data?.userId || data.userId === currentUser?.id) return;
+      if (!data?.userId || data.userId === currentUserRef.current?.id) return;
       setTypingUsers((prev) => {
         if (data.isTyping) {
           if (prev.some((u) => u.userId === data.userId)) return prev;
@@ -120,11 +174,13 @@ export const useChat = () => {
     socket.on('message_read', handleMessageRead);
 
     return () => {
+      console.log(`[useChat] Cleaning up socket listeners for flat room: ${flatId}`);
+      socket.off('connect', joinRoom);
       socket.off('new_message', handleNewMessage);
       socket.off('user_typing', handleUserTyping);
       socket.off('message_read', handleMessageRead);
     };
-  }, [activeFlat?.id, currentUser?.id]);
+  }, [activeFlat?.id, markReadUpTo]);
 
   // Load older messages (pagination)
   const loadMore = useCallback(async () => {
@@ -158,17 +214,6 @@ export const useChat = () => {
           socket.emit('typing', { flatId: activeFlat.id, isTyping: false });
         }, 3000);
       }
-    },
-    [activeFlat?.id]
-  );
-
-  // Mark read up to message
-  const markReadUpTo = useCallback(
-    async (messageId: string) => {
-      if (!activeFlat?.id || !messageId || messageId.startsWith('temp')) return;
-      try {
-        await api.post('/api/messages/read-up-to', { messageId });
-      } catch (_) {}
     },
     [activeFlat?.id]
   );
