@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useAuthSession } from "@/lib/auth-client";
 import { api } from "@/lib/api";
 import { useSession } from "@/store/session";
+import Image from "next/image";
 
 export default function RootIndexPage() {
   const router = useRouter();
@@ -26,32 +27,23 @@ export default function RootIndexPage() {
     }
   }, [hydrate]);
 
-  // Show helpful hint if cold start takes longer than 3.5 seconds
+  // Handle server cold start hint timer
   useEffect(() => {
     const timer = setTimeout(() => {
       setSlowServerHint(true);
-    }, 3500);
+    }, 4000);
     return () => clearTimeout(timer);
   }, []);
 
-  // 1. Fast path: If already hydrated from local storage with valid user + flat, route immediately
+  // Main authentication and flat redirection logic
   useEffect(() => {
-    if (isHydrated && user && activeFlat) {
-      router.replace("/home");
-    }
-  }, [isHydrated, user, activeFlat, router]);
-
-  // 2. Authoritative path: When session state resolves
-  useEffect(() => {
-    if (sessionLoading || !isHydrated) return;
+    if (!isHydrated || sessionLoading) return;
 
     if (!session?.user) {
-      // Not authenticated
       router.replace("/sign-in");
       return;
     }
 
-    // Authenticated: Sync user into store
     setUser({
       id: session.user.id,
       name: session.user.name || "User",
@@ -59,20 +51,10 @@ export default function RootIndexPage() {
       image: session.user.image,
     });
 
-    // Single round-trip call to /api/profile to fetch activeFlat & user stats together
-    api
-      .get<{ user: any; activeFlat: any }>("/api/profile")
-      .then((res) => {
-        if (res?.activeFlat) {
-          setActiveFlat(res.activeFlat);
-          router.replace("/home");
-        } else {
-          setActiveFlat(null);
-          router.replace("/choose");
-        }
-      })
-      .catch(() => {
-        // Fallback: check /api/flats/me
+    // Attempt ping/health before resolving flat
+    fetch(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000"}/health-ping`)
+      .catch(() => {})
+      .finally(() => {
         api
           .get<{ flat: any }>("/api/flats/me")
           .then((res) => {
@@ -96,9 +78,14 @@ export default function RootIndexPage() {
       <div className="min-h-screen bg-navy text-white flex flex-col items-center justify-center p-6 select-none">
         <div className="flex flex-col items-center text-center max-w-xs">
           {/* Logo Badge */}
-          <div className="w-[68px] h-[68px] rounded-[14px] bg-white text-navy flex items-center justify-center font-bold text-[36px] shadow-[0_4px_16px_rgba(0,0,0,0.3)] animate-pulse">
-            B
-          </div>
+          <Image
+            src="/baari-logo.png"
+            alt="Baari Logo"
+            width={68}
+            height={68}
+            className="rounded-[14px] shadow-[0_4px_16px_rgba(0,0,0,0.3)] animate-pulse object-contain bg-white"
+            priority
+          />
 
           <h1 className="text-[32px] leading-[38px] font-bold text-white mt-4">
             Baari
@@ -128,9 +115,14 @@ export default function RootIndexPage() {
     <div className="min-h-screen bg-white flex flex-col items-center justify-center p-6 select-none">
       <div className="flex flex-col items-center gap-4 text-center max-w-xs">
         {/* Navy Logo Badge */}
-        <div className="w-16 h-16 rounded-2xl bg-navy text-white flex items-center justify-center font-bold text-3xl shadow-md animate-pulse">
-          B
-        </div>
+        <Image
+          src="/baari-logo.png"
+          alt="Baari Logo"
+          width={64}
+          height={64}
+          className="rounded-2xl shadow-md animate-pulse object-contain"
+          priority
+        />
 
         <div>
           <h2 className="text-[18px] leading-[24px] font-semibold text-black">

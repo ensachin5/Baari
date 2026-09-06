@@ -2,11 +2,13 @@ import React, { useState } from 'react';
 import {
   View,
   Text,
+  Image,
   StyleSheet,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Button } from '../../components/ui/Button';
+import { GoogleIcon } from '../../components/icons/GoogleIcon';
 import { Colors, Typography, Spacing, BorderRadius } from '../../lib/theme';
 import { authClient, syncSessionToStore, fetchUserProfile } from '../../lib/auth-client';
 import { api } from '../../lib/api';
@@ -67,9 +69,11 @@ export default function SignInScreen() {
       <View style={styles.content}>
         {/* Branding Header */}
         <View style={styles.brandContainer}>
-          <View style={styles.logoBadge}>
-            <Text style={styles.logoBadgeText}>B</Text>
-          </View>
+          <Image
+            source={require('../../assets/baari-logo.png')}
+            style={styles.logoImage}
+            resizeMode="contain"
+          />
           <Text style={Typography.Display}>Baari</Text>
           <Text style={[Typography.BodySmall, styles.tagline]}>
             Coordinate flat chores, expenses & communication in one place
@@ -88,6 +92,7 @@ export default function SignInScreen() {
           title="Continue with Google"
           variant="outline"
           size="lg"
+          icon={<GoogleIcon size={20} />}
           onPress={handleGoogleSignIn}
           loading={googleLoading}
           style={styles.googleButton}
@@ -111,24 +116,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: Spacing.xxxl,
   },
-  logoBadge: {
-    width: 68,
-    height: 68,
+  logoImage: {
+    width: 80,
+    height: 80,
     borderRadius: BorderRadius.lg,
-    backgroundColor: Colors.navy,
-    alignItems: 'center',
-    justifyContent: 'center',
     marginBottom: Spacing.md,
-    shadowColor: Colors.deepNavy,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.15,
-    shadowRadius: 8,
-    elevation: 4,
-  },
-  logoBadgeText: {
-    fontFamily: 'Inter_700Bold',
-    fontSize: 36,
-    color: Colors.white,
   },
   tagline: {
     textAlign: 'center',

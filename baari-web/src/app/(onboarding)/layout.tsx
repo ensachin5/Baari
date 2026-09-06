@@ -6,6 +6,8 @@ import { useAuthSession } from "@/lib/auth-client";
 import { api } from "@/lib/api";
 import { useSession } from "@/store/session";
 
+import Image from "next/image";
+
 /**
  * Onboarding layout guard.
  * - No session → redirect to /sign-in
@@ -70,9 +72,14 @@ export default function OnboardingLayout({
     return (
       <div className="min-h-screen bg-white flex items-center justify-center">
         <div className="flex flex-col items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-navy text-white flex items-center justify-center font-bold text-lg animate-pulse">
-            B
-          </div>
+          <Image
+            src="/baari-logo.png"
+            alt="Baari Logo"
+            width={40}
+            height={40}
+            className="w-10 h-10 rounded-xl animate-pulse object-contain"
+            priority
+          />
           <p className="text-black-light text-body-small font-medium">
             Loading...
           </p>

@@ -2,6 +2,7 @@
 
 import React, { useEffect, useState } from "react";
 import Link from "next/link";
+import Image from "next/image";
 import { usePathname, useRouter } from "next/navigation";
 import { useAuthSession } from "@/lib/auth-client";
 import { useSession } from "@/store/session";
@@ -170,9 +171,13 @@ export default function AppLayout({
         {/* Flat Brand Header */}
         <div className="p-5 border-b border-[#E5E9F0]">
           <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-xl bg-navy text-white flex items-center justify-center font-bold text-lg shadow-xs flex-shrink-0">
-              B
-            </div>
+            <Image
+              src="/baari-logo.png"
+              alt="Baari Logo"
+              width={36}
+              height={36}
+              className="w-9 h-9 rounded-xl shadow-xs flex-shrink-0 object-contain"
+            />
             <div className="min-w-0 flex-1">
               <p className="text-[10px] font-bold text-mutedNavy tracking-wider uppercase leading-tight">
                 BAARI

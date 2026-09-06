@@ -28,18 +28,12 @@
       flex-direction: column;
       align-items: center;
     }
-    .logo-badge {
+    .logo-img {
       width: 72px;
       height: 72px;
       border-radius: 16px;
-      background-color: #0A2540;
-      color: #FFFFFF;
-      font-size: 36px;
-      font-weight: 700;
-      display: flex;
-      align-items: center;
-      justify-content: center;
       margin-bottom: 24px;
+      object-fit: contain;
       box-shadow: 0 4px 12px rgba(10, 37, 64, 0.15);
     }
     h1 {
@@ -81,7 +75,7 @@
 </head>
 <body>
   <div class="container">
-    <div class="logo-badge">B</div>
+    <img src="/baari-logo.png" alt="Baari Logo" class="logo-img" />
     <h1>You're offline</h1>
     <p>Please check your internet connection and try reloading the page.</p>
     <button class="btn" onclick="window.location.reload()">Retry Connection</button>

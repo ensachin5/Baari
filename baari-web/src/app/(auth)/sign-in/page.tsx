@@ -6,18 +6,11 @@ import { signIn, useAuthSession } from "@/lib/auth-client";
 import { api } from "@/lib/api";
 import { useSession } from "@/store/session";
 import { Button } from "@/components/ui/Button";
+import { GoogleIcon } from "@/components/icons/GoogleIcon";
+import Image from "next/image";
 
 /**
  * Mirrors baari-app/app/(auth)/sign-in.tsx exactly.
- *
- * Layout from RN:
- *   container: flex: 1, bg white, justifyContent: 'center', paddingHorizontal: Spacing.xl (20px)
- *   brandContainer: alignItems: 'center', marginBottom: Spacing.xxxl (32px)
- *   logoBadge: 68x68, borderRadius: 14px, bg navy, shadow (0 4px 8px rgba(6,23,41,0.15)), marginBottom: 12px
- *   logoBadgeText: 36px, 700, color white
- *   title: Typography.Display (28px, 700, color #1A1A1A)
- *   tagline: Typography.BodySmall (14px, color #5C5F66, textAlign: 'center', marginTop: 4px, maxWidth: 280px)
- *   Button: title="Continue with Google", variant="outline", size="lg", width: 100%
  */
 export default function SignInPage() {
   const router = useRouter();
@@ -88,11 +81,16 @@ export default function SignInPage() {
 
   return (
     <div className="min-h-screen bg-white flex flex-col justify-center px-5 max-w-md mx-auto w-full">
-      {/* Branding Header — marginBottom: Spacing.xxxl = 32px */}
+      {/* Branding Header */}
       <div className="flex flex-col items-center mb-8">
-        <div className="w-[68px] h-[68px] rounded-[14px] bg-navy flex items-center justify-center mb-3 shadow-[0_4px_8px_rgba(6,23,41,0.15)]">
-          <span className="text-[36px] font-bold text-white">B</span>
-        </div>
+        <Image
+          src="/baari-logo.png"
+          alt="Baari Logo"
+          width={80}
+          height={80}
+          className="rounded-2xl mb-3 shadow-[0_4px_12px_rgba(6,23,41,0.08)] object-contain"
+          priority
+        />
         <h1 className="text-[28px] leading-[34px] font-bold text-black">
           Baari
         </h1>
@@ -115,6 +113,7 @@ export default function SignInPage() {
         title="Continue with Google"
         variant="outline"
         size="lg"
+        icon={<GoogleIcon size={20} />}
         onClick={handleGoogleSignIn}
         loading={googleLoading || sessionLoading}
         className="w-full"
@@ -122,3 +121,4 @@ export default function SignInPage() {
     </div>
   );
 }
+
