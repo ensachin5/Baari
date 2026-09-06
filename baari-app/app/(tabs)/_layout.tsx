@@ -2,7 +2,8 @@ import React, { useEffect } from 'react';
 import { Tabs, useRouter, Redirect } from 'expo-router';
 import { Platform } from 'react-native';
 import { Colors, Typography } from '../../lib/theme';
-import { House, Wallet, Zap, User } from 'lucide-react-native';
+import { Wallet, Zap, User } from 'lucide-react-native';
+import { HomeIcon } from '../../components/ui/HomeIcon';
 import { useSession } from '../../store/session';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -58,7 +59,7 @@ export default function TabsLayout() {
         options={{
           title: 'Home',
           tabBarIcon: ({ color, focused }) => (
-            <House
+            <HomeIcon
               size={22}
               color={color}
               strokeWidth={focused ? 2.3 : 1.8}

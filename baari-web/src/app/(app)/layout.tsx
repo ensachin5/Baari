@@ -10,8 +10,8 @@ import { useSocket } from "@/lib/socket";
 import { registerWebPushAsync } from "@/lib/web-push";
 import { Avatar } from "@/components/ui/Avatar";
 import { OfflineBanner } from "@/components/ui/OfflineBanner";
+import { HomeIcon } from "@/components/ui/HomeIcon";
 import {
-  House,
   Wallet,
   Activity,
   User,
@@ -121,9 +121,10 @@ export default function AppLayout({
       name: "Home",
       href: "/home",
       icon: (active: boolean) => (
-        <House
+        <HomeIcon
           size={18}
-          className={active ? "text-navy stroke-[2.5]" : "text-mutedNavy stroke-[1.8]"}
+          strokeWidth={active ? 2.5 : 1.8}
+          className={active ? "text-navy" : "text-mutedNavy"}
         />
       ),
     },

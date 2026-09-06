@@ -7,7 +7,8 @@ import { Input } from "@/components/ui/Input";
 import { Button } from "@/components/ui/Button";
 import { api } from "@/lib/api";
 import { useSession } from "@/store/session";
-import { ArrowLeft, House, Building2, Hotel } from "lucide-react";
+import { ArrowLeft, Building2, Hotel } from "lucide-react";
+import { HomeIcon } from "@/components/ui/HomeIcon";
 
 type PlaceType = "flat" | "pg" | "hostel";
 
@@ -23,7 +24,7 @@ interface FlatResponse {
 }
 
 const PLACE_TYPES: { id: PlaceType; label: string; icon: React.ComponentType<{ size?: number; className?: string; strokeWidth?: number }> }[] = [
-  { id: "flat", label: "Flat", icon: House },
+  { id: "flat", label: "Flat", icon: HomeIcon },
   { id: "pg", label: "PG", icon: Building2 },
   { id: "hostel", label: "Hostel", icon: Hotel },
 ];
