@@ -63,6 +63,8 @@ exports.profileRouter.get('/', auth_guard_js_1.requireAuth, async (req, res) => 
         .select({
         flatId: schema_js_1.flats.id,
         flatName: schema_js_1.flats.name,
+        flatType: schema_js_1.flats.type,
+        type: schema_js_1.flats.type,
         inviteCode: schema_js_1.flats.inviteCode,
         role: schema_js_1.flatMembers.role,
     })

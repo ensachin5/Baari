@@ -38,11 +38,13 @@ export const pushDeviceType = pgEnum('push_device_type', ['ios', 'android', 'web
 export const settlementStatus = pgEnum('settlement_status', ['pending', 'confirmed', 'rejected']);
 export const expenseRecurrence = pgEnum('expense_recurrence', ['weekly', 'monthly']);
 export const groceryItemStatus = pgEnum('grocery_item_status', ['needed', 'bought']);
+export const flatType = pgEnum('flat_type', ['flat', 'pg', 'hostel']);
 
 // 1. flats
 export const flats = pgTable('flats', {
   id: uuid('id').defaultRandom().primaryKey(),
   name: text('name').notNull(),
+  type: flatType('type').default('flat').notNull(),
   inviteCode: text('invite_code').notNull().unique(),
   createdBy: uuid('created_by')
     .references(() => user.id)

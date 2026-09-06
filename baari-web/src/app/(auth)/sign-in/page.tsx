@@ -86,9 +86,9 @@ export default function SignInPage() {
         <Image
           src="/baari-logo.png"
           alt="Baari Logo"
-          width={80}
-          height={80}
-          className="rounded-2xl mb-3 shadow-[0_4px_12px_rgba(6,23,41,0.08)] object-contain"
+          width={84}
+          height={84}
+          className="mb-3 object-contain"
           priority
         />
         <h1 className="text-[28px] leading-[34px] font-bold text-black">

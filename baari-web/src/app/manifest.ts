@@ -7,8 +7,8 @@ export default function manifest(): MetadataRoute.Manifest {
     description: 'Coordinate flat chores, expenses & communication in one place',
     start_url: '/',
     display: 'standalone',
-    background_color: '#0A2540',
-    theme_color: '#0A2540',
+    background_color: '#152447',
+    theme_color: '#152447',
     icons: [
       {
         src: '/icon-192.png',

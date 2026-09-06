@@ -10,6 +10,7 @@ export interface UserProfile {
 export interface ActiveFlat {
   id: string;
   name: string;
+  type?: 'flat' | 'pg' | 'hostel';
   inviteCode: string;
   role: "admin" | "member";
   memberCount?: number;

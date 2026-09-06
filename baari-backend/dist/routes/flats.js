@@ -29,6 +29,7 @@ exports.flatsRouter.get(['/my-flat', '/me'], auth_guard_js_1.requireAuth, async 
         .select({
         id: schema_js_1.flats.id,
         name: schema_js_1.flats.name,
+        type: schema_js_1.flats.type,
         inviteCode: schema_js_1.flats.inviteCode,
         createdBy: schema_js_1.flats.createdBy,
         createdAt: schema_js_1.flats.createdAt,
@@ -57,7 +58,7 @@ exports.flatsRouter.get(['/my-flat', '/me'], auth_guard_js_1.requireAuth, async 
 });
 // Create flat
 exports.flatsRouter.post('/', auth_guard_js_1.requireAuth, (0, validate_js_1.validate)(flats_js_1.createFlatSchema), async (req, res) => {
-    const { name } = req.body;
+    const { name, type = 'flat' } = req.body;
     const userId = req.user.id;
     // Generate unique invite code
     let inviteCode = generateInviteCode();
@@ -78,6 +79,7 @@ exports.flatsRouter.post('/', auth_guard_js_1.requireAuth, (0, validate_js_1.val
         .insert(schema_js_1.flats)
         .values({
         name,
+        type: type || 'flat',
         inviteCode,
         createdBy: userId,
     })

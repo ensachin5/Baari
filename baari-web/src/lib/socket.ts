@@ -27,16 +27,19 @@ async function warmUpBackend(): Promise<void> {
   }
 }
 
+let lastConnectErrorLog = 0;
+
 export const getSocket = (): Socket => {
   if (!socket) {
     socket = io(API_BASE_URL, {
       autoConnect: false,
       reconnection: true,
       reconnectionAttempts: Infinity,
-      reconnectionDelay: 1000,
-      reconnectionDelayMax: 5000,
-      timeout: 60000, // 60s timeout to handle Render cold starts
-      transports: ["websocket", "polling"],
+      reconnectionDelay: 2000,
+      reconnectionDelayMax: 10000,
+      randomizationFactor: 0.5,
+      timeout: 45000, // 45s timeout to handle Render cold starts
+      transports: ["polling", "websocket"], // Start with HTTP polling for reliable handshake, then upgrade to WebSocket
       withCredentials: true,
       upgrade: true,
       auth: (cb) => {
@@ -52,7 +55,6 @@ export const getSocket = (): Socket => {
       if (activeFlat?.id) {
         console.log('[Socket] [join_flat] Auto-joining flat room on connect. flatId:', activeFlat.id, 'socketId:', socket?.id);
         socket?.emit("join_flat", { flatId: activeFlat.id });
-        console.log('[Socket] [join_flat] Emitted join_flat for flatId:', activeFlat.id);
       }
     });
 
@@ -63,7 +65,6 @@ export const getSocket = (): Socket => {
       if (activeFlat?.id) {
         console.log('[Socket] [join_flat] Re-joining flat room on reconnect. flatId:', activeFlat.id, 'socketId:', socket?.id);
         socket?.emit("join_flat", { flatId: activeFlat.id });
-        console.log('[Socket] [join_flat] Emitted join_flat for flatId:', activeFlat.id);
       }
     });
 
@@ -73,11 +74,17 @@ export const getSocket = (): Socket => {
     });
 
     socket.on("connect_error", (error) => {
-      console.error('[Socket] Event "connect_error" - Connection error:', error.message, error);
+      const now = Date.now();
+      // Throttle connection error logging to at most once every 10 seconds to avoid console flood
+      if (now - lastConnectErrorLog > 10000) {
+        lastConnectErrorLog = now;
+        console.warn('[Socket] Connection attempt failed (will auto-retry):', error.message);
+      }
       if (
         error.message === "Unauthorized" ||
         error.message === "Authentication failed"
       ) {
+        console.warn('[Socket] Disconnecting unauthenticated socket until valid session is established.');
         socket?.disconnect();
       }
     });

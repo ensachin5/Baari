@@ -4,7 +4,9 @@ import * as SecureStore from 'expo-secure-store';
 import { api } from './api';
 import { useSession, UserProfile, ActiveFlat } from '../store/session';
 
-const baseURL = (process.env.EXPO_PUBLIC_API_URL || 'http://localhost:3000').replace(/\/+$/, '');
+const baseURL = (
+  process.env.EXPO_PUBLIC_API_URL || 'https://baari-wkqq.onrender.com'
+).replace(/\/+$/, '');
 
 export const authClient = createAuthClient({
   baseURL,

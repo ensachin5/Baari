@@ -94,6 +94,8 @@ profileRouter.get('/', requireAuth, async (req: AuthenticatedRequest, res: Respo
     .select({
       flatId: flats.id,
       flatName: flats.name,
+      flatType: flats.type,
+      type: flats.type,
       inviteCode: flats.inviteCode,
       role: flatMembers.role,
     })

@@ -40,6 +40,7 @@ export default function JoinFlatScreen() {
         setActiveFlat({
           id: data.flat.id,
           name: data.flat.name,
+          type: data.flat.type,
           inviteCode: data.flat.inviteCode,
           role: 'member',
         });

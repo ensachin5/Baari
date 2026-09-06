@@ -117,9 +117,8 @@ const styles = StyleSheet.create({
     marginBottom: Spacing.xxxl,
   },
   logoImage: {
-    width: 80,
-    height: 80,
-    borderRadius: BorderRadius.lg,
+    width: 84,
+    height: 84,
     marginBottom: Spacing.md,
   },
   tagline: {

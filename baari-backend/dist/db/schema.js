@@ -14,7 +14,7 @@ var __exportStar = (this && this.__exportStar) || function(m, exports) {
     for (var p in m) if (p !== "default" && !Object.prototype.hasOwnProperty.call(exports, p)) __createBinding(exports, m, p);
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.verification = exports.account = exports.session = exports.user = exports.activityLogRelations = exports.settlementsRelations = exports.expenseSplitsRelations = exports.expensesRelations = exports.messagesRelations = exports.taskOccurrenceMembersRelations = exports.taskOccurrencesRelations = exports.tasksRelations = exports.flatMembersRelations = exports.quickPickPresetsRelations = exports.groceryItemsRelations = exports.announcementsRelations = exports.flatsRelations = exports.groceryItems = exports.announcements = exports.quickPickPresets = exports.pushTokens = exports.activityLog = exports.settlements = exports.expenseComments = exports.expenseSplits = exports.expenses = exports.messageReads = exports.messages = exports.taskRotationState = exports.taskOccurrenceMembers = exports.taskOccurrences = exports.tasks = exports.flatMembers = exports.flats = exports.groceryItemStatus = exports.expenseRecurrence = exports.settlementStatus = exports.pushDeviceType = exports.activityType = exports.occurrenceMemberStatus = exports.occurrenceStatus = exports.taskAssignmentMode = exports.taskRecurrence = exports.taskCategory = exports.flatMemberRole = void 0;
+exports.verification = exports.account = exports.session = exports.user = exports.activityLogRelations = exports.settlementsRelations = exports.expenseSplitsRelations = exports.expensesRelations = exports.messagesRelations = exports.taskOccurrenceMembersRelations = exports.taskOccurrencesRelations = exports.tasksRelations = exports.flatMembersRelations = exports.quickPickPresetsRelations = exports.groceryItemsRelations = exports.announcementsRelations = exports.flatsRelations = exports.groceryItems = exports.announcements = exports.quickPickPresets = exports.pushTokens = exports.activityLog = exports.settlements = exports.expenseComments = exports.expenseSplits = exports.expenses = exports.messageReads = exports.messages = exports.taskRotationState = exports.taskOccurrenceMembers = exports.taskOccurrences = exports.tasks = exports.flatMembers = exports.flats = exports.flatType = exports.groceryItemStatus = exports.expenseRecurrence = exports.settlementStatus = exports.pushDeviceType = exports.activityType = exports.occurrenceMemberStatus = exports.occurrenceStatus = exports.taskAssignmentMode = exports.taskRecurrence = exports.taskCategory = exports.flatMemberRole = void 0;
 const pg_core_1 = require("drizzle-orm/pg-core");
 const drizzle_orm_1 = require("drizzle-orm");
 __exportStar(require("./auth-schema.js"), exports);
@@ -41,10 +41,12 @@ exports.pushDeviceType = (0, pg_core_1.pgEnum)('push_device_type', ['ios', 'andr
 exports.settlementStatus = (0, pg_core_1.pgEnum)('settlement_status', ['pending', 'confirmed', 'rejected']);
 exports.expenseRecurrence = (0, pg_core_1.pgEnum)('expense_recurrence', ['weekly', 'monthly']);
 exports.groceryItemStatus = (0, pg_core_1.pgEnum)('grocery_item_status', ['needed', 'bought']);
+exports.flatType = (0, pg_core_1.pgEnum)('flat_type', ['flat', 'pg', 'hostel']);
 // 1. flats
 exports.flats = (0, pg_core_1.pgTable)('flats', {
     id: (0, pg_core_1.uuid)('id').defaultRandom().primaryKey(),
     name: (0, pg_core_1.text)('name').notNull(),
+    type: (0, exports.flatType)('type').default('flat').notNull(),
     inviteCode: (0, pg_core_1.text)('invite_code').notNull().unique(),
     createdBy: (0, pg_core_1.uuid)('created_by')
         .references(() => auth_schema_js_1.user.id)

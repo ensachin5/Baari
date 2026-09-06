@@ -30,6 +30,7 @@ flatsRouter.get(['/my-flat', '/me'], requireAuth, async (req: AuthenticatedReque
     .select({
       id: flats.id,
       name: flats.name,
+      type: flats.type,
       inviteCode: flats.inviteCode,
       createdBy: flats.createdBy,
       createdAt: flats.createdAt,
@@ -67,7 +68,7 @@ flatsRouter.post(
   requireAuth,
   validate(createFlatSchema),
   async (req: AuthenticatedRequest, res: Response): Promise<void> => {
-    const { name } = req.body;
+    const { name, type = 'flat' } = req.body;
     const userId = req.user!.id;
 
     // Generate unique invite code
@@ -90,6 +91,7 @@ flatsRouter.post(
       .insert(flats)
       .values({
         name,
+        type: type || 'flat',
         inviteCode,
         createdBy: userId,
       })

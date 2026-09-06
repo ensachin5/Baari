@@ -12,6 +12,7 @@ interface JoinFlatResponse {
   flat: {
     id: string;
     name: string;
+    type?: "flat" | "pg" | "hostel";
     inviteCode: string;
     role: "admin" | "member";
     memberCount: number;
@@ -49,6 +50,7 @@ export default function JoinFlatPage() {
         setActiveFlat({
           id: res.flat.id,
           name: res.flat.name,
+          type: res.flat.type,
           inviteCode: res.flat.inviteCode,
           role: "member",
         });

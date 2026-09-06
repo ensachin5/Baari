@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Card } from '../../components/ui/Card';
 import { Colors, Typography, Spacing, BorderRadius } from '../../lib/theme';
@@ -15,25 +15,25 @@ export default function ChooseFlatScreen() {
       <View style={styles.header}>
         <Text style={Typography.H1}>Welcome, {user?.name || 'Flatmate'}! 👋</Text>
         <Text style={[Typography.BodySmall, styles.subtitle]}>
-          To get started, set up your flat group or join your flatmates using an invite code.
+          To get started, set up your living space or join your flatmates using an invite code.
         </Text>
       </View>
 
       <View style={styles.optionsContainer}>
-        {/* Option 1: Create a Flat */}
+        {/* Option 1: Create a Place */}
         <Card
           onPress={() => router.push('/(onboarding)/create-flat')}
           style={styles.optionCard}
           variant="elevated"
         >
           <View style={styles.optionRow}>
-            <View style={styles.iconContainer}>
-              <House size={26} color={Colors.navy} strokeWidth={2} />
+            <View style={styles.iconBadge}>
+              <House size={24} color={Colors.navy} strokeWidth={2} />
             </View>
             <View style={styles.optionTextCol}>
-              <Text style={Typography.H2}>Create a new Flat</Text>
+              <Text style={Typography.H2}>Create a new Place</Text>
               <Text style={[Typography.BodySmall, styles.optionDesc]}>
-                Start a flat group as an admin and invite your flatmates with a code
+                Start a Flat, PG, or Hostel group and invite your flatmates
               </Text>
             </View>
             <ArrowRight size={20} color={Colors.navy} />
@@ -47,11 +47,11 @@ export default function ChooseFlatScreen() {
           variant="outlined"
         >
           <View style={styles.optionRow}>
-            <View style={[styles.iconBadge, { backgroundColor: Colors.paleSky }]}>
-              <Users size={24} color={Colors.deepNavy} />
+            <View style={styles.iconBadge}>
+              <Users size={24} color={Colors.navy} strokeWidth={2} />
             </View>
             <View style={styles.optionTextCol}>
-              <Text style={Typography.H2}>Join an existing Flat</Text>
+              <Text style={Typography.H2}>Join an existing Place</Text>
               <Text style={[Typography.BodySmall, styles.optionDesc]}>
                 Enter the 6-character invite code shared by your flatmate
               </Text>
@@ -88,20 +88,15 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
   },
-  iconContainer: {
-    width: 44,
-    height: 44,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: Spacing.md,
-  },
   iconBadge: {
     width: 44,
     height: 44,
     borderRadius: BorderRadius.md,
+    backgroundColor: Colors.paleSky,
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: Spacing.md,
+    flexShrink: 0,
   },
   optionTextCol: {
     flex: 1,
@@ -109,5 +104,6 @@ const styles = StyleSheet.create({
   },
   optionDesc: {
     marginTop: 2,
+    lineHeight: 18,
   },
 });
