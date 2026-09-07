@@ -1,11 +1,12 @@
-import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Alert } from 'react-native';
+import React, { useState } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, Alert, ActivityIndicator } from 'react-native';
 import { Card } from '../ui/Card';
 import { Badge } from '../ui/Badge';
 import { AssigneeStack, AssigneeInfo } from './AssigneeStack';
 import { Colors, Typography, Spacing, BorderRadius } from '../../lib/theme';
-import { CheckCircle2, Clock, Users, Repeat, SkipForward, Trash2 } from 'lucide-react-native';
+import { CheckCircle2, Clock, Users, Repeat, SkipForward, Trash2, Bell, Check } from 'lucide-react-native';
 import { useSession } from '../../store/session';
+import { api } from '../../lib/api';
 
 export interface KaamTask {
   id: string;
@@ -62,6 +63,9 @@ export const KaamCard: React.FC<KaamCardProps> = ({
   const activeFlat = useSession((state) => state.activeFlat);
   const currentOcc = task.currentOccurrence;
 
+  const [reminding, setReminding] = useState(false);
+  const [remindFeedback, setRemindFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
+
   const isCreator = task.createdBy === currentUser?.id;
   const isAdmin = activeFlat?.role === 'admin';
   const canDelete = isCreator || isAdmin;
@@ -70,6 +74,14 @@ export const KaamCard: React.FC<KaamCardProps> = ({
   const myAssignment = members.find((m) => m.userId === currentUser?.id);
   const isMyPartDone = myAssignment?.status === 'completed';
   const isFullyDone = currentOcc?.status === 'done';
+
+  const pendingMembers = members.filter((m) => m.status === 'assigned');
+  const isCurrentUserPending = pendingMembers.some((m) => m.userId === currentUser?.id);
+  const canRemind =
+    !isFullyDone &&
+    Boolean(currentOcc && (currentOcc.status === 'pending' || currentOcc.status === 'in_progress')) &&
+    !isCurrentUserPending &&
+    pendingMembers.length > 0;
 
   const completedCount = members.filter((m) => m.status === 'completed').length;
   const totalRequired = members.length || task.peopleRequired;
@@ -80,6 +92,35 @@ export const KaamCard: React.FC<KaamCardProps> = ({
     userImage: m.userImage,
     status: m.status,
   }));
+
+  const handleRemindPress = async () => {
+    if (reminding || !currentOcc) return;
+
+    try {
+      setReminding(true);
+      setRemindFeedback(null);
+      const res = await api.post<{
+        message: string;
+        remindedCount: number;
+        remindedUsers: Array<{ id: string; name: string }>;
+      }>(`/api/tasks/occurrences/${currentOcc.id}/remind`);
+
+      const names = res.remindedUsers?.map((u) => u.name.split(' ')[0]).join(', ') || 'flatmate';
+      const successMsg = `Reminder sent to ${names}`;
+      setRemindFeedback({ type: 'success', message: successMsg });
+      setTimeout(() => setRemindFeedback(null), 3500);
+    } catch (err: any) {
+      const isRateLimited =
+        err?.status === 429 ||
+        err?.message?.toLowerCase().includes('recently') ||
+        err?.message?.toLowerCase().includes('wait');
+      const errorMsg = isRateLimited ? 'Already reminded recently' : err?.message || 'Failed to send reminder';
+      setRemindFeedback({ type: 'error', message: errorMsg });
+      setTimeout(() => setRemindFeedback(null), 4000);
+    } finally {
+      setReminding(false);
+    }
+  };
 
   const handleDeletePress = () => {
     Alert.alert(
@@ -126,6 +167,30 @@ export const KaamCard: React.FC<KaamCardProps> = ({
         </View>
 
         <View style={styles.headerRightGroup}>
+          {canRemind && (
+            <TouchableOpacity
+              activeOpacity={0.7}
+              onPress={handleRemindPress}
+              disabled={reminding}
+              style={[
+                styles.remindButton,
+                remindFeedback?.type === 'success' && styles.remindButtonSuccess,
+              ]}
+              hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+            >
+              {reminding ? (
+                <ActivityIndicator size={10} color={Colors.deepNavy} />
+              ) : remindFeedback?.type === 'success' ? (
+                <Check size={10} color={Colors.deepNavy} strokeWidth={2.5} />
+              ) : (
+                <Bell size={10} color={Colors.deepNavy} strokeWidth={2.2} />
+              )}
+              <Text style={styles.remindButtonText}>
+                {reminding ? '...' : remindFeedback?.type === 'success' ? 'Sent' : 'Remind'}
+              </Text>
+            </TouchableOpacity>
+          )}
+
           {isFullyDone ? (
             <Badge label="Done" status="done" />
           ) : (
@@ -146,6 +211,26 @@ export const KaamCard: React.FC<KaamCardProps> = ({
           )}
         </View>
       </View>
+
+      {/* Inline Reminder Feedback Message */}
+      {remindFeedback && (
+        <View
+          style={[
+            styles.remindFeedbackPill,
+            remindFeedback.type === 'error' ? styles.remindFeedbackError : styles.remindFeedbackSuccess,
+          ]}
+        >
+          <Bell size={10} color={remindFeedback.type === 'error' ? Colors.mutedNavy : Colors.deepNavy} />
+          <Text
+            style={[
+              styles.remindFeedbackText,
+              remindFeedback.type === 'error' ? styles.remindFeedbackTextError : styles.remindFeedbackTextSuccess,
+            ]}
+          >
+            {remindFeedback.message}
+          </Text>
+        </View>
+      )}
 
       {/* Task Title & Description */}
       <Text
@@ -360,5 +445,58 @@ const styles = StyleSheet.create({
   },
   actionButtonTextDone: {
     color: Colors.deepNavy,
+  },
+  remindButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 3,
+    paddingHorizontal: Spacing.sm,
+    borderRadius: BorderRadius.full,
+    backgroundColor: Colors.paleSky,
+    borderWidth: 1,
+    borderColor: Colors.sky,
+    gap: 3,
+  },
+  remindButtonSuccess: {
+    backgroundColor: '#E0F2FE',
+    borderColor: Colors.deepSky,
+  },
+  remindButtonText: {
+    ...Typography.Caption,
+    fontFamily: 'Inter_600SemiBold',
+    fontSize: 10,
+    color: Colors.deepNavy,
+  },
+  remindFeedbackPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 3,
+    paddingHorizontal: Spacing.sm,
+    borderRadius: BorderRadius.sm,
+    borderWidth: 1,
+    marginBottom: Spacing.xs,
+    gap: 5,
+    alignSelf: 'flex-start',
+  },
+  remindFeedbackSuccess: {
+    backgroundColor: Colors.paleSky,
+    borderColor: Colors.sky,
+  },
+  remindFeedbackError: {
+    backgroundColor: Colors.offWhite,
+    borderColor: Colors.border,
+  },
+  remindFeedbackText: {
+    ...Typography.Caption,
+    fontSize: 11,
+    fontFamily: 'Inter_500Medium',
+  },
+  remindFeedbackTextSuccess: {
+    color: Colors.deepNavy,
+    fontFamily: 'Inter_600SemiBold',
+  },
+  remindFeedbackTextError: {
+    color: Colors.mutedNavy,
+    fontFamily: 'Inter_600SemiBold',
   },
 });

@@ -33,6 +33,7 @@ export const activityType = pgEnum('activity_type', [
   'settlement',
   'settlement_confirmed',
   'member_joined',
+  'reminder_sent',
 ]);
 export const pushDeviceType = pgEnum('push_device_type', ['ios', 'android', 'web']);
 export const settlementStatus = pgEnum('settlement_status', ['pending', 'confirmed', 'rejected']);
@@ -128,6 +129,7 @@ export const taskOccurrenceMembers = pgTable(
       .notNull(),
     status: occurrenceMemberStatus('status').default('assigned').notNull(),
     completedAt: timestamp('completed_at'),
+    lastRemindedAt: timestamp('last_reminded_at'),
   },
   (table) => [index('idx_task_occ_members_occ_id').on(table.occurrenceId)]
 );

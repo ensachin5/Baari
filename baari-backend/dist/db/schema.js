@@ -36,6 +36,7 @@ exports.activityType = (0, pg_core_1.pgEnum)('activity_type', [
     'settlement',
     'settlement_confirmed',
     'member_joined',
+    'reminder_sent',
 ]);
 exports.pushDeviceType = (0, pg_core_1.pgEnum)('push_device_type', ['ios', 'android', 'web']);
 exports.settlementStatus = (0, pg_core_1.pgEnum)('settlement_status', ['pending', 'confirmed', 'rejected']);
@@ -111,6 +112,7 @@ exports.taskOccurrenceMembers = (0, pg_core_1.pgTable)('task_occurrence_members'
         .notNull(),
     status: (0, exports.occurrenceMemberStatus)('status').default('assigned').notNull(),
     completedAt: (0, pg_core_1.timestamp)('completed_at'),
+    lastRemindedAt: (0, pg_core_1.timestamp)('last_reminded_at'),
 }, (table) => [(0, pg_core_1.index)('idx_task_occ_members_occ_id').on(table.occurrenceId)]);
 // 5b. task_rotation_state (for fair round-robin chore assignment)
 exports.taskRotationState = (0, pg_core_1.pgTable)('task_rotation_state', {

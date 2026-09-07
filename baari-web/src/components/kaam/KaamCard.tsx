@@ -1,6 +1,6 @@
 "use client";
 
-import React from "react";
+import React, { useState } from "react";
 import { Card } from "../ui/Card";
 import { Badge } from "../ui/Badge";
 import { AssigneeStack, AssigneeInfo } from "./AssigneeStack";
@@ -10,8 +10,11 @@ import {
   Repeat,
   SkipForward,
   Trash2,
+  Bell,
+  Check,
 } from "lucide-react";
 import { useSession } from "@/store/session";
+import { api } from "@/lib/api";
 
 export interface KaamTask {
   id: string;
@@ -71,6 +74,9 @@ export const KaamCard: React.FC<KaamCardProps> = ({
   const activeFlat = useSession((state) => state.activeFlat);
   const currentOcc = task.currentOccurrence;
 
+  const [reminding, setReminding] = useState(false);
+  const [remindFeedback, setRemindFeedback] = useState<{ type: "success" | "error"; message: string } | null>(null);
+
   const isCreator = task.createdBy === currentUser?.id;
   const isAdmin = activeFlat?.role === "admin";
   const canDelete = isCreator || isAdmin;
@@ -79,6 +85,14 @@ export const KaamCard: React.FC<KaamCardProps> = ({
   const myAssignment = members.find((m) => m.userId === currentUser?.id);
   const isMyPartDone = myAssignment?.status === "completed";
   const isFullyDone = currentOcc?.status === "done";
+
+  const pendingMembers = members.filter((m) => m.status === "assigned");
+  const isCurrentUserPending = pendingMembers.some((m) => m.userId === currentUser?.id);
+  const canRemind =
+    !isFullyDone &&
+    Boolean(currentOcc && (currentOcc.status === "pending" || currentOcc.status === "in_progress")) &&
+    !isCurrentUserPending &&
+    pendingMembers.length > 0;
 
   const completedCount = members.filter((m) => m.status === "completed").length;
   const totalRequired = members.length || task.peopleRequired;
@@ -89,6 +103,36 @@ export const KaamCard: React.FC<KaamCardProps> = ({
     userImage: m.userImage,
     status: m.status,
   }));
+
+  const handleRemindPress = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (reminding || !currentOcc) return;
+
+    try {
+      setReminding(true);
+      setRemindFeedback(null);
+      const res = await api.post<{
+        message: string;
+        remindedCount: number;
+        remindedUsers: Array<{ id: string; name: string }>;
+      }>(`/api/tasks/occurrences/${currentOcc.id}/remind`);
+
+      const names = res.remindedUsers?.map((u) => u.name.split(" ")[0]).join(", ") || "flatmate";
+      const msg = `Reminder sent to ${names}`;
+      setRemindFeedback({ type: "success", message: msg });
+      setTimeout(() => setRemindFeedback(null), 3500);
+    } catch (err: any) {
+      const isRateLimited =
+        err?.status === 429 ||
+        err?.message?.toLowerCase().includes("recently") ||
+        err?.message?.toLowerCase().includes("wait");
+      const msg = isRateLimited ? "Already reminded recently" : err?.message || "Failed to send reminder";
+      setRemindFeedback({ type: "error", message: msg });
+      setTimeout(() => setRemindFeedback(null), 4000);
+    } finally {
+      setReminding(false);
+    }
+  };
 
   const handleDeletePress = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -131,6 +175,35 @@ export const KaamCard: React.FC<KaamCardProps> = ({
         </div>
 
         <div className="flex items-center gap-[6px]">
+          {canRemind && (
+            <button
+              type="button"
+              onClick={handleRemindPress}
+              disabled={reminding}
+              className={`px-2 py-[3px] rounded-full text-[10px] font-semibold border transition-all flex items-center gap-1 cursor-pointer select-none ${
+                remindFeedback?.type === "success"
+                  ? "bg-[#E0F2FE] text-deepNavy border-deepSky"
+                  : "bg-paleSky text-deepNavy border-sky hover:bg-[#CBE4F2]"
+              }`}
+              title="Send reminder to flatmate"
+            >
+              {reminding ? (
+                <span className="animate-spin text-[10px] leading-none">⏳</span>
+              ) : remindFeedback?.type === "success" ? (
+                <Check size={10} className="text-deepNavy" strokeWidth={2.5} />
+              ) : (
+                <Bell size={10} className="text-deepNavy" strokeWidth={2.2} />
+              )}
+              <span>
+                {reminding
+                  ? "..."
+                  : remindFeedback?.type === "success"
+                  ? "Sent"
+                  : "Remind"}
+              </span>
+            </button>
+          )}
+
           {isFullyDone ? (
             <Badge label="Done" status="done" />
           ) : (
@@ -159,6 +232,20 @@ export const KaamCard: React.FC<KaamCardProps> = ({
           )}
         </div>
       </div>
+
+      {/* Inline Reminder Feedback Message */}
+      {remindFeedback && (
+        <div
+          className={`text-[11px] font-medium px-2.5 py-1 rounded-md mb-2 flex items-center gap-1.5 border ${
+            remindFeedback.type === "error"
+              ? "bg-offWhite text-mutedNavy border-border"
+              : "bg-paleSky text-deepNavy border-sky"
+          }`}
+        >
+          <Bell size={10} className={remindFeedback.type === "error" ? "text-mutedNavy" : "text-deepNavy"} />
+          <span>{remindFeedback.message}</span>
+        </div>
+      )}
 
       {/* Task Title & Description */}
       <h2

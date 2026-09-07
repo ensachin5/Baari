@@ -846,6 +846,140 @@ exports.tasksRouter.patch('/occurrences/:id/skip-turn', auth_guard_js_1.requireA
         occurrenceId,
     });
 });
+// POST /api/tasks/occurrences/:id/remind (Nudge assignees for pending occurrence)
+exports.tasksRouter.post('/occurrences/:id/remind', auth_guard_js_1.requireAuth, async (req, res) => {
+    const occurrenceId = String(req.params.id);
+    const userId = req.user.id;
+    const { targetUserId } = req.body || {};
+    // 1. Find occurrence and parent task
+    const [occ] = await index_js_1.db
+        .select({
+        id: schema_js_1.taskOccurrences.id,
+        taskId: schema_js_1.taskOccurrences.taskId,
+        occurrenceDate: schema_js_1.taskOccurrences.occurrenceDate,
+        status: schema_js_1.taskOccurrences.status,
+        flatId: schema_js_1.tasks.flatId,
+        taskTitle: schema_js_1.tasks.title,
+    })
+        .from(schema_js_1.taskOccurrences)
+        .innerJoin(schema_js_1.tasks, (0, drizzle_orm_1.eq)(schema_js_1.taskOccurrences.taskId, schema_js_1.tasks.id))
+        .where((0, drizzle_orm_1.eq)(schema_js_1.taskOccurrences.id, occurrenceId));
+    if (!occ) {
+        res.status(404).json({ error: 'Task occurrence not found' });
+        return;
+    }
+    // 2. Verify caller belongs to the flat
+    const [membership] = await index_js_1.db
+        .select({ id: schema_js_1.flatMembers.id })
+        .from(schema_js_1.flatMembers)
+        .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(schema_js_1.flatMembers.flatId, occ.flatId), (0, drizzle_orm_1.eq)(schema_js_1.flatMembers.userId, userId)));
+    if (!membership) {
+        res.status(403).json({ error: 'You are not a member of this flat' });
+        return;
+    }
+    // 3. Verify occurrence status is active
+    if (occ.status === 'done') {
+        res.status(400).json({ error: 'This task has already been completed' });
+        return;
+    }
+    if (occ.status === 'missed') {
+        res.status(400).json({ error: 'Cannot send a reminder for a missed task' });
+        return;
+    }
+    // 4. Look up assignees who haven't completed their part yet
+    const pendingMembers = await index_js_1.db
+        .select({
+        id: schema_js_1.taskOccurrenceMembers.id,
+        userId: schema_js_1.taskOccurrenceMembers.userId,
+        status: schema_js_1.taskOccurrenceMembers.status,
+        lastRemindedAt: schema_js_1.taskOccurrenceMembers.lastRemindedAt,
+        name: schema_js_1.user.name,
+    })
+        .from(schema_js_1.taskOccurrenceMembers)
+        .innerJoin(schema_js_1.user, (0, drizzle_orm_1.eq)(schema_js_1.taskOccurrenceMembers.userId, schema_js_1.user.id))
+        .where((0, drizzle_orm_1.and)((0, drizzle_orm_1.eq)(schema_js_1.taskOccurrenceMembers.occurrenceId, occurrenceId), (0, drizzle_orm_1.eq)(schema_js_1.taskOccurrenceMembers.status, 'assigned')));
+    if (pendingMembers.length === 0) {
+        res.status(400).json({ error: 'All assignees have already completed their turn' });
+        return;
+    }
+    // Filter to targetUserId if provided; otherwise nudge other assignees
+    let targetsToRemind = targetUserId
+        ? pendingMembers.filter((m) => m.userId === targetUserId)
+        : pendingMembers.filter((m) => m.userId !== userId);
+    // Fallback if caller is the only assignee and nudges without specifying targetUserId
+    if (targetsToRemind.length === 0 && !targetUserId && pendingMembers.some((m) => m.userId === userId)) {
+        targetsToRemind = pendingMembers;
+    }
+    if (targetsToRemind.length === 0) {
+        res.status(400).json({ error: 'No eligible assignees to remind' });
+        return;
+    }
+    // 5. Rate-limit check per occurrence (5 minute cooldown per assignee)
+    const COOLDOWN_MINUTES = 5;
+    const COOLDOWN_MS = COOLDOWN_MINUTES * 60 * 1000;
+    const now = new Date();
+    const throttledMember = targetsToRemind.find((m) => {
+        if (!m.lastRemindedAt)
+            return false;
+        return now.getTime() - new Date(m.lastRemindedAt).getTime() < COOLDOWN_MS;
+    });
+    if (throttledMember) {
+        const elapsedMs = now.getTime() - new Date(throttledMember.lastRemindedAt).getTime();
+        const remainingMinutes = Math.ceil((COOLDOWN_MS - elapsedMs) / 60000);
+        res.status(429).json({
+            error: `A reminder was sent to ${throttledMember.name} recently. Please wait ${remainingMinutes} minute${remainingMinutes > 1 ? 's' : ''} before reminding again.`,
+            cooldownRemainingSeconds: Math.ceil((COOLDOWN_MS - elapsedMs) / 1000),
+        });
+        return;
+    }
+    // 6. Update last_reminded_at timestamp
+    const targetMemberIds = targetsToRemind.map((m) => m.id);
+    await index_js_1.db
+        .update(schema_js_1.taskOccurrenceMembers)
+        .set({ lastRemindedAt: now })
+        .where((0, drizzle_orm_1.inArray)(schema_js_1.taskOccurrenceMembers.id, targetMemberIds));
+    // 7. Send push notifications via sendPushToUser
+    for (const target of targetsToRemind) {
+        await (0, push_js_1.sendPushToUser)(target.userId, 'Reminder 🔔', `It's your baari (turn) for "${occ.taskTitle}"!`, {
+            type: 'task_reminder',
+            taskId: occ.taskId,
+            occurrenceId: occ.id,
+            flatId: occ.flatId,
+        });
+    }
+    // 8. Insert activity_log entry
+    const remindedNames = targetsToRemind.map((m) => m.name).join(', ');
+    const [activity] = await index_js_1.db
+        .insert(schema_js_1.activityLog)
+        .values({
+        flatId: occ.flatId,
+        actorId: userId,
+        type: 'reminder_sent',
+        referenceId: occ.taskId,
+        metadata: {
+            taskTitle: occ.taskTitle,
+            occurrenceId: occ.id,
+            remindedUserIds: targetsToRemind.map((m) => m.userId),
+            remindedNames,
+            senderName: req.user.name,
+        },
+    })
+        .returning();
+    // 9. Realtime broadcast
+    try {
+        const io = (0, index_js_2.getIO)();
+        (0, handlers_js_1.broadcastActivityEvent)(io, occ.flatId, {
+            ...activity,
+            actor: { id: req.user.id, name: req.user.name, image: req.user.image },
+        });
+    }
+    catch (_) { }
+    res.json({
+        message: 'Reminder sent successfully',
+        remindedCount: targetsToRemind.length,
+        remindedUsers: targetsToRemind.map((m) => ({ id: m.userId, name: m.name })),
+    });
+});
 // GET /api/tasks/:id/rotation-history
 exports.tasksRouter.get('/:id/rotation-history', auth_guard_js_1.requireAuth, async (req, res) => {
     const taskId = String(req.params.id);
