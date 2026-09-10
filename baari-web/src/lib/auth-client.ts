@@ -2,11 +2,13 @@ import { createAuthClient } from "better-auth/react";
 import { api } from "./api";
 import { useSession, UserProfile, ActiveFlat } from "@/store/session";
 
-export const API_BASE_URL =
-  process.env.NEXT_PUBLIC_API_URL || "https://baari-wkqq.onrender.com";
-
+/**
+ * Better Auth client uses an empty baseURL — requests go to relative
+ * /api/auth/* paths through Next.js rewrites, keeping cookies same-origin
+ * (fixes Safari ITP blocking cross-site cookies).
+ */
 export const authClient = createAuthClient({
-  baseURL: API_BASE_URL,
+  baseURL: "",
   fetchOptions: {
     credentials: "include",
   },

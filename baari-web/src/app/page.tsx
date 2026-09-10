@@ -3,7 +3,7 @@
 import { useEffect, useState, useCallback, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { useAuthSession, signOut } from "@/lib/auth-client";
-import { api, API_BASE_URL } from "@/lib/api";
+import { api } from "@/lib/api";
 import { useSession } from "@/store/session";
 import { Button } from "@/components/ui/Button";
 import { RotateCw, AlertTriangle, LogOut } from "lucide-react";
@@ -61,7 +61,7 @@ export default function RootIndexPage() {
     const attemptStartTime = Date.now();
     const elapsedTotal = Math.round((attemptStartTime - totalStartTime) / 1000);
     console.log(
-      `[WakeUp] Attempt ${attempt}/${MAX_ATTEMPTS} — Pinging ${API_BASE_URL}/health-ping (total elapsed: ${elapsedTotal}s)...`
+      `[WakeUp] Attempt ${attempt}/${MAX_ATTEMPTS} — Pinging /health-ping via proxy (total elapsed: ${elapsedTotal}s)...`
     );
 
     // Per-attempt timeout controller (linked to parent signal)
@@ -75,7 +75,7 @@ export default function RootIndexPage() {
     signal.addEventListener("abort", onParentAbort);
 
     try {
-      const res = await fetch(`${API_BASE_URL}/health-ping`, {
+      const res = await fetch(`/health-ping`, {
         method: "GET",
         signal: requestController.signal,
         cache: "no-store",

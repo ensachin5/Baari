@@ -37,7 +37,7 @@ export const auth = betterAuth({
       generateId: 'uuid',
     },
     defaultCookieAttributes: {
-      sameSite: 'none',
+      sameSite: 'lax',
       secure: true,
       httpOnly: true,
     },

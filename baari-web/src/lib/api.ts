@@ -1,6 +1,19 @@
 import { useSession } from "@/store/session";
 
-export const API_BASE_URL = (
+/**
+ * API_BASE_URL is intentionally empty — all /api/* requests are relative
+ * and hit baari-web's own domain, which Next.js rewrites proxies to the
+ * backend server-side. This makes cookies same-origin (fixes Safari ITP).
+ */
+export const API_BASE_URL = "";
+
+/**
+ * Socket.io still needs a direct connection to the backend (WebSocket
+ * proxying through Next.js rewrites has limitations). This URL is only
+ * used by socket.ts for the io() connection, not for cookie-bearing
+ * HTTP requests.
+ */
+export const SOCKET_BASE_URL = (
   process.env.NEXT_PUBLIC_API_URL || "https://baari-wkqq.onrender.com"
 ).replace(/\/+$/, "");
 
