@@ -237,10 +237,10 @@ export default function HomePage() {
     <div
       className={`flex flex-col max-w-4xl mx-auto w-full min-h-0 flex-1 ${
         activeTab === 0
-          ? "min-h-screen pb-20 lg:pb-6"
+          ? "min-h-screen min-h-[100dvh] pb-20 lg:pb-6"
           : isKeyboardVisible
-          ? "h-[100dvh] pb-0"
-          : "h-[100dvh] pb-16 has-[input:focus]:pb-0 lg:pb-0"
+          ? "h-screen h-[100dvh] pb-0"
+          : "h-screen h-[100dvh] pb-16 has-[input:focus]:pb-0 lg:pb-0"
       }`}
     >
       {/* Top Header Row matching baari-app styles.topHeader */}
@@ -403,7 +403,7 @@ export default function HomePage() {
           {/* Chat Messages List */}
           <div
             ref={chatScrollContainerRef}
-            className="flex-1 overflow-y-auto px-3 py-2 min-h-0"
+            className="flex-1 overflow-y-auto overscroll-contain px-3 py-2 min-h-0"
           >
             {hasMore && (
               <div className="text-center py-2">

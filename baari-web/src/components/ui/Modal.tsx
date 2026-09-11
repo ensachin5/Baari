@@ -45,7 +45,7 @@ export const Modal: React.FC<ModalProps> = ({
       <div className="fixed inset-0" onClick={onClose} />
 
       {/* Sheet Container */}
-      <div className="relative z-10 bg-white w-full max-w-lg rounded-t-[20px] sm:rounded-[20px] max-h-[90vh] flex flex-col shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+      <div className="relative z-10 bg-white w-full max-w-lg rounded-t-[20px] sm:rounded-[20px] max-h-[90vh] max-h-[90dvh] flex flex-col shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-200">
         {/* Header */}
         <div className="flex items-center justify-between px-5 pt-5 pb-3 border-b border-border bg-white flex-shrink-0">
           <h2 className="text-[18px] leading-[24px] font-semibold text-black">
@@ -62,7 +62,7 @@ export const Modal: React.FC<ModalProps> = ({
         </div>
 
         {/* Scrollable Content */}
-        <div className="p-5 pb-8 overflow-y-auto flex-1">{children}</div>
+        <div className="p-5 pb-8 overflow-y-auto overscroll-contain flex-1">{children}</div>
       </div>
     </div>
   );

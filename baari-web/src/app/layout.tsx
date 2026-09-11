@@ -10,9 +10,10 @@ const inter = Inter({
 });
 
 export const viewport: Viewport = {
-  themeColor: "#152447",
+  themeColor: "#0A2540",
   width: "device-width",
   initialScale: 1,
+  viewportFit: "cover",
 };
 
 export const metadata: Metadata = {
@@ -21,7 +22,7 @@ export const metadata: Metadata = {
     "Daily-use utility app for roommate task management, expense splitting, and shared living.",
   appleWebApp: {
     capable: true,
-    statusBarStyle: "default",
+    statusBarStyle: "black-translucent",
     title: "Baari",
   },
   icons: {

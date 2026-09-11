@@ -56,7 +56,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
   };
 
   return (
-    <div className="px-3 py-2 bg-white border-t border-border">
+    <div className="px-3 pt-2 pb-[max(0.5rem,env(safe-area-inset-bottom,0.5rem))] bg-white border-t border-border">
       <form
         onSubmit={handleSend}
         className="flex items-center bg-offWhite rounded-[20px] px-3 py-1 border border-border"

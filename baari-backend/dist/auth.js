@@ -69,7 +69,7 @@ exports.auth = (0, better_auth_1.betterAuth)({
             generateId: 'uuid',
         },
         defaultCookieAttributes: {
-            sameSite: 'none',
+            sameSite: 'lax',
             secure: true,
             httpOnly: true,
         },

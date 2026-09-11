@@ -450,7 +450,7 @@ export default function ProfilePage() {
                     Push Notifications
                   </span>
                   <span className="text-[11px] text-grayBlack block">
-                    Web push notification availability depends on your browser
+                    Web push notification availability depends on browser (iOS 16.4+ installed PWA required on Apple devices)
                   </span>
                 </div>
               </div>

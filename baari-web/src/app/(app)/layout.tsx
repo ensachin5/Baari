@@ -161,14 +161,14 @@ export default function AppLayout({
   ];
 
   return (
-    <div className="min-h-screen bg-[#F4F6F9] flex flex-col lg:flex-row">
+    <div className="min-h-screen min-h-[100dvh] bg-[#F4F6F9] flex flex-col lg:flex-row">
       {/* Global Offline Banner */}
       <OfflineBanner />
 
       {/* ────────────────────────────────────────────────────────────────────────
           DESKTOP LEFT SIDEBAR (Visible only on lg: breakpoint and above)
       ────────────────────────────────────────────────────────────────────────── */}
-      <aside className="hidden lg:flex flex-col w-64 h-screen sticky top-0 bg-white border-r border-[#E5E9F0] flex-shrink-0 z-30 select-none">
+      <aside className="hidden lg:flex flex-col w-64 h-screen h-[100dvh] sticky top-0 bg-white border-r border-[#E5E9F0] flex-shrink-0 z-30 select-none pt-[env(safe-area-inset-top,0px)] pb-[env(safe-area-inset-bottom,0px)]">
         {/* Flat Brand Header */}
         <div className="p-5 border-b border-[#E5E9F0]">
           <div className="flex items-center gap-3">
@@ -196,7 +196,7 @@ export default function AppLayout({
               <button
                 type="button"
                 onClick={handleCopyInvite}
-                className="flex items-center gap-1 px-1.5 py-0.5 rounded bg-white border border-border text-xs font-mono font-bold text-navy hover:bg-paleSky transition-colors cursor-pointer"
+                className="flex items-center gap-1 px-1.5 py-0.5 rounded bg-white border border-border text-xs font-mono font-bold text-navy hover:bg-paleSky active:bg-paleSky transition-colors cursor-pointer"
                 title="Copy invite code"
               >
                 <span>#{activeFlat.inviteCode}</span>
@@ -211,7 +211,7 @@ export default function AppLayout({
         </div>
 
         {/* Navigation Links */}
-        <nav className="flex-1 p-3 space-y-1 overflow-y-auto">
+        <nav className="flex-1 p-3 space-y-1 overflow-y-auto overscroll-contain">
           {navTabs.map((tab) => {
             const isActive = pathname.startsWith(tab.href);
             return (
@@ -221,7 +221,7 @@ export default function AppLayout({
                 className={`flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-[14px] leading-[20px] transition-all ${
                   isActive
                     ? "bg-sky-light text-navy font-semibold shadow-2xs"
-                    : "text-grayBlack hover:bg-offWhite hover:text-black font-medium"
+                    : "text-grayBlack hover:bg-offWhite hover:text-black active:bg-offWhite font-medium"
                 }`}
               >
                 {tab.icon(isActive)}
@@ -238,7 +238,7 @@ export default function AppLayout({
             className={`flex items-center gap-3 p-2 rounded-xl transition-all ${
               pathname.startsWith("/profile")
                 ? "bg-sky-light/60"
-                : "hover:bg-offWhite"
+                : "hover:bg-offWhite active:bg-offWhite"
             }`}
           >
             <Avatar
@@ -269,11 +269,15 @@ export default function AppLayout({
           MOBILE BOTTOM TAB BAR (Visible only below lg: breakpoint)
       ────────────────────────────────────────────────────────────────────────── */}
       <nav
-        className={`mobile-bottom-nav lg:hidden fixed bottom-0 left-0 right-0 z-30 bg-white border-t border-[#E5E9F0] h-16 flex items-center justify-around px-2 shadow-lg transition-all duration-150 ${
+        className={`mobile-bottom-nav lg:hidden fixed bottom-0 left-0 right-0 z-30 bg-white border-t border-[#E5E9F0] flex items-center justify-around px-2 shadow-lg transition-all duration-150 ${
           isKeyboardVisible
             ? "hidden pointer-events-none -translate-y-full opacity-0"
             : "flex"
         }`}
+        style={{
+          paddingBottom: "env(safe-area-inset-bottom, 0px)",
+          height: "calc(4rem + env(safe-area-inset-bottom, 0px))",
+        }}
       >
         {navTabs.map((tab) => {
           const isActive = pathname.startsWith(tab.href);
@@ -281,7 +285,7 @@ export default function AppLayout({
             <Link
               key={tab.name}
               href={tab.href}
-              className={`flex flex-col items-center justify-center flex-1 py-1 ${
+              className={`flex flex-col items-center justify-center flex-1 py-1 active:opacity-75 transition-opacity ${
                 isActive ? "text-navy" : "text-grayBlack"
               }`}
             >
