@@ -10,17 +10,17 @@ import { logger } from './middleware/error-handler.js';
 
 dotenv.config();
 
-// Safely resolve the base URL to prevent mismatches
+// Safely resolve the base URL to reflect the proxied frontend domain
 const getBaseURL = () => {
   const envUrl = process.env.BETTER_AUTH_URL;
-  if (envUrl && envUrl.includes('baari-backend.onrender.com')) {
-    return 'https://baari-wkqq.onrender.com';
-  }
   if (envUrl && envUrl.trim() !== '') {
     return envUrl.trim().replace(/\/+$/, '');
   }
+  if (process.env.CLIENT_URL && process.env.CLIENT_URL.trim() !== '') {
+    return process.env.CLIENT_URL.trim().replace(/\/+$/, '');
+  }
   if (process.env.NODE_ENV === 'production' || process.env.RENDER) {
-    return 'https://baari-wkqq.onrender.com';
+    return 'https://baari-app.vercel.app';
   }
   return 'http://localhost:3000';
 };
