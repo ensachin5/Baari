@@ -36,7 +36,18 @@ export default function SignInPage() {
 
   // If already authenticated via session, resolve flat and redirect
   useEffect(() => {
+    console.log("[SignInPage Post-Login Trace]", {
+      sessionLoading,
+      hasSession: !!session,
+      hasUser: !!session?.user,
+      userId: session?.user?.id || null,
+      email: session?.user?.email || null,
+      tokenSnippet: session?.session?.token ? `${session.session.token.substring(0, 10)}...` : null,
+      timestamp: new Date().toISOString(),
+    });
+
     if (!sessionLoading && session?.user) {
+      console.log("[SignInPage Log] User is authenticated. Updating session store & fetching /api/flats/me...");
       if (session.session?.token) {
         setToken(session.session.token);
       }
@@ -47,33 +58,66 @@ export default function SignInPage() {
         image: session.user.image,
       });
 
+      console.log("[SignInPage Log] Calling GET /api/flats/me...");
       api
         .get<{ flat: any }>("/api/flats/me")
         .then((res) => {
+          console.log("[SignInPage Log] GET /api/flats/me response:", {
+            status: 200,
+            hasFlat: !!res?.flat,
+            flat: res?.flat || null,
+            fullResponseBody: res,
+          });
+
           if (res?.flat) {
+            console.log("[SignInPage Decision] Active flat found -> Redirecting to /home");
             setActiveFlat(res.flat);
             router.replace("/home");
           } else {
+            console.log("[SignInPage Decision] User authenticated but no flat found (flat is null) -> Redirecting to /choose");
             setActiveFlat(null);
             router.replace("/choose");
           }
         })
-        .catch(() => {
-          router.replace("/choose");
+        .catch((err: any) => {
+          console.warn("[SignInPage Log] GET /api/flats/me failed:", {
+            status: err?.status || "NetworkError",
+            message: err?.message || "Unknown error",
+            errorData: err?.data || null,
+          });
+          if (err?.status === 401) {
+            console.log("[SignInPage Decision] GET /api/flats/me returned 401 Unauthorized -> User needs fresh authentication.");
+          } else {
+            console.log("[SignInPage Decision] GET /api/flats/me error (non-401) -> Redirecting to /choose");
+            router.replace("/choose");
+          }
         });
     }
-  }, [session, sessionLoading, router, setUser, setActiveFlat]);
+  }, [session, sessionLoading, router, setUser, setActiveFlat, setToken]);
 
   const handleGoogleSignIn = async () => {
     try {
       setGoogleLoading(true);
       setError("");
 
-      await signIn.social({
+      const callbackURL = `${window.location.origin}/`;
+      console.log(`[SignInPage Log] Triggering authClient.signIn.social({ provider: 'google', callbackURL: '${callbackURL}' })...`);
+
+      const res = await signIn.social({
         provider: "google",
-        callbackURL: `${window.location.origin}/`,
+        callbackURL,
+      });
+
+      console.log("[SignInPage Log] authClient.signIn.social() result returned:", {
+        result: res,
+        timestamp: new Date().toISOString(),
       });
     } catch (err: any) {
+      console.error("[SignInPage Log] authClient.signIn.social() error:", {
+        error: err,
+        message: err?.message || "Google sign-in failed",
+        timestamp: new Date().toISOString(),
+      });
       setError(err?.message || "Google sign-in failed");
       setGoogleLoading(false);
     }

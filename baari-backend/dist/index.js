@@ -158,7 +158,34 @@ app.get('/health', async (_req, res) => {
         });
     }
 });
-// 6. Auth Diagnostic Middleware & Better Auth Handler
+// 6. Cookie Proxy & Auth Diagnostic Middleware
+app.use('/api/*', (req, res, next) => {
+    const cookieHeader = req.headers.cookie;
+    const hasSessionCookie = cookieHeader ? cookieHeader.includes('better-auth.session_token') : false;
+    error_handler_js_1.logger.info({
+        msg: `[Proxy Inbound Header Trace] ${req.method} ${req.originalUrl}`,
+        host: req.headers.host,
+        xForwardedHost: req.headers['x-forwarded-host'],
+        xForwardedProto: req.headers['x-forwarded-proto'],
+        hasCookieHeader: !!cookieHeader,
+        hasSessionTokenCookie: hasSessionCookie,
+        cookieSnippet: cookieHeader ? (cookieHeader.length > 60 ? `${cookieHeader.substring(0, 60)}...` : cookieHeader) : 'NONE',
+    });
+    // Intercept setHeader to log Set-Cookie responses sent by backend
+    const originalSetHeader = res.setHeader.bind(res);
+    res.setHeader = function (name, value) {
+        if (name.toLowerCase() === 'set-cookie') {
+            const cookieVal = Array.isArray(value) ? value.join('; ') : String(value);
+            console.log(`\n>>> [Proxy Outbound Set-Cookie] Backend sending Set-Cookie for ${req.method} ${req.originalUrl}: ${cookieVal.substring(0, 80)}...\n`);
+            error_handler_js_1.logger.info({
+                msg: `[Proxy Outbound Set-Cookie] ${req.method} ${req.originalUrl}`,
+                setCookie: cookieVal,
+            });
+        }
+        return originalSetHeader(name, value);
+    };
+    next();
+});
 app.use('/api/auth/*', async (req, res, next) => {
     const start = Date.now();
     const reqState = req.query.state || req.body?.state;

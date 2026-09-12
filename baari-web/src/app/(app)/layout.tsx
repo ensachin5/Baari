@@ -91,13 +91,24 @@ export default function AppLayout({
   }, []);
 
   useEffect(() => {
+    console.log("[AppLayout Session Guard Trace]", {
+      pathname,
+      sessionLoading,
+      isHydrated,
+      hasSessionUser: !!session?.user,
+      hasStoreUser: !!user,
+      sessionTokenSnippet: session?.session?.token ? `${session.session.token.substring(0, 10)}...` : null,
+      timestamp: new Date().toISOString(),
+    });
+
     if (session?.session?.token) {
       useSession.getState().setToken(session.session.token);
     }
     if (!sessionLoading && !session?.user && isHydrated && !user) {
+      console.warn("[AppLayout Decision] No active session found in Better Auth or Zustand store -> Redirecting to /sign-in");
       router.replace("/sign-in");
     }
-  }, [session, sessionLoading, user, isHydrated, router]);
+  }, [session, sessionLoading, user, isHydrated, router, pathname]);
 
   // Register Web Push notifications on session and active flat mount
   useEffect(() => {

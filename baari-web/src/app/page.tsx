@@ -184,33 +184,45 @@ export default function RootIndexPage() {
 
     // 5. Server is healthy -> resolve active flat for authenticated user
     setStatus("resolving");
-    console.log("[WakeUp] Server is awake. Resolving user flat via GET /api/flats/me...");
+    console.log("[RootIndexPage Log] Server is awake. Executing GET /api/flats/me...");
 
     try {
       const res = await api.get<{ flat: any }>("/api/flats/me");
+      console.log("[RootIndexPage Log] GET /api/flats/me returned status 200:", {
+        status: 200,
+        hasFlat: !!res?.flat,
+        flatName: res?.flat?.name || null,
+        flatId: res?.flat?.id || null,
+        responseBody: res,
+      });
+
       if (res?.flat) {
         console.log(
-          `[WakeUp] Active flat resolved: "${res.flat.name}" (id: ${res.flat.id}). Redirecting to /home...`
+          `[RootIndexPage Decision] Active flat resolved: "${res.flat.name}" (id: ${res.flat.id}). Redirecting to /home...`
         );
         setActiveFlat(res.flat);
         router.replace("/home");
       } else {
-        console.log("[WakeUp] No active flat found. Redirecting to /choose...");
+        console.log("[RootIndexPage Decision] Response 200 but res.flat is null -> User has no flat. Redirecting to /choose...");
         setActiveFlat(null);
         router.replace("/choose");
       }
     } catch (apiErr: any) {
-      console.error(
-        `[WakeUp] Failed to resolve flat via /api/flats/me: [${apiErr?.status}] ${apiErr?.message}`
-      );
+      console.warn("[RootIndexPage Log] GET /api/flats/me failed:", {
+        status: apiErr?.status || "NetworkError",
+        message: apiErr?.message || "Unknown error",
+        data: apiErr?.data || null,
+      });
+
       if (apiErr?.status === 401) {
-        console.log("[WakeUp] 401 Unauthorized — Redirecting to /sign-in...");
+        console.log("[RootIndexPage Decision] 401 Unauthorized -> No valid session found. Redirecting to /sign-in...");
         router.replace("/sign-in");
       } else if (apiErr?.status === 404) {
-        console.log("[WakeUp] 404 Not Found — Redirecting to /choose...");
+        console.log("[RootIndexPage Decision] 404 Not Found -> Redirecting to /choose...");
         setActiveFlat(null);
         router.replace("/choose");
       } else {
+        console.error(`[RootIndexPage Decision] Unexpected error [${apiErr?.status}] -> Showing error UI banner.`);
         setStatus("error");
         setErrorMessage(
           apiErr?.message || "Failed to load flat space. Please try again."
@@ -223,14 +235,23 @@ export default function RootIndexPage() {
 
   // Trigger on session & hydration resolution
   useEffect(() => {
+    console.log("[RootIndexPage Session Trace]", {
+      isHydrated,
+      sessionLoading,
+      hasSession: !!session,
+      userId: session?.user?.id || null,
+      email: session?.user?.email || null,
+    });
+
     if (!isHydrated || sessionLoading) return;
 
     if (!session?.user) {
-      console.log("[WakeUp] No active session. Redirecting to /sign-in...");
+      console.log("[RootIndexPage Decision] !session?.user -> No active session found. Redirecting to /sign-in...");
       router.replace("/sign-in");
       return;
     }
 
+    console.log("[RootIndexPage Log] Active session confirmed. Syncing user to store and starting wake-up sequence...");
     // Sync user into store
     setUser({
       id: session.user.id,

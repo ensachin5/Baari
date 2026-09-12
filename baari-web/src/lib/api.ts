@@ -64,6 +64,16 @@ export async function apiRequest<T = any>(
   }
 
   let response: Response;
+  const docCookie = typeof document !== "undefined" ? document.cookie : "N/A (SSR)";
+  const hasSessionCookie = docCookie.includes("better-auth.session_token");
+
+  console.log(`[Cookie Proxy Request] ${options.method || 'GET'} ${url}`, {
+    credentials: "include",
+    browserHasCookieHeader: hasSessionCookie,
+    cookieSnippet: docCookie ? (docCookie.length > 50 ? `${docCookie.substring(0, 50)}...` : docCookie) : "NONE",
+    hasAuthToken: !!token,
+  });
+
   try {
     response = await fetch(url, {
       credentials: "include",
@@ -89,6 +99,13 @@ export async function apiRequest<T = any>(
 
   const isJson = response.headers.get("content-type")?.includes("application/json");
   const data = isJson ? await response.json() : null;
+
+  console.log(`[Cookie Proxy Response] ${options.method || 'GET'} ${url}`, {
+    status: response.status,
+    statusText: response.statusText,
+    ok: response.ok,
+    setCookieHeader: response.headers.get("set-cookie") ? "present" : "none/hidden",
+  });
 
   if (!response.ok) {
     if (response.status === 401) {

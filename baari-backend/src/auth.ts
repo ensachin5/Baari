@@ -6,6 +6,8 @@ import { db } from './db/index.js';
 import * as authSchema from './db/auth-schema.js';
 import * as dotenv from 'dotenv';
 
+import { logger } from './middleware/error-handler.js';
+
 dotenv.config();
 
 // Safely resolve the base URL to prevent mismatches
@@ -32,6 +34,27 @@ export const auth = betterAuth({
     schema: authSchema,
   }),
   baseURL: resolvedBaseURL,
+  databaseHooks: {
+    session: {
+      create: {
+        after: async (session) => {
+          const logMsg = `[OAuth Callback Session Created] User ID: ${session.userId} | Session ID: ${session.id} | Token: ${session.token ? session.token.substring(0, 12) + '...' : 'N/A'} | Timestamp: ${new Date().toISOString()}`;
+          console.log('\n==================================================');
+          console.log(logMsg);
+          console.log('==================================================\n');
+          logger.info({
+            msg: '[OAuth Callback Session Created]',
+            userId: session.userId,
+            sessionId: session.id,
+            tokenSnippet: session.token ? `${session.token.substring(0, 12)}...` : undefined,
+            createdAt: session.createdAt,
+            expiresAt: session.expiresAt,
+            timestamp: new Date().toISOString(),
+          });
+        },
+      },
+    },
+  },
   advanced: {
     database: {
       generateId: 'uuid',
