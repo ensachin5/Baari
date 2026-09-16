@@ -132,6 +132,31 @@ export const CreateKaamModal: React.FC<CreateKaamModalProps> = ({
   const [dueOffsetDays, setDueOffsetDays] = useState(0);
 
   const [error, setError] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Reusable function to reset all form state to defaults for consecutive creations
+  const resetFormState = () => {
+    if (presets.length > 0) {
+      setSelectedQuickPickId(presets[0].id);
+      setTitle(presets[0].title);
+      setCategory(presets[0].category);
+    } else {
+      setSelectedQuickPickId(null);
+      setTitle("");
+      setCategory("water");
+    }
+    setAssignmentMode("auto_rotate");
+    setSelectedAssignees([]);
+    setCustomGroups([]);
+    setGroupSize(1);
+    setRecurrence("daily");
+    setCustomMode("specific_days");
+    setSelectedWeekdays(["mon", "thu"]);
+    setEveryNDays(3);
+    setDueOffsetDays(0);
+    setError("");
+    setIsSubmitting(false);
+  };
 
   // Helper to partition assignees into initial groups
   const createInitialGroups = (assignees: string[], size: number) => {
@@ -149,15 +174,12 @@ export const CreateKaamModal: React.FC<CreateKaamModalProps> = ({
     return groups;
   };
 
-  // Pre-fill first preset ("Water") by default when opened
+  // Reset form state whenever modal is opened
   useEffect(() => {
-    if (visible && presets.length > 0 && !title) {
-      const firstPreset = presets[0];
-      setSelectedQuickPickId(firstPreset.id);
-      setTitle(firstPreset.title);
-      setCategory(firstPreset.category);
+    if (visible) {
+      resetFormState();
     }
-  }, [visible, presets, title]);
+  }, [visible]);
 
   // Derived unassigned users from the selectedAssignees pool
   const assignedUserIds = React.useMemo(() => {
@@ -346,6 +368,8 @@ export const CreateKaamModal: React.FC<CreateKaamModalProps> = ({
 
   const handleSave = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
+    if (isSubmitting) return;
+
     const trimmedTitle = title.trim();
     if (!trimmedTitle) {
       setError("Please enter or select a Kaam title");
@@ -406,6 +430,7 @@ export const CreateKaamModal: React.FC<CreateKaamModalProps> = ({
 
     try {
       setError("");
+      setIsSubmitting(true);
       await onSubmit({
         title: trimmedTitle,
         category,
@@ -421,9 +446,13 @@ export const CreateKaamModal: React.FC<CreateKaamModalProps> = ({
       });
 
       // Reset state & close
+      resetFormState();
       onClose();
     } catch (err: any) {
+      console.error("[Create Kaam Modal] Submit Error:", err);
       setError(err?.message || "Failed to create Kaam");
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -1163,7 +1192,7 @@ export const CreateKaamModal: React.FC<CreateKaamModalProps> = ({
       <Button
         title="Create Kaam"
         onClick={handleSave}
-        loading={loading}
+        loading={loading || isSubmitting}
         className="w-full"
       />
     </Modal>

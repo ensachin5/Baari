@@ -12,7 +12,7 @@ import {
   Platform,
   ActivityIndicator,
 } from 'react-native';
-import PagerView from 'react-native-pager-view';
+import { PagerViewWrapper } from '../../components/ui/PagerViewWrapper';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Colors, Typography, Spacing, BorderRadius } from '../../lib/theme';
 import { api } from '../../lib/api';
@@ -59,7 +59,7 @@ export default function HomeScreen() {
   const topInset = Math.max(insets.top, Platform.OS === 'android' ? 38 : 16);
 
   const [activePage, setActivePage] = useState(0);
-  const pagerRef = useRef<PagerView>(null);
+  const pagerRef = useRef<any>(null);
   const [filter, setFilter] = useState<'today' | 'upcoming' | 'recurring'>('today');
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [selectedTaskDetail, setSelectedTaskDetail] = useState<KaamTask | null>(null);
@@ -241,11 +241,11 @@ export default function HomeScreen() {
         </View>
 
       {/* 2-Page Horizontal PagerView */}
-      <PagerView
+      <PagerViewWrapper
         ref={pagerRef}
         style={styles.pagerView}
         initialPage={0}
-        onPageSelected={(e) => setActivePage(e.nativeEvent.position)}
+        onPageSelected={(e: any) => setActivePage(e.nativeEvent.position)}
       >
         {/* PAGE 0: KAAM LIST */}
         <View key="0" style={styles.page}>
@@ -449,7 +449,7 @@ export default function HomeScreen() {
             <ChatInput onSend={sendMessage} onTyping={emitTyping} />
           </KeyboardAvoidingView>
         </View>
-      </PagerView>
+      </PagerViewWrapper>
 
       {/* Create Kaam Sheet */}
       <CreateKaamModal

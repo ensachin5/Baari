@@ -13,14 +13,19 @@ export const useKaam = () => {
   const [completingId, setCompletingId] = useState<string | null>(null);
 
   const fetchTasks = useCallback(async () => {
-    if (!activeFlat?.id) return;
+    if (!activeFlat?.id) {
+      console.log('[useKaam] fetchTasks skipped: no activeFlat.id');
+      return;
+    }
     try {
+      console.log('[useKaam] GET /api/tasks requesting for flatId:', activeFlat.id);
       const data = await api.get<{ tasks: KaamTask[] }>('/api/tasks', {
         flatId: activeFlat.id,
       });
+      console.log('[useKaam] GET /api/tasks response: received', data.tasks?.length || 0, 'tasks');
       setTasks(data.tasks || []);
     } catch (error) {
-      console.error('Error fetching Kaam tasks:', error);
+      console.error('[useKaam] Error fetching Kaam tasks:', error);
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -132,12 +137,31 @@ export const useKaam = () => {
     assigneeIds: string[];
     occurrenceDate?: string;
   }) => {
-    if (!activeFlat?.id) return;
-    await api.post('/api/tasks', {
+    if (!activeFlat?.id) {
+      console.error('[Create Kaam] Error: Cannot create task because activeFlat.id is missing.');
+      throw new Error('No active flat selected');
+    }
+
+    const requestPayload = {
       ...payload,
       flatId: activeFlat.id,
-    });
-    await fetchTasks();
+    };
+
+    console.log('[Create Kaam] POST /api/tasks Request Payload:\n', JSON.stringify(requestPayload, null, 2));
+
+    try {
+      const res = await api.post('/api/tasks', requestPayload);
+      console.log('[Create Kaam] POST /api/tasks Response Status: 201 Created');
+      console.log('[Create Kaam] POST /api/tasks Response Body:\n', JSON.stringify(res, null, 2));
+
+      console.log('[Create Kaam] Refetching tasks list to update local state...');
+      await fetchTasks();
+      console.log('[Create Kaam] Task list state updated successfully.');
+      return res;
+    } catch (error: any) {
+      console.error('[Create Kaam] POST /api/tasks Failed with error:', error?.message || error);
+      throw error;
+    }
   };
 
   const deleteTask = async (taskId: string) => {
