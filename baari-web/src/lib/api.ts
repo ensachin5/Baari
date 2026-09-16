@@ -1,19 +1,6 @@
 import { useSession } from "@/store/session";
 
-/**
- * API_BASE_URL is intentionally empty — all /api/* requests are relative
- * and hit baari-web's own domain, which Next.js rewrites proxies to the
- * backend server-side. This makes cookies same-origin (fixes Safari ITP).
- */
-export const API_BASE_URL = "";
-
-/**
- * Socket.io still needs a direct connection to the backend (WebSocket
- * proxying through Next.js rewrites has limitations). This URL is only
- * used by socket.ts for the io() connection, not for cookie-bearing
- * HTTP requests.
- */
-export const SOCKET_BASE_URL = (
+export const API_BASE_URL = (
   process.env.NEXT_PUBLIC_API_URL || "https://baari-wkqq.onrender.com"
 ).replace(/\/+$/, "");
 
@@ -64,16 +51,6 @@ export async function apiRequest<T = any>(
   }
 
   let response: Response;
-  const docCookie = typeof document !== "undefined" ? document.cookie : "N/A (SSR)";
-  const hasSessionCookie = docCookie.includes("better-auth.session_token");
-
-  console.log(`[Cookie Proxy Request] ${options.method || 'GET'} ${url}`, {
-    credentials: "include",
-    browserHasCookieHeader: hasSessionCookie,
-    cookieSnippet: docCookie ? (docCookie.length > 50 ? `${docCookie.substring(0, 50)}...` : docCookie) : "NONE",
-    hasAuthToken: !!token,
-  });
-
   try {
     response = await fetch(url, {
       credentials: "include",
@@ -99,13 +76,6 @@ export async function apiRequest<T = any>(
 
   const isJson = response.headers.get("content-type")?.includes("application/json");
   const data = isJson ? await response.json() : null;
-
-  console.log(`[Cookie Proxy Response] ${options.method || 'GET'} ${url}`, {
-    status: response.status,
-    statusText: response.statusText,
-    ok: response.ok,
-    setCookieHeader: response.headers.get("set-cookie") ? "present" : "none/hidden",
-  });
 
   if (!response.ok) {
     if (response.status === 401) {

@@ -7,10 +7,6 @@ const withSerwist = withSerwistInit({
   disable: process.env.NODE_ENV !== "production",
 });
 
-const BACKEND_URL = (
-  process.env.BACKEND_URL || "https://baari-wkqq.onrender.com"
-).replace(/\/+$/, "");
-
 const nextConfig: NextConfig = {
   reactStrictMode: true,
   turbopack: {},
@@ -25,18 +21,6 @@ const nextConfig: NextConfig = {
         hostname: "**",
       },
     ],
-  },
-  async rewrites() {
-    return [
-      {
-        source: "/api/:path*",
-        destination: `${BACKEND_URL}/api/:path*`,
-      },
-      {
-        source: "/health-ping",
-        destination: `${BACKEND_URL}/health-ping`,
-      },
-    ];
   },
 };
 

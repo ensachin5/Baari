@@ -154,11 +154,11 @@ export const KaamCard: React.FC<KaamCardProps> = ({
         className="p-4"
       >
       {/* Top row: Category & Recurrence & Next in Rotation & Status + Delete */}
-      <div className="flex items-center justify-between mb-2">
-        <div className="flex items-center gap-1 flex-wrap">
+      <div className="flex items-start justify-between gap-1.5 flex-wrap mb-2">
+        <div className="flex items-center gap-1 flex-wrap flex-1 min-w-[120px] mr-1">
           <Badge label={task.category} category={task.category} />
           {task.recurrence !== "once" && (
-            <div className="flex items-center bg-offWhite px-[6px] py-[2px] rounded-[6px] gap-[3px]">
+            <div className="flex items-center bg-offWhite px-[5px] py-[2px] rounded-[6px] gap-[3px]">
               <Repeat size={10} className="text-mutedNavy" />
               <span className="text-[10px] text-mutedNavy capitalize font-medium">
                 {task.recurrence}
@@ -166,7 +166,7 @@ export const KaamCard: React.FC<KaamCardProps> = ({
             </div>
           )}
           {task.recurrence !== "once" && task.nextAssignee && (
-            <div className="bg-[#F0FDF4] px-[6px] py-[2px] rounded-[6px] border border-[#DCFCE7]">
+            <div className="bg-[#F0FDF4] px-[5px] py-[2px] rounded-[6px] border border-[#DCFCE7]">
               <span className="text-[10px] font-semibold text-[#166534]">
                 Next: {task.nextAssignee.name.split(" ")[0]}
               </span>
@@ -174,7 +174,7 @@ export const KaamCard: React.FC<KaamCardProps> = ({
           )}
         </div>
 
-        <div className="flex items-center gap-[6px]">
+        <div className="flex items-center gap-[6px] flex-wrap">
           {canRemind && (
             <button
               type="button"
@@ -268,8 +268,8 @@ export const KaamCard: React.FC<KaamCardProps> = ({
       <div className="h-[1px] bg-border my-2" />
 
       {/* Footer Info: Assignees & Action */}
-      <div className="flex items-center justify-between min-h-[36px]">
-        <div className="flex items-center gap-2">
+      <div className="flex items-center justify-between flex-wrap gap-2 min-h-[36px]">
+        <div className="flex items-center gap-2 flex-wrap">
           <AssigneeStack assignees={assignees} />
           {totalRequired > 1 && (
             <div className="flex items-center gap-1">
@@ -283,7 +283,7 @@ export const KaamCard: React.FC<KaamCardProps> = ({
 
         {/* Action Buttons */}
         {currentOcc && myAssignment && !isFullyDone && (
-          <div className="flex items-center gap-1">
+          <div className="flex items-center gap-1 flex-wrap">
             {onSkipTurn && !isMyPartDone && (
               <button
                 type="button"

@@ -29,13 +29,11 @@ import { ChatInput } from '../../components/chat/ChatInput';
 import { SegmentedControl } from '../../components/ui/SegmentedControl';
 import { Card } from '../../components/ui/Card';
 import { AnnouncementBanner } from '../../components/announcement/AnnouncementBanner';
-import { GroceryListModal } from '../../components/grocery/GroceryListModal';
 import {
   Plus,
   MessageCircle,
   CheckSquare2,
   ClipboardCheck,
-  ShoppingCart,
 } from 'lucide-react-native';
 
 function formatDateDivider(isoString: string): string {
@@ -64,7 +62,6 @@ export default function HomeScreen() {
   const pagerRef = useRef<PagerView>(null);
   const [filter, setFilter] = useState<'today' | 'upcoming' | 'recurring'>('today');
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
-  const [isGroceryModalOpen, setIsGroceryModalOpen] = useState(false);
   const [selectedTaskDetail, setSelectedTaskDetail] = useState<KaamTask | null>(null);
   const [skipModalState, setSkipModalState] = useState<{
     visible: boolean;
@@ -200,18 +197,8 @@ export default function HomeScreen() {
           )}
         </View>
 
-        {/* Header Right Actions */}
-        <View style={styles.topRightActions}>
-          <TouchableOpacity
-            activeOpacity={0.8}
-            onPress={() => setIsGroceryModalOpen(true)}
-            style={styles.groceryHeaderBtn}
-          >
-            <ShoppingCart size={15} color={Colors.navy} strokeWidth={2.2} />
-          </TouchableOpacity>
-
-          {/* 2-Page Indicator Switcher */}
-          <View style={styles.indicatorContainer}>
+        {/* 2-Page Indicator Switcher */}
+        <View style={styles.indicatorContainer}>
             <TouchableOpacity
               activeOpacity={0.8}
               onPress={() => handleSwitchPage(0)}
@@ -252,7 +239,6 @@ export default function HomeScreen() {
             </TouchableOpacity>
           </View>
         </View>
-      </View>
 
       {/* 2-Page Horizontal PagerView */}
       <PagerView
@@ -483,13 +469,6 @@ export default function HomeScreen() {
         onSuccess={() => onKaamRefresh()}
       />
 
-      {/* Shared Grocery List Modal */}
-      <GroceryListModal
-        visible={isGroceryModalOpen}
-        onClose={() => setIsGroceryModalOpen(false)}
-        flatId={activeFlat?.id}
-      />
-
       {/* Kaam Detail & History Modal */}
       <KaamDetailModal
         visible={!!selectedTaskDetail}
@@ -552,21 +531,6 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.offWhite,
     borderRadius: BorderRadius.sm,
     marginTop: 4,
-  },
-  topRightActions: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.xs,
-  },
-  groceryHeaderBtn: {
-    width: 32,
-    height: 32,
-    borderRadius: BorderRadius.full,
-    backgroundColor: Colors.offWhite,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 1,
-    borderColor: Colors.border,
   },
   indicatorContainer: {
     flexDirection: 'row',

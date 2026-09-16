@@ -6,21 +6,19 @@ import { db } from './db/index.js';
 import * as authSchema from './db/auth-schema.js';
 import * as dotenv from 'dotenv';
 
-import { logger } from './middleware/error-handler.js';
-
 dotenv.config();
 
-// Safely resolve the base URL to reflect the proxied frontend domain
+// Safely resolve the base URL to prevent mismatches
 const getBaseURL = () => {
   const envUrl = process.env.BETTER_AUTH_URL;
+  if (envUrl && envUrl.includes('baari-backend.onrender.com')) {
+    return 'https://baari-wkqq.onrender.com';
+  }
   if (envUrl && envUrl.trim() !== '') {
     return envUrl.trim().replace(/\/+$/, '');
   }
-  if (process.env.CLIENT_URL && process.env.CLIENT_URL.trim() !== '') {
-    return process.env.CLIENT_URL.trim().replace(/\/+$/, '');
-  }
   if (process.env.NODE_ENV === 'production' || process.env.RENDER) {
-    return 'https://baari-app.vercel.app';
+    return 'https://baari-wkqq.onrender.com';
   }
   return 'http://localhost:3000';
 };
@@ -34,33 +32,12 @@ export const auth = betterAuth({
     schema: authSchema,
   }),
   baseURL: resolvedBaseURL,
-  databaseHooks: {
-    session: {
-      create: {
-        after: async (session) => {
-          const logMsg = `[OAuth Callback Session Created] User ID: ${session.userId} | Session ID: ${session.id} | Token: ${session.token ? session.token.substring(0, 12) + '...' : 'N/A'} | Timestamp: ${new Date().toISOString()}`;
-          console.log('\n==================================================');
-          console.log(logMsg);
-          console.log('==================================================\n');
-          logger.info({
-            msg: '[OAuth Callback Session Created]',
-            userId: session.userId,
-            sessionId: session.id,
-            tokenSnippet: session.token ? `${session.token.substring(0, 12)}...` : undefined,
-            createdAt: session.createdAt,
-            expiresAt: session.expiresAt,
-            timestamp: new Date().toISOString(),
-          });
-        },
-      },
-    },
-  },
   advanced: {
     database: {
       generateId: 'uuid',
     },
     defaultCookieAttributes: {
-      sameSite: 'lax',
+      sameSite: 'none',
       secure: true,
       httpOnly: true,
     },

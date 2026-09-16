@@ -319,14 +319,17 @@ const styles = StyleSheet.create({
   },
   headerRow: {
     flexDirection: 'row',
-    alignItems: 'center',
+    alignItems: 'flex-start',
     justifyContent: 'space-between',
     marginBottom: Spacing.sm,
+    gap: 6,
+    flexWrap: 'wrap',
   },
   headerRightGroup: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
+    flexWrap: 'wrap',
   },
   deleteBtn: {
     padding: 3,
@@ -336,13 +339,17 @@ const styles = StyleSheet.create({
   badgeGroup: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: Spacing.xs,
+    gap: 4,
+    flexWrap: 'wrap',
+    flex: 1,
+    flexShrink: 1,
+    marginRight: 2,
   },
   recurrenceBadge: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: Colors.offWhite,
-    paddingHorizontal: 6,
+    paddingHorizontal: 5,
     paddingVertical: 2,
     borderRadius: BorderRadius.sm,
     gap: 3,
@@ -355,7 +362,7 @@ const styles = StyleSheet.create({
   },
   nextBadge: {
     backgroundColor: '#F0FDF4',
-    paddingHorizontal: 6,
+    paddingHorizontal: 5,
     paddingVertical: 2,
     borderRadius: BorderRadius.sm,
     borderWidth: 1,
@@ -383,12 +390,15 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
+    flexWrap: 'wrap',
+    gap: 6,
     minHeight: 36,
   },
   assigneeContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: Spacing.sm,
+    gap: Spacing.xs,
+    flexWrap: 'wrap',
   },
   progressTextContainer: {
     flexDirection: 'row',
@@ -404,6 +414,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: Spacing.xs,
+    flexWrap: 'wrap',
   },
   skipButton: {
     flexDirection: 'row',
