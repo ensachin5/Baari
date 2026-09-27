@@ -139,16 +139,48 @@ app.get('/health', async (_req, res) => {
   }
 });
 
-// 6. Cookie Proxy & Auth Diagnostic Middleware
+import crypto from 'crypto';
+
+// Ensure one_time_auth_codes table exists in PostgreSQL
+pool.query(`
+  CREATE TABLE IF NOT EXISTS one_time_auth_codes (
+    id UUID PRIMARY KEY DEFAULT pg_catalog.gen_random_uuid(),
+    code TEXT NOT NULL UNIQUE,
+    user_id UUID NOT NULL REFERENCES "user"(id) ON DELETE CASCADE,
+    session_token TEXT NOT NULL,
+    expires_at TIMESTAMP NOT NULL,
+    created_at TIMESTAMP DEFAULT NOW() NOT NULL
+  );
+`).catch((err) => logger.error({ msg: 'Failed creating one_time_auth_codes table', error: err.message }));
+
 app.use('/api/*', (req, res, next) => {
   const cookieHeader = req.headers.cookie;
   const hasSessionCookie = cookieHeader ? cookieHeader.includes('better-auth.session_token') : false;
 
+  const host = (req.headers.host || '').toString();
+  const xForwardedHost = (req.headers['x-forwarded-host'] || '').toString();
+  const xForwardedProto = (req.headers['x-forwarded-proto'] || '').toString();
+
+  // If this is an auth endpoint (/api/auth/*), print an explicit console trace
+  if (req.originalUrl.includes('/api/auth')) {
+    const isProxied = xForwardedHost.includes('baari-app.vercel.app') || host.includes('baari-app.vercel.app');
+    console.log(`\n==================================================`);
+    console.log(`[AUTH PROXY STEP TRACE] ${req.method} ${req.originalUrl}`);
+    console.log(`  Host: ${host || 'NONE'}`);
+    console.log(`  X-Forwarded-Host: ${xForwardedHost || 'NONE'}`);
+    console.log(`  X-Forwarded-Proto: ${xForwardedProto || 'NONE'}`);
+    console.log(`  Origin: ${req.headers.origin || 'NONE'}`);
+    console.log(`  Referer: ${req.headers.referer || 'NONE'}`);
+    console.log(`  Session Cookie Present: ${hasSessionCookie}`);
+    console.log(`  Proxied via Vercel: ${isProxied ? 'YES (baari-app.vercel.app)' : 'NO (Direct to backend)'}`);
+    console.log(`==================================================\n`);
+  }
+
   logger.info({
     msg: `[Proxy Inbound Header Trace] ${req.method} ${req.originalUrl}`,
-    host: req.headers.host,
-    xForwardedHost: req.headers['x-forwarded-host'],
-    xForwardedProto: req.headers['x-forwarded-proto'],
+    host,
+    xForwardedHost,
+    xForwardedProto,
     hasCookieHeader: !!cookieHeader,
     hasSessionTokenCookie: hasSessionCookie,
     cookieSnippet: cookieHeader ? (cookieHeader.length > 60 ? `${cookieHeader.substring(0, 60)}...` : cookieHeader) : 'NONE',
@@ -171,7 +203,143 @@ app.use('/api/*', (req, res, next) => {
   next();
 });
 
-app.use('/api/auth/*', async (req, res, next) => {
+// Intercept OAuth callback redirects to implement WebKit ITP-immune one-time code exchange
+app.use('/api/auth/callback/*', async (req, res, next) => {
+  let capturedSessionToken: string | null = null;
+  const originalSetHeader = res.setHeader.bind(res);
+
+  res.setHeader = function (name: string, value: any) {
+    if (name.toLowerCase() === 'set-cookie') {
+      const cookieStr = Array.isArray(value) ? value.join('; ') : String(value);
+      const match = cookieStr.match(/(?:better-auth|baari)\.session_token=([^;]+)/);
+      if (match?.[1]) {
+        capturedSessionToken = match[1];
+      }
+    }
+    return originalSetHeader(name, value);
+  };
+
+  const originalRedirect = res.redirect.bind(res);
+  res.redirect = async function (statusOrUrl: any, url?: any) {
+    const finalUrl = typeof statusOrUrl === 'string' ? statusOrUrl : url;
+    const finalStatus = typeof statusOrUrl === 'number' ? statusOrUrl : 302;
+
+    if (finalUrl && (finalUrl.includes('baari-app.vercel.app') || finalUrl.includes('localhost') || finalUrl.includes('baari://'))) {
+      try {
+        let tokenToExchange = capturedSessionToken;
+        let targetUserId: string | null = null;
+
+        if (!tokenToExchange) {
+          const sessionRes = await pool.query(
+            `SELECT token, user_id FROM "session" ORDER BY created_at DESC LIMIT 1`
+          );
+          if (sessionRes.rowCount && sessionRes.rowCount > 0) {
+            tokenToExchange = sessionRes.rows[0].token;
+            targetUserId = sessionRes.rows[0].user_id;
+          }
+        } else {
+          const userRes = await pool.query(
+            `SELECT user_id FROM "session" WHERE token = $1 LIMIT 1`,
+            [tokenToExchange]
+          );
+          if (userRes.rowCount && userRes.rowCount > 0) {
+            targetUserId = userRes.rows[0].user_id;
+          }
+        }
+
+        if (tokenToExchange && targetUserId) {
+          const exchangeCode = crypto.randomBytes(32).toString('hex');
+          const expiresAt = new Date(Date.now() + 60000); // 60s single-use
+
+          await pool.query(
+            `INSERT INTO one_time_auth_codes (code, user_id, session_token, expires_at) VALUES ($1, $2, $3, $4)`,
+            [exchangeCode, targetUserId, tokenToExchange, expiresAt]
+          );
+
+          console.log(`\n==================================================`);
+          console.log(`[ITP WORKAROUND] Converted callback redirect to 60s Single-Use Exchange Code: ${exchangeCode}`);
+          console.log(`  Target User: ${targetUserId}`);
+          console.log(`  Redirecting to: /auth/complete?code=${exchangeCode}`);
+          console.log(`==================================================\n`);
+
+          // Remove Set-Cookie header from redirect so WebKit ITP doesn't drop it mid-redirect
+          res.removeHeader('Set-Cookie');
+
+          const clientUrl = process.env.CLIENT_URL || 'https://baari-app.vercel.app';
+          const completionUrl = `${clientUrl.replace(/\/+$/, '')}/auth/complete?code=${exchangeCode}`;
+          return (originalRedirect as any)(finalStatus, completionUrl);
+        }
+      } catch (err: any) {
+        console.error('[ITP WORKAROUND] Error generating exchange code:', err.message);
+      }
+    }
+
+    return (originalRedirect as any)(statusOrUrl, url);
+  };
+
+  next();
+});
+
+// Endpoint for Same-Origin fetch completion (WebKit ITP Workaround)
+app.post('/api/auth/complete-login', async (req, res): Promise<void> => {
+  const { code } = req.body || {};
+  if (!code || typeof code !== 'string') {
+    res.status(400).json({ error: 'One-time exchange code is required' });
+    return;
+  }
+
+  try {
+    // Atomically find & delete code (single-use guarantee)
+    const codeRes = await pool.query(
+      `DELETE FROM one_time_auth_codes WHERE code = $1 AND expires_at > NOW() RETURNING *`,
+      [code]
+    );
+
+    if (!codeRes.rowCount || codeRes.rowCount === 0) {
+      res.status(400).json({ error: 'Invalid, used, or expired authentication code' });
+      return;
+    }
+
+    const { user_id, session_token } = codeRes.rows[0];
+
+    // Fetch user and session from DB
+    const userRes = await pool.query(`SELECT id, name, email, image FROM "user" WHERE id = $1`, [user_id]);
+    const sessRes = await pool.query(`SELECT id, expires_at, token FROM "session" WHERE token = $1`, [session_token]);
+
+    if (!userRes.rowCount || !sessRes.rowCount) {
+      res.status(401).json({ error: 'Associated user or session not found' });
+      return;
+    }
+
+    const userData = userRes.rows[0];
+    const sessionData = sessRes.rows[0];
+
+    // Set same-origin, non-redirect Set-Cookie header (WebKit ITP immune!)
+    const isProd = process.env.NODE_ENV === 'production' || !!process.env.RENDER;
+    const cookieHeaders = [
+      `baari.session_token=${session_token}; Path=/; Max-Age=2592000; ${isProd ? 'SameSite=None; Secure;' : 'SameSite=Lax;'} HttpOnly`,
+      `better-auth.session_token=${session_token}; Path=/; Max-Age=2592000; ${isProd ? 'SameSite=None; Secure;' : 'SameSite=Lax;'} HttpOnly`,
+    ];
+
+    res.setHeader('Set-Cookie', cookieHeaders);
+    console.log(`\n==================================================`);
+    console.log(`[ITP WORKAROUND COMPLETE] Same-origin fetch complete-login succeeded for user ${userData.email}`);
+    console.log(`  Set-Cookie issued on same-origin POST response.`);
+    console.log(`==================================================\n`);
+
+    res.json({
+      success: true,
+      token: session_token,
+      user: userData,
+      session: sessionData,
+    });
+  } catch (err: any) {
+    console.error('[ITP WORKAROUND ERROR] complete-login failed:', err);
+    res.status(500).json({ error: 'Internal server error finalizing authentication' });
+  }
+});
+
+app.use('/api/auth*', async (req, res, next) => {
   const start = Date.now();
   const reqState = (req.query.state as string) || (req.body?.state as string);
   const logPrefix = `[Auth Diagnostic ${req.method} ${req.originalUrl}]`;
@@ -237,7 +405,7 @@ app.use('/api/auth/*', async (req, res, next) => {
   next();
 });
 
-app.all('/api/auth/*', lenientAuthRateLimiter, toNodeHandler(auth));
+app.all('/api/auth*', lenientAuthRateLimiter, toNodeHandler(auth));
 
 // 7. API Routes with general rate limiting
 app.use('/api', generalRateLimiter);

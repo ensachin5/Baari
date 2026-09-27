@@ -96,6 +96,19 @@ export const verification = pgTable(
   (table) => [index("verification_identifier_idx").on(table.identifier)],
 );
 
+export const oneTimeAuthCodes = pgTable("one_time_auth_codes", {
+  id: uuid("id")
+    .default(sql`pg_catalog.gen_random_uuid()`)
+    .primaryKey(),
+  code: text("code").notNull().unique(),
+  userId: uuid("user_id")
+    .notNull()
+    .references(() => user.id, { onDelete: "cascade" }),
+  sessionToken: text("session_token").notNull(),
+  expiresAt: timestamp("expires_at").notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
 export const userRelations = relations(user, ({ many }) => ({
   sessions: many(session),
   accounts: many(account),
@@ -114,3 +127,4 @@ export const accountRelations = relations(account, ({ one }) => ({
     references: [user.id],
   }),
 }));
+

@@ -428,4 +428,4 @@ export const activityLogRelations = relations(activityLog, ({ one }) => ({
   actor: one(user, { fields: [activityLog.actorId], references: [user.id] }),
 }));
 
-export { user, session, account, verification } from './auth-schema.js';
+export { user, session, account, verification, oneTimeAuthCodes } from './auth-schema.js';

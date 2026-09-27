@@ -162,11 +162,28 @@ app.get('/health', async (_req, res) => {
 app.use('/api/*', (req, res, next) => {
     const cookieHeader = req.headers.cookie;
     const hasSessionCookie = cookieHeader ? cookieHeader.includes('better-auth.session_token') : false;
+    const host = (req.headers.host || '').toString();
+    const xForwardedHost = (req.headers['x-forwarded-host'] || '').toString();
+    const xForwardedProto = (req.headers['x-forwarded-proto'] || '').toString();
+    // If this is an auth endpoint (/api/auth/*), print an explicit console trace
+    if (req.originalUrl.includes('/api/auth')) {
+        const isProxied = xForwardedHost.includes('baari-app.vercel.app') || host.includes('baari-app.vercel.app');
+        console.log(`\n==================================================`);
+        console.log(`[AUTH PROXY STEP TRACE] ${req.method} ${req.originalUrl}`);
+        console.log(`  Host: ${host || 'NONE'}`);
+        console.log(`  X-Forwarded-Host: ${xForwardedHost || 'NONE'}`);
+        console.log(`  X-Forwarded-Proto: ${xForwardedProto || 'NONE'}`);
+        console.log(`  Origin: ${req.headers.origin || 'NONE'}`);
+        console.log(`  Referer: ${req.headers.referer || 'NONE'}`);
+        console.log(`  Session Cookie Present: ${hasSessionCookie}`);
+        console.log(`  Proxied via Vercel: ${isProxied ? 'YES (baari-app.vercel.app)' : 'NO (Direct to backend)'}`);
+        console.log(`==================================================\n`);
+    }
     error_handler_js_1.logger.info({
         msg: `[Proxy Inbound Header Trace] ${req.method} ${req.originalUrl}`,
-        host: req.headers.host,
-        xForwardedHost: req.headers['x-forwarded-host'],
-        xForwardedProto: req.headers['x-forwarded-proto'],
+        host,
+        xForwardedHost,
+        xForwardedProto,
         hasCookieHeader: !!cookieHeader,
         hasSessionTokenCookie: hasSessionCookie,
         cookieSnippet: cookieHeader ? (cookieHeader.length > 60 ? `${cookieHeader.substring(0, 60)}...` : cookieHeader) : 'NONE',
@@ -186,7 +203,7 @@ app.use('/api/*', (req, res, next) => {
     };
     next();
 });
-app.use('/api/auth/*', async (req, res, next) => {
+app.use('/api/auth*', async (req, res, next) => {
     const start = Date.now();
     const reqState = req.query.state || req.body?.state;
     const logPrefix = `[Auth Diagnostic ${req.method} ${req.originalUrl}]`;
@@ -246,7 +263,7 @@ app.use('/api/auth/*', async (req, res, next) => {
     };
     next();
 });
-app.all('/api/auth/*', rate_limit_js_1.lenientAuthRateLimiter, (0, node_1.toNodeHandler)(auth_js_1.auth));
+app.all('/api/auth*', rate_limit_js_1.lenientAuthRateLimiter, (0, node_1.toNodeHandler)(auth_js_1.auth));
 // 7. API Routes with general rate limiting
 app.use('/api', rate_limit_js_1.generalRateLimiter);
 app.use('/api/flats', flats_js_1.flatsRouter);
