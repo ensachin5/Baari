@@ -32,6 +32,10 @@ export const auth = betterAuth({
     schema: authSchema,
   }),
   baseURL: resolvedBaseURL,
+  session: {
+    expiresIn: 60 * 60 * 24 * 30, // 30 days in seconds
+    updateAge: 60 * 60 * 24,      // Refresh/extend session if active within last 24 hours (rolling expiry)
+  },
   advanced: {
     database: {
       generateId: 'uuid',

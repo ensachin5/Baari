@@ -41,19 +41,18 @@ const plugins_1 = require("better-auth/plugins");
 const index_js_1 = require("./db/index.js");
 const authSchema = __importStar(require("./db/auth-schema.js"));
 const dotenv = __importStar(require("dotenv"));
-const error_handler_js_1 = require("./middleware/error-handler.js");
 dotenv.config();
-// Safely resolve the base URL to reflect the proxied frontend domain
+// Safely resolve the base URL to prevent mismatches
 const getBaseURL = () => {
     const envUrl = process.env.BETTER_AUTH_URL;
+    if (envUrl && envUrl.includes('baari-backend.onrender.com')) {
+        return 'https://baari-wkqq.onrender.com';
+    }
     if (envUrl && envUrl.trim() !== '') {
         return envUrl.trim().replace(/\/+$/, '');
     }
-    if (process.env.CLIENT_URL && process.env.CLIENT_URL.trim() !== '') {
-        return process.env.CLIENT_URL.trim().replace(/\/+$/, '');
-    }
     if (process.env.NODE_ENV === 'production' || process.env.RENDER) {
-        return 'https://baari-app.vercel.app';
+        return 'https://baari-wkqq.onrender.com';
     }
     return 'http://localhost:3000';
 };
@@ -65,33 +64,16 @@ exports.auth = (0, better_auth_1.betterAuth)({
         schema: authSchema,
     }),
     baseURL: resolvedBaseURL,
-    databaseHooks: {
-        session: {
-            create: {
-                after: async (session) => {
-                    const logMsg = `[OAuth Callback Session Created] User ID: ${session.userId} | Session ID: ${session.id} | Token: ${session.token ? session.token.substring(0, 12) + '...' : 'N/A'} | Timestamp: ${new Date().toISOString()}`;
-                    console.log('\n==================================================');
-                    console.log(logMsg);
-                    console.log('==================================================\n');
-                    error_handler_js_1.logger.info({
-                        msg: '[OAuth Callback Session Created]',
-                        userId: session.userId,
-                        sessionId: session.id,
-                        tokenSnippet: session.token ? `${session.token.substring(0, 12)}...` : undefined,
-                        createdAt: session.createdAt,
-                        expiresAt: session.expiresAt,
-                        timestamp: new Date().toISOString(),
-                    });
-                },
-            },
-        },
+    session: {
+        expiresIn: 60 * 60 * 24 * 30, // 30 days in seconds
+        updateAge: 60 * 60 * 24, // Refresh/extend session if active within last 24 hours (rolling expiry)
     },
     advanced: {
         database: {
             generateId: 'uuid',
         },
         defaultCookieAttributes: {
-            sameSite: 'lax',
+            sameSite: 'none',
             secure: true,
             httpOnly: true,
         },
