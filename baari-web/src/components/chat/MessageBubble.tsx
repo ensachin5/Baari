@@ -153,7 +153,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
         )}
 
         {/* Action button: persistent on touch/mobile-web viewports, reveals on hover on desktop */}
-        {!isDeleted && !isSending && !isFailed && !isEditing && (
+        {!isDeleted && !isFailed && !isEditing && (
           <div
             ref={menuTriggerRef}
             className="relative mr-1 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 sm:focus-within:opacity-100 transition-opacity"
@@ -245,7 +245,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
         ) : (
           <div
             onContextMenu={(e) => {
-              if (!isDeleted && !isSending && !isFailed) {
+              if (!isDeleted && !isFailed) {
                 e.preventDefault();
                 openMenuAtTarget(e.currentTarget);
               }

@@ -65,7 +65,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
   const isEdited = Boolean(message.editedAt) && !isDeleted;
 
   const handleLongPress = () => {
-    if (!isCurrentUser || isDeleted || isSending || isFailed) return;
+    if (!isCurrentUser || isDeleted || isFailed) return;
 
     const confirmDelete = () => {
       Alert.alert(

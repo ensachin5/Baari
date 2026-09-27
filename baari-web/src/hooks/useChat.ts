@@ -24,6 +24,35 @@ export const useChat = () => {
   const [typingUsers, setTypingUsers] = useState<TypingUser[]>([]);
 
   const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const pendingOpsRef = useRef<Map<string, { action: "edit"; content: string } | { action: "delete" }>>(new Map());
+  const sendingTempMsgsRef = useRef<{ tempId: string; originalContent: string }[]>([]);
+
+  // Helper to execute queued pending operations (edit/delete) when server confirms real message ID
+  const processConfirmedMessage = useCallback(
+    (tempId: string, confirmedMsg: ChatMessage): ChatMessage => {
+      const pendingOp = pendingOpsRef.current.get(tempId);
+      let finalMsg: ChatMessage = { ...confirmedMsg, status: "sent" as const };
+
+      if (pendingOp) {
+        pendingOpsRef.current.delete(tempId);
+        if (pendingOp.action === "edit") {
+          finalMsg.content = pendingOp.content;
+          finalMsg.editedAt = new Date().toISOString();
+          api.patch(`/api/messages/${confirmedMsg.id}`, { content: pendingOp.content }).catch((err) => {
+            console.error("[useChat] Failed executing queued edit for confirmed message:", err);
+          });
+        } else if (pendingOp.action === "delete") {
+          finalMsg.content = "";
+          finalMsg.deletedAt = new Date().toISOString();
+          api.delete(`/api/messages/${confirmedMsg.id}`).catch((err) => {
+            console.error("[useChat] Failed executing queued delete for confirmed message:", err);
+          });
+        }
+      }
+      return finalMsg;
+    },
+    []
+  );
 
   // Fetch initial message history
   const fetchMessages = useCallback(async () => {
@@ -61,7 +90,7 @@ export const useChat = () => {
   // Mark read up to message
   const markReadUpTo = useCallback(
     async (messageId: string) => {
-      if (!activeFlat?.id || !messageId || messageId.startsWith("temp-")) return;
+      if (!activeFlat?.id || !messageId || messageId.startsWith("temp")) return;
       try {
         await api.post("/api/messages/read-up-to", { messageId });
       } catch (_) {}
@@ -114,17 +143,36 @@ export const useChat = () => {
         }
 
         setMessages((prev) => {
-          // If message was sent optimistically by this client, replace the temp message
-          const tempIdx = prev.findIndex(
-            (m) =>
-              m.status === "sending" &&
-              m.content === incoming.content &&
-              m.senderId === incoming.senderId
+          let tempIdx = -1;
+          let matchedTempId = "";
+
+          // 1. Try matching by registered temp message item
+          const itemIdx = sendingTempMsgsRef.current.findIndex(
+            (item) => item.originalContent === incoming.content
           );
-          if (tempIdx !== -1) {
+          if (itemIdx !== -1) {
+            matchedTempId = sendingTempMsgsRef.current[itemIdx].tempId;
+            sendingTempMsgsRef.current.splice(itemIdx, 1);
+            tempIdx = prev.findIndex((m) => m.id === matchedTempId);
+          }
+
+          // 2. Fallback to searching temp messages by status and senderId
+          if (tempIdx === -1) {
+            tempIdx = prev.findIndex(
+              (m) =>
+                m.status === "sending" &&
+                m.senderId === incoming.senderId &&
+                (m.content === incoming.content || pendingOpsRef.current.has(m.id))
+            );
+            if (tempIdx !== -1) {
+              matchedTempId = prev[tempIdx].id;
+            }
+          }
+
+          if (tempIdx !== -1 && matchedTempId) {
             console.log('[useChat] [new_message] Replaced optimistic temp message with confirmed message:', incoming.id);
             const next = [...prev];
-            next[tempIdx] = incoming;
+            next[tempIdx] = processConfirmedMessage(matchedTempId, incoming);
             return next;
           }
 
@@ -135,7 +183,6 @@ export const useChat = () => {
           }
 
           console.log('[useChat] [new_message] Appending new message to state. ID:', incoming.id, 'Sender:', incoming.sender?.name);
-          // Immutably create a new array reference so React detects the update and re-renders
           return [...prev, incoming];
         });
 
@@ -231,7 +278,7 @@ export const useChat = () => {
       socket.off("user_typing", handleUserTyping);
       socket.off("message_read", handleMessageRead);
     };
-  }, [activeFlat?.id, markReadUpTo]);
+  }, [activeFlat?.id, markReadUpTo, processConfirmedMessage]);
 
   // Load older messages (pagination)
   const loadMore = useCallback(async () => {
@@ -288,6 +335,11 @@ export const useChat = () => {
         )
       );
 
+      if (messageId.startsWith("temp")) {
+        pendingOpsRef.current.set(messageId, { action: "edit", content: trimmed });
+        return;
+      }
+
       try {
         await api.patch(`/api/messages/${messageId}`, { content: trimmed });
       } catch (err) {
@@ -309,6 +361,11 @@ export const useChat = () => {
           m.id === messageId ? { ...m, content: "", deletedAt } : m
         )
       );
+
+      if (messageId.startsWith("temp")) {
+        pendingOpsRef.current.set(messageId, { action: "delete" });
+        return;
+      }
 
       try {
         await api.delete(`/api/messages/${messageId}`);
@@ -341,6 +398,7 @@ export const useChat = () => {
         },
       };
 
+      sendingTempMsgsRef.current.push({ tempId, originalContent: trimmed });
       setMessages((prev) => [...prev, optimisticMsg]);
 
       const socket = getSocket();
@@ -394,7 +452,7 @@ export const useChat = () => {
             setMessages((prev) =>
               prev.map((m) =>
                 m.id === tempId
-                  ? { ...response.message!, status: "sent" as const }
+                  ? processConfirmedMessage(tempId, response.message!)
                   : m
               )
             );
@@ -426,7 +484,7 @@ export const useChat = () => {
             setMessages((prev) =>
               prev.map((m) =>
                 m.id === tempId
-                  ? { ...data.message, status: "sent" as const }
+                  ? processConfirmedMessage(tempId, data.message)
                   : m
               )
             );
@@ -436,13 +494,14 @@ export const useChat = () => {
             "[useChat] REST send fallback also failed:",
             restErr?.message || restErr
           );
+          pendingOpsRef.current.delete(tempId);
           setMessages((prev) =>
             prev.map((m) => (m.id === tempId ? { ...m, status: "failed" } : m))
           );
         }
       }
     },
-    [activeFlat?.id, currentUser, emitTyping]
+    [activeFlat?.id, currentUser, emitTyping, processConfirmedMessage]
   );
 
   const retryMessage = useCallback(

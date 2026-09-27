@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.accountRelations = exports.sessionRelations = exports.userRelations = exports.verification = exports.account = exports.session = exports.user = void 0;
+exports.accountRelations = exports.sessionRelations = exports.userRelations = exports.oneTimeAuthCodes = exports.verification = exports.account = exports.session = exports.user = void 0;
 const drizzle_orm_1 = require("drizzle-orm");
 const pg_core_1 = require("drizzle-orm/pg-core");
 exports.user = (0, pg_core_1.pgTable)("user", {
@@ -71,6 +71,18 @@ exports.verification = (0, pg_core_1.pgTable)("verification", {
         .$onUpdate(() => /* @__PURE__ */ new Date())
         .notNull(),
 }, (table) => [(0, pg_core_1.index)("verification_identifier_idx").on(table.identifier)]);
+exports.oneTimeAuthCodes = (0, pg_core_1.pgTable)("one_time_auth_codes", {
+    id: (0, pg_core_1.uuid)("id")
+        .default((0, drizzle_orm_1.sql) `pg_catalog.gen_random_uuid()`)
+        .primaryKey(),
+    code: (0, pg_core_1.text)("code").notNull().unique(),
+    userId: (0, pg_core_1.uuid)("user_id")
+        .notNull()
+        .references(() => exports.user.id, { onDelete: "cascade" }),
+    sessionToken: (0, pg_core_1.text)("session_token").notNull(),
+    expiresAt: (0, pg_core_1.timestamp)("expires_at").notNull(),
+    createdAt: (0, pg_core_1.timestamp)("created_at").defaultNow().notNull(),
+});
 exports.userRelations = (0, drizzle_orm_1.relations)(exports.user, ({ many }) => ({
     sessions: many(exports.session),
     accounts: many(exports.account),

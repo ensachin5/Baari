@@ -158,7 +158,18 @@ app.get('/health', async (_req, res) => {
         });
     }
 });
-// 6. Cookie Proxy & Auth Diagnostic Middleware
+const crypto_1 = __importDefault(require("crypto"));
+// Ensure one_time_auth_codes table exists in PostgreSQL
+index_js_1.pool.query(`
+  CREATE TABLE IF NOT EXISTS one_time_auth_codes (
+    id UUID PRIMARY KEY DEFAULT pg_catalog.gen_random_uuid(),
+    code TEXT NOT NULL UNIQUE,
+    user_id UUID NOT NULL REFERENCES "user"(id) ON DELETE CASCADE,
+    session_token TEXT NOT NULL,
+    expires_at TIMESTAMP NOT NULL,
+    created_at TIMESTAMP DEFAULT NOW() NOT NULL
+  );
+`).catch((err) => error_handler_js_1.logger.error({ msg: 'Failed creating one_time_auth_codes table', error: err.message }));
 app.use('/api/*', (req, res, next) => {
     const cookieHeader = req.headers.cookie;
     const hasSessionCookie = cookieHeader ? cookieHeader.includes('better-auth.session_token') : false;
@@ -202,6 +213,137 @@ app.use('/api/*', (req, res, next) => {
         return originalSetHeader(name, value);
     };
     next();
+});
+// Intercept OAuth callback redirects to implement WebKit ITP-immune one-time code exchange
+app.use('/api/auth/callback/*', async (req, res, next) => {
+    let capturedSessionToken = null;
+    const originalSetHeader = res.setHeader.bind(res);
+    res.setHeader = function (name, value) {
+        if (name.toLowerCase() === 'set-cookie') {
+            const cookieStr = Array.isArray(value) ? value.join('; ') : String(value);
+            const match = cookieStr.match(/(?:better-auth|baari)\.session_token=([^;]+)/);
+            if (match?.[1]) {
+                capturedSessionToken = match[1];
+            }
+        }
+        return originalSetHeader(name, value);
+    };
+    const originalRedirect = res.redirect.bind(res);
+    res.redirect = async function (statusOrUrl, url) {
+        const finalUrl = typeof statusOrUrl === 'string' ? statusOrUrl : url;
+        const finalStatus = typeof statusOrUrl === 'number' ? statusOrUrl : 302;
+        if (finalUrl && (finalUrl.includes('baari-app.vercel.app') || finalUrl.includes('localhost') || finalUrl.includes('baari://'))) {
+            try {
+                let tokenToExchange = capturedSessionToken;
+                let targetUserId = null;
+                if (!tokenToExchange) {
+                    const sessionRes = await index_js_1.pool.query(`SELECT token, user_id FROM "session" ORDER BY created_at DESC LIMIT 1`);
+                    if (sessionRes.rowCount && sessionRes.rowCount > 0) {
+                        tokenToExchange = sessionRes.rows[0].token;
+                        targetUserId = sessionRes.rows[0].user_id;
+                    }
+                }
+                else {
+                    const userRes = await index_js_1.pool.query(`SELECT user_id FROM "session" WHERE token = $1 LIMIT 1`, [tokenToExchange]);
+                    if (userRes.rowCount && userRes.rowCount > 0) {
+                        targetUserId = userRes.rows[0].user_id;
+                    }
+                }
+                if (tokenToExchange && targetUserId) {
+                    const exchangeCode = crypto_1.default.randomBytes(32).toString('hex');
+                    const expiresAt = new Date(Date.now() + 60000); // 60s single-use
+                    await index_js_1.pool.query(`INSERT INTO one_time_auth_codes (code, user_id, session_token, expires_at) VALUES ($1, $2, $3, $4)`, [exchangeCode, targetUserId, tokenToExchange, expiresAt]);
+                    const clientUrl = process.env.CLIENT_URL || 'https://baari-app.vercel.app';
+                    const completionUrl = `${clientUrl.replace(/\/+$/, '')}/auth/complete?code=${exchangeCode}`;
+                    console.log(`\n==================================================`);
+                    console.log(`[TOKEN EXCHANGE STEP 1: CODE GENERATION & STORE]`);
+                    console.log(`  Exchange Code: ${exchangeCode}`);
+                    console.log(`  Target User ID: ${targetUserId}`);
+                    console.log(`  Session Token Snippet: ${tokenToExchange.substring(0, 10)}...`);
+                    console.log(`  Expires At: ${expiresAt.toISOString()} (60 seconds TTL)`);
+                    console.log(`  DB Storage Status: [EXCHANGE DB STORE SUCCESS]`);
+                    console.log(`--------------------------------------------------`);
+                    console.log(`[TOKEN EXCHANGE STEP 2: REDIRECT URL SENT TO BROWSER]`);
+                    console.log(`  HTTP Status: ${finalStatus}`);
+                    console.log(`  Redirect Target URL: ${completionUrl}`);
+                    console.log(`  Set-Cookie Header: STRIPPED FROM REDIRECT (WebKit ITP immune)`);
+                    console.log(`==================================================\n`);
+                    // Remove Set-Cookie header from redirect so WebKit ITP doesn't drop it mid-redirect
+                    res.removeHeader('Set-Cookie');
+                    return originalRedirect(finalStatus, completionUrl);
+                }
+            }
+            catch (err) {
+                console.error('[ITP WORKAROUND] Error generating exchange code:', err.message);
+            }
+        }
+        return originalRedirect(statusOrUrl, url);
+    };
+    next();
+});
+// Endpoint for Same-Origin fetch completion (WebKit ITP Workaround)
+app.post('/api/auth/complete-login', async (req, res) => {
+    const { code } = req.body || {};
+    console.log(`\n==================================================`);
+    console.log(`[TOKEN EXCHANGE STEP 3: ENDPOINT INVOKED] POST /api/auth/complete-login`);
+    console.log(`  Received Code in Request Body: ${code || 'NONE'}`);
+    console.log(`  Headers Host: ${req.headers.host}`);
+    console.log(`  X-Forwarded-Host: ${req.headers['x-forwarded-host'] || 'NONE'}`);
+    if (!code || typeof code !== 'string') {
+        console.warn(`  [EXCHANGE FAIL] One-time exchange code missing or invalid.`);
+        console.log(`==================================================\n`);
+        res.status(400).json({ error: 'One-time exchange code is required' });
+        return;
+    }
+    try {
+        // Atomically find & delete code (single-use guarantee)
+        const codeRes = await index_js_1.pool.query(`DELETE FROM one_time_auth_codes WHERE code = $1 AND expires_at > NOW() RETURNING *`, [code]);
+        if (!codeRes.rowCount || codeRes.rowCount === 0) {
+            console.warn(`  [EXCHANGE FAIL] Code lookup failed for code: ${code}. Reason: Invalid, already used, or expired (>60s).`);
+            console.log(`==================================================\n`);
+            res.status(400).json({ error: 'Invalid, used, or expired authentication code' });
+            return;
+        }
+        const { user_id, session_token, expires_at } = codeRes.rows[0];
+        console.log(`  [EXCHANGE DB LOOKUP SUCCESS] Code atomically matched & consumed.`);
+        console.log(`    Associated User ID: ${user_id}`);
+        console.log(`    Associated Session Token Snippet: ${session_token.substring(0, 10)}...`);
+        // Fetch user and session from DB
+        const userRes = await index_js_1.pool.query(`SELECT id, name, email, image FROM "user" WHERE id = $1`, [user_id]);
+        const sessRes = await index_js_1.pool.query(`SELECT id, expires_at, token FROM "session" WHERE token = $1`, [session_token]);
+        if (!userRes.rowCount || !sessRes.rowCount) {
+            console.warn(`  [EXCHANGE FAIL] User or session record not found in database.`);
+            console.log(`==================================================\n`);
+            res.status(401).json({ error: 'Associated user or session not found' });
+            return;
+        }
+        const userData = userRes.rows[0];
+        const sessionData = sessRes.rows[0];
+        // Set same-origin, non-redirect Set-Cookie header (WebKit ITP immune!)
+        const isProd = process.env.NODE_ENV === 'production' || !!process.env.RENDER;
+        const cookieHeaders = [
+            `baari.session_token=${session_token}; Path=/; Max-Age=2592000; ${isProd ? 'SameSite=None; Secure;' : 'SameSite=Lax;'} HttpOnly`,
+            `better-auth.session_token=${session_token}; Path=/; Max-Age=2592000; ${isProd ? 'SameSite=None; Secure;' : 'SameSite=Lax;'} HttpOnly`,
+        ];
+        res.setHeader('Set-Cookie', cookieHeaders);
+        console.log(`  [EXCHANGE COOKIE SET SUCCESS] Attached 30-day Set-Cookie headers to Same-Origin fetch response:`);
+        console.log(`    Cookie 1: ${cookieHeaders[0]}`);
+        console.log(`    Cookie 2: ${cookieHeaders[1]}`);
+        console.log(`  User Authenticated: ${userData.name} (${userData.email})`);
+        console.log(`  Status: 200 OK (Returning User + Session Payload)`);
+        console.log(`==================================================\n`);
+        res.json({
+            success: true,
+            token: session_token,
+            user: userData,
+            session: sessionData,
+        });
+    }
+    catch (err) {
+        console.error(`  [EXCHANGE ERROR] complete-login endpoint exception:`, err);
+        console.log(`==================================================\n`);
+        res.status(500).json({ error: 'Internal server error finalizing authentication' });
+    }
 });
 app.use('/api/auth*', async (req, res, next) => {
     const start = Date.now();

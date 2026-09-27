@@ -256,17 +256,26 @@ app.use('/api/auth/callback/*', async (req, res, next) => {
             [exchangeCode, targetUserId, tokenToExchange, expiresAt]
           );
 
+          const clientUrl = process.env.CLIENT_URL || 'https://baari-app.vercel.app';
+          const completionUrl = `${clientUrl.replace(/\/+$/, '')}/auth/complete?code=${exchangeCode}`;
+
           console.log(`\n==================================================`);
-          console.log(`[ITP WORKAROUND] Converted callback redirect to 60s Single-Use Exchange Code: ${exchangeCode}`);
-          console.log(`  Target User: ${targetUserId}`);
-          console.log(`  Redirecting to: /auth/complete?code=${exchangeCode}`);
+          console.log(`[TOKEN EXCHANGE STEP 1: CODE GENERATION & STORE]`);
+          console.log(`  Exchange Code: ${exchangeCode}`);
+          console.log(`  Target User ID: ${targetUserId}`);
+          console.log(`  Session Token Snippet: ${tokenToExchange.substring(0, 10)}...`);
+          console.log(`  Expires At: ${expiresAt.toISOString()} (60 seconds TTL)`);
+          console.log(`  DB Storage Status: [EXCHANGE DB STORE SUCCESS]`);
+          console.log(`--------------------------------------------------`);
+          console.log(`[TOKEN EXCHANGE STEP 2: REDIRECT URL SENT TO BROWSER]`);
+          console.log(`  HTTP Status: ${finalStatus}`);
+          console.log(`  Redirect Target URL: ${completionUrl}`);
+          console.log(`  Set-Cookie Header: STRIPPED FROM REDIRECT (WebKit ITP immune)`);
           console.log(`==================================================\n`);
 
           // Remove Set-Cookie header from redirect so WebKit ITP doesn't drop it mid-redirect
           res.removeHeader('Set-Cookie');
 
-          const clientUrl = process.env.CLIENT_URL || 'https://baari-app.vercel.app';
-          const completionUrl = `${clientUrl.replace(/\/+$/, '')}/auth/complete?code=${exchangeCode}`;
           return (originalRedirect as any)(finalStatus, completionUrl);
         }
       } catch (err: any) {
@@ -283,7 +292,16 @@ app.use('/api/auth/callback/*', async (req, res, next) => {
 // Endpoint for Same-Origin fetch completion (WebKit ITP Workaround)
 app.post('/api/auth/complete-login', async (req, res): Promise<void> => {
   const { code } = req.body || {};
+
+  console.log(`\n==================================================`);
+  console.log(`[TOKEN EXCHANGE STEP 3: ENDPOINT INVOKED] POST /api/auth/complete-login`);
+  console.log(`  Received Code in Request Body: ${code || 'NONE'}`);
+  console.log(`  Headers Host: ${req.headers.host}`);
+  console.log(`  X-Forwarded-Host: ${req.headers['x-forwarded-host'] || 'NONE'}`);
+
   if (!code || typeof code !== 'string') {
+    console.warn(`  [EXCHANGE FAIL] One-time exchange code missing or invalid.`);
+    console.log(`==================================================\n`);
     res.status(400).json({ error: 'One-time exchange code is required' });
     return;
   }
@@ -296,17 +314,24 @@ app.post('/api/auth/complete-login', async (req, res): Promise<void> => {
     );
 
     if (!codeRes.rowCount || codeRes.rowCount === 0) {
+      console.warn(`  [EXCHANGE FAIL] Code lookup failed for code: ${code}. Reason: Invalid, already used, or expired (>60s).`);
+      console.log(`==================================================\n`);
       res.status(400).json({ error: 'Invalid, used, or expired authentication code' });
       return;
     }
 
-    const { user_id, session_token } = codeRes.rows[0];
+    const { user_id, session_token, expires_at } = codeRes.rows[0];
+    console.log(`  [EXCHANGE DB LOOKUP SUCCESS] Code atomically matched & consumed.`);
+    console.log(`    Associated User ID: ${user_id}`);
+    console.log(`    Associated Session Token Snippet: ${session_token.substring(0, 10)}...`);
 
     // Fetch user and session from DB
     const userRes = await pool.query(`SELECT id, name, email, image FROM "user" WHERE id = $1`, [user_id]);
     const sessRes = await pool.query(`SELECT id, expires_at, token FROM "session" WHERE token = $1`, [session_token]);
 
     if (!userRes.rowCount || !sessRes.rowCount) {
+      console.warn(`  [EXCHANGE FAIL] User or session record not found in database.`);
+      console.log(`==================================================\n`);
       res.status(401).json({ error: 'Associated user or session not found' });
       return;
     }
@@ -322,9 +347,12 @@ app.post('/api/auth/complete-login', async (req, res): Promise<void> => {
     ];
 
     res.setHeader('Set-Cookie', cookieHeaders);
-    console.log(`\n==================================================`);
-    console.log(`[ITP WORKAROUND COMPLETE] Same-origin fetch complete-login succeeded for user ${userData.email}`);
-    console.log(`  Set-Cookie issued on same-origin POST response.`);
+
+    console.log(`  [EXCHANGE COOKIE SET SUCCESS] Attached 30-day Set-Cookie headers to Same-Origin fetch response:`);
+    console.log(`    Cookie 1: ${cookieHeaders[0]}`);
+    console.log(`    Cookie 2: ${cookieHeaders[1]}`);
+    console.log(`  User Authenticated: ${userData.name} (${userData.email})`);
+    console.log(`  Status: 200 OK (Returning User + Session Payload)`);
     console.log(`==================================================\n`);
 
     res.json({
@@ -334,7 +362,8 @@ app.post('/api/auth/complete-login', async (req, res): Promise<void> => {
       session: sessionData,
     });
   } catch (err: any) {
-    console.error('[ITP WORKAROUND ERROR] complete-login failed:', err);
+    console.error(`  [EXCHANGE ERROR] complete-login endpoint exception:`, err);
+    console.log(`==================================================\n`);
     res.status(500).json({ error: 'Internal server error finalizing authentication' });
   }
 });

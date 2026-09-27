@@ -53,5 +53,10 @@
     "@types/react": "~19.2.10",
     "typescript": "^5.8.2"
   },
+  "overrides": {
+    "lucide-react-native": {
+      "react": "$react"
+    }
+  },
   "private": true
 }
