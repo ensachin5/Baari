@@ -1,5 +1,6 @@
-import React, { useState, useEffect } from 'react';
-import { View, Text, Image, StyleSheet, ViewStyle, ImageStyle } from 'react-native';
+import React, { useState, useEffect, memo } from 'react';
+import { View, Text, StyleSheet, ViewStyle, ImageStyle } from 'react-native';
+import { Image } from 'expo-image';
 import { Typography } from '../../lib/theme';
 
 interface AvatarProps {
@@ -42,7 +43,7 @@ const isValidImageUri = (uri?: string | null): boolean => {
   );
 };
 
-export const Avatar: React.FC<AvatarProps> = ({
+export const Avatar: React.FC<AvatarProps> = memo(({
   name = 'User',
   image,
   size = 'md',
@@ -93,6 +94,8 @@ export const Avatar: React.FC<AvatarProps> = ({
           { width: dim, height: dim, borderRadius: dim / 2 },
           style as any,
         ]}
+        contentFit="cover"
+        transition={150}
         onError={() => setImgFailed(true)}
       />
     );
@@ -128,7 +131,7 @@ export const Avatar: React.FC<AvatarProps> = ({
       </Text>
     </View>
   );
-};
+});
 
 const styles = StyleSheet.create({
   avatar: {
@@ -139,3 +142,4 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
 });
+

@@ -2,11 +2,11 @@ import React, { useEffect, useState, useCallback, useRef } from 'react';
 import {
   View,
   Text,
-  Image,
   StyleSheet,
   ActivityIndicator,
   TouchableOpacity,
 } from 'react-native';
+import { Image } from 'expo-image';
 import { useRouter } from 'expo-router';
 import { useSession } from '../store/session';
 import { api, API_BASE_URL } from '../lib/api';
@@ -246,7 +246,7 @@ export default function IndexScreen() {
         <Image
           source={require('../assets/baari-logo.png')}
           style={styles.logo}
-          resizeMode="contain"
+          contentFit="contain"
         />
 
         {status === 'error' ? (

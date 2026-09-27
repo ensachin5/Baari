@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { memo } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { Avatar } from '../ui/Avatar';
 import { Colors, Typography, Spacing, BorderRadius } from '../../lib/theme';
@@ -40,7 +40,7 @@ interface ActivityItemProps {
   onPress?: (activity: ActivityEntry) => void;
 }
 
-export const ActivityItem: React.FC<ActivityItemProps> = ({ activity, onPress }) => {
+export const ActivityItem: React.FC<ActivityItemProps> = memo(({ activity, onPress }) => {
   const formatTime = (iso: string) => {
     try {
       const d = new Date(iso);
@@ -157,11 +157,10 @@ export const ActivityItem: React.FC<ActivityItemProps> = ({ activity, onPress })
           <Text style={styles.actorName}>{activity.actorName} </Text>
           <Text style={styles.actionText}>{actionText}</Text>
         </Text>
-        <Text style={styles.timeText}>{formatTime(activity.createdAt)}</Text>
       </View>
     </TouchableOpacity>
   );
-};
+});
 
 const styles = StyleSheet.create({
   container: {

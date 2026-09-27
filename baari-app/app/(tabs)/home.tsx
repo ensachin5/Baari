@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect, useMemo } from 'react';
+import React, { useState, useRef, useEffect, useMemo, useCallback } from 'react';
 import {
   View,
   Text,
@@ -28,6 +28,8 @@ import { MessageBubble, ChatMessage } from '../../components/chat/MessageBubble'
 import { ChatInput } from '../../components/chat/ChatInput';
 import { SegmentedControl } from '../../components/ui/SegmentedControl';
 import { Card } from '../../components/ui/Card';
+import { CardSkeleton } from '../../components/ui/Skeleton';
+import { triggerHaptic } from '../../lib/haptics';
 import { AnnouncementBanner } from '../../components/announcement/AnnouncementBanner';
 import {
   Plus,
@@ -297,7 +299,9 @@ export default function HomeScreen() {
             )}
 
             {/* Kaam Cards */}
-            {filteredTasks.length > 0 ? (
+            {kaamLoading && tasks.length === 0 ? (
+              <CardSkeleton count={3} />
+            ) : filteredTasks.length > 0 ? (
               filteredTasks.map((task) => (
                 <KaamCard
                   key={task.id}
@@ -306,7 +310,10 @@ export default function HomeScreen() {
                     console.log('[HomeScreen] KaamCard pressed, setting selectedTaskDetail:', t.id, t.title);
                     setSelectedTaskDetail(t);
                   }}
-                  onComplete={completeTask}
+                  onComplete={(occId) => {
+                    triggerHaptic('success');
+                    completeTask(occId);
+                  }}
                   onDelete={deleteTask}
                   onSkipTurn={(occId, taskTitle) =>
                     setSkipModalState({ visible: true, occId, taskTitle })
@@ -373,6 +380,10 @@ export default function HomeScreen() {
                 showsVerticalScrollIndicator={false}
                 keyboardShouldPersistTaps="handled"
                 keyboardDismissMode="on-drag"
+                removeClippedSubviews={Platform.OS !== 'web'}
+                initialNumToRender={20}
+                maxToRenderPerBatch={15}
+                windowSize={9}
                 onEndReachedThreshold={0.4}
                 onEndReached={() => {
                   if (hasMore && !loadingMore) {
@@ -446,7 +457,13 @@ export default function HomeScreen() {
               </View>
             )}
 
-            <ChatInput onSend={sendMessage} onTyping={emitTyping} />
+            <ChatInput
+              onSend={(content) => {
+                triggerHaptic('light');
+                sendMessage(content);
+              }}
+              onTyping={emitTyping}
+            />
           </KeyboardAvoidingView>
         </View>
       </PagerViewWrapper>

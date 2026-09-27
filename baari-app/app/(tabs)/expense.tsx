@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useCallback } from 'react';
 import {
   View,
   Text,
@@ -18,6 +18,7 @@ import { ExpenseCharts } from '../../components/expense/ExpenseCharts';
 import { AddExpenseModal } from '../../components/expense/AddExpenseModal';
 import { SettleUpModal } from '../../components/expense/SettleUpModal';
 import { ExpenseDetailModal } from '../../components/expense/ExpenseDetailModal';
+import { CardSkeleton } from '../../components/ui/Skeleton';
 import { Avatar } from '../../components/ui/Avatar';
 import { Card } from '../../components/ui/Card';
 import { Receipt, Search, ArrowRight, Check, X, SlidersHorizontal } from 'lucide-react-native';
@@ -51,6 +52,10 @@ export default function ExpenseScreen() {
   const insets = useSafeAreaInsets();
   const topInset = Math.max(insets.top, Platform.OS === 'android' ? 38 : 16);
 
+  const handleExpensePress = useCallback((expense: ExpenseItem) => {
+    setSelectedExpense(expense);
+  }, []);
+
   return (
     <View style={styles.safeArea}>
       <View style={[styles.header, { paddingTop: topInset + 6 }]}>
@@ -58,7 +63,7 @@ export default function ExpenseScreen() {
       </View>
 
       <ScrollView
-        contentContainerStyle={styles.scrollContent}
+        contentContainerStyle={[styles.scrollContent, { paddingBottom: insets.bottom + Spacing.xxxl }]}
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
@@ -249,13 +254,15 @@ export default function ExpenseScreen() {
             ))}
           </ScrollView>
 
-          {expenses.length > 0 ? (
+          {loading && expenses.length === 0 ? (
+            <CardSkeleton count={3} />
+          ) : expenses.length > 0 ? (
             <Card variant="outlined" style={styles.historyCard}>
               {expenses.map((expense) => (
                 <ExpenseRow
                   key={expense.id}
                   expense={expense}
-                  onPress={(exp) => setSelectedExpense(exp)}
+                  onPress={handleExpensePress}
                 />
               ))}
             </Card>

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, memo } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Alert, ActivityIndicator } from 'react-native';
 import { Card } from '../ui/Card';
 import { Badge } from '../ui/Badge';
@@ -7,6 +7,7 @@ import { Colors, Typography, Spacing, BorderRadius } from '../../lib/theme';
 import { CheckCircle2, Clock, Users, Repeat, SkipForward, Trash2, Bell, Check } from 'lucide-react-native';
 import { useSession } from '../../store/session';
 import { api } from '../../lib/api';
+import { triggerHaptic } from '../../lib/haptics';
 
 export interface KaamTask {
   id: string;
@@ -51,7 +52,7 @@ interface KaamCardProps {
   loading?: boolean;
 }
 
-export const KaamCard: React.FC<KaamCardProps> = ({
+export const KaamCard: React.FC<KaamCardProps> = memo(({
   task,
   onComplete,
   onPress,
@@ -308,7 +309,7 @@ export const KaamCard: React.FC<KaamCardProps> = ({
     </Card>
   </TouchableOpacity>
 );
-};
+});
 
 const styles = StyleSheet.create({
   touchableCard: {

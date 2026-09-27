@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useCallback } from 'react';
 import {
   View,
   Text,
@@ -14,6 +14,7 @@ import { useActivity } from '../../hooks/useActivity';
 import { useSession } from '../../store/session';
 import { ActivityItem, ActivityEntry } from '../../components/activity/ActivityItem';
 import { WeeklySummaryCard } from '../../components/kaam/WeeklySummaryCard';
+import { CardSkeleton } from '../../components/ui/Skeleton';
 import { Activity as ActivityIcon } from 'lucide-react-native';
 
 export default function ActivityScreen() {
@@ -23,13 +24,17 @@ export default function ActivityScreen() {
   const activeFlat = useSession((state) => state.activeFlat);
   const { activities, loading, refreshing, onRefresh, loadMore } = useActivity();
 
-  const handleActivityPress = (activity: ActivityEntry) => {
+  const handleActivityPress = useCallback((activity: ActivityEntry) => {
     if (activity.type.startsWith('task_')) {
       router.push('/(tabs)/home');
     } else if (activity.type === 'expense_added' || activity.type === 'settlement') {
       router.push('/(tabs)/expense');
     }
-  };
+  }, [router]);
+
+  const renderItem = useCallback(({ item }: { item: ActivityEntry }) => (
+    <ActivityItem activity={item} onPress={handleActivityPress} />
+  ), [handleActivityPress]);
 
   return (
     <View style={styles.safeArea}>
@@ -40,25 +45,31 @@ export default function ActivityScreen() {
         </Text>
       </View>
 
-      <FlatList
-        data={activities}
-        keyExtractor={(item) => item.id}
-        ListHeaderComponent={<WeeklySummaryCard flatId={activeFlat?.id} />}
-        renderItem={({ item }) => (
-          <ActivityItem activity={item} onPress={handleActivityPress} />
-        )}
-        onEndReached={loadMore}
-        onEndReachedThreshold={0.5}
-        refreshControl={
-          <RefreshControl
-            refreshing={refreshing}
-            onRefresh={onRefresh}
-            tintColor={Colors.navy}
-          />
-        }
-        contentContainerStyle={styles.listContent}
-        ListEmptyComponent={
-          !loading ? (
+      {loading && activities.length === 0 ? (
+        <View style={{ paddingHorizontal: Spacing.xl }}>
+          <CardSkeleton count={4} />
+        </View>
+      ) : (
+        <FlatList
+          data={activities}
+          keyExtractor={(item) => item.id}
+          ListHeaderComponent={<WeeklySummaryCard flatId={activeFlat?.id} />}
+          renderItem={renderItem}
+          removeClippedSubviews={Platform.OS !== 'web'}
+          initialNumToRender={10}
+          maxToRenderPerBatch={10}
+          windowSize={7}
+          onEndReached={loadMore}
+          onEndReachedThreshold={0.5}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={onRefresh}
+              tintColor={Colors.navy}
+            />
+          }
+          contentContainerStyle={[styles.listContent, { paddingBottom: insets.bottom + Spacing.lg }]}
+          ListEmptyComponent={
             <View style={styles.emptyContainer}>
               <ActivityIcon size={40} color={Colors.sky} />
               <Text style={[Typography.H2, styles.emptyTitle]}>No activity yet</Text>
@@ -66,9 +77,9 @@ export default function ActivityScreen() {
                 Actions like completing tasks, adding expenses, or joining will appear here in real time.
               </Text>
             </View>
-          ) : null
-        }
-      />
+          }
+        />
+      )}
     </View>
   );
 }

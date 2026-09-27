@@ -2,9 +2,9 @@ import React, { useState } from 'react';
 import {
   View,
   Text,
-  Image,
   StyleSheet,
 } from 'react-native';
+import { Image } from 'expo-image';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Button } from '../../components/ui/Button';
@@ -72,7 +72,7 @@ export default function SignInScreen() {
           <Image
             source={require('../../assets/baari-logo.png')}
             style={styles.logoImage}
-            resizeMode="contain"
+            contentFit="contain"
           />
           <Text style={Typography.Display}>Baari</Text>
           <Text style={[Typography.BodySmall, styles.tagline]}>

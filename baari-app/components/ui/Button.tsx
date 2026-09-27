@@ -9,6 +9,7 @@ import {
   View,
 } from 'react-native';
 import { Colors, Typography, BorderRadius, Spacing } from '../../lib/theme';
+import { triggerHaptic } from '../../lib/haptics';
 
 export interface ButtonProps {
   title: string;
@@ -33,12 +34,18 @@ export const Button: React.FC<ButtonProps> = ({
   style,
   textStyle,
 }) => {
+  const handlePress = () => {
+    triggerHaptic('light');
+    onPress();
+  };
+
   const getContainerStyle = ({ pressed }: { pressed: boolean }): ViewStyle[] => {
     const baseStyle: ViewStyle = {
       flexDirection: 'row',
       alignItems: 'center',
       justifyContent: 'center',
       borderRadius: BorderRadius.md,
+      minHeight: 44, // Enforces 44pt minimum touch target height
     };
 
     // Size
@@ -46,7 +53,7 @@ export const Button: React.FC<ButtonProps> = ({
     if (size === 'sm') {
       sizeStyle = { paddingVertical: 8, paddingHorizontal: 12 };
     } else if (size === 'lg') {
-      sizeStyle = { paddingVertical: 16, paddingHorizontal: 24 };
+      sizeStyle = { paddingVertical: 16, paddingHorizontal: 24, minHeight: 52 };
     } else {
       sizeStyle = { paddingVertical: 12, paddingHorizontal: 16 };
     }
@@ -103,7 +110,7 @@ export const Button: React.FC<ButtonProps> = ({
   return (
     <TouchableOpacity
       activeOpacity={0.8}
-      onPress={onPress}
+      onPress={handlePress}
       disabled={disabled || loading}
       style={getContainerStyle({ pressed: false })}
     >

@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { Platform } from 'react-native';
+import { Platform, AppState, AppStateStatus } from 'react-native';
 import * as SecureStore from 'expo-secure-store';
 import { io, Socket } from 'socket.io-client';
 import { API_BASE_URL } from './api';
@@ -64,7 +64,7 @@ export const getSocket = (): Socket => {
       reconnection: true,
       reconnectionAttempts: Infinity,
       reconnectionDelay: 2000,
-      reconnectionDelayMax: 10000,
+      reconnectionDelayMax: 30000, // Capped exponential backoff up to 30s max
       randomizationFactor: 0.5,
       timeout: 45000, // 45s timeout to handle Render cold starts
       transports: ['polling', 'websocket'], // Start with HTTP polling for reliable handshake, then upgrade to WebSocket
@@ -157,8 +157,9 @@ export const joinFlatRoom = (flatId: string) => {
 };
 
 /**
- * Custom hook to manage socket lifecycle on mount / unmount / auth change.
- * Connects when user is authenticated, joins flat room, and cleans up on unmount or logout.
+ * Custom hook to manage socket lifecycle on mount / unmount / auth change / AppState change.
+ * Connects when user is authenticated, pauses when app enters background to save battery,
+ * and reconnects automatically when app returns to foreground.
  */
 export function useSocket() {
   const token = useSession((state) => state.token);
@@ -184,10 +185,29 @@ export function useSocket() {
     };
     init();
 
+    // AppState listener to disconnect when app is backgrounded to save battery
+    const handleAppStateChange = (nextAppState: AppStateStatus) => {
+      if (nextAppState === 'background' || nextAppState === 'inactive') {
+        console.log('[Socket] App entered background. Disconnecting socket to preserve battery...');
+        disconnectSocket();
+      } else if (nextAppState === 'active') {
+        console.log('[Socket] App returned to foreground. Reconnecting socket...');
+        const stateToken = useSession.getState().token;
+        const stateUser = useSession.getState().user;
+        if (stateToken || stateUser?.id) {
+          connectSocket();
+        }
+      }
+    };
+
+    const subscription = AppState.addEventListener('change', handleAppStateChange);
+
     return () => {
       isMounted = false;
+      subscription.remove();
     };
   }, [token, user?.id, activeFlat?.id, isHydrated]);
 
   return user?.id ? getSocket() : null;
 }
+

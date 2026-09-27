@@ -7,6 +7,7 @@
     "icon": "./assets/baari-logo-solid.png",
     "scheme": "baari",
     "userInterfaceStyle": "light",
+    "jsEngine": "hermes",
     "newArchEnabled": true,
     "splash": {
       "image": "./assets/splash.png",

@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { memo } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { Avatar } from '../ui/Avatar';
 import { Colors, Typography, Spacing, BorderRadius } from '../../lib/theme';
@@ -33,7 +33,7 @@ interface ExpenseRowProps {
   onPress?: (expense: ExpenseItem) => void;
 }
 
-export const ExpenseRow: React.FC<ExpenseRowProps> = ({ expense, onPress }) => {
+export const ExpenseRow: React.FC<ExpenseRowProps> = memo(({ expense, onPress }) => {
   const currentUserId = useSession((state) => state.user?.id);
   const isPayer = expense.paidBy === currentUserId;
 
@@ -110,7 +110,7 @@ export const ExpenseRow: React.FC<ExpenseRowProps> = ({ expense, onPress }) => {
   }
 
   return Content;
-};
+});
 
 const styles = StyleSheet.create({
   container: {
