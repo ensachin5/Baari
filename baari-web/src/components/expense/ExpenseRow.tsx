@@ -1,6 +1,6 @@
 "use client";
 
-import React from "react";
+import React, { memo } from "react";
 import { Avatar } from "../ui/Avatar";
 import { useSession } from "@/store/session";
 import { Repeat } from "lucide-react";
@@ -36,7 +36,7 @@ interface ExpenseRowProps {
 /**
  * Mirrors baari-app/components/expense/ExpenseRow.tsx exactly.
  */
-export const ExpenseRow: React.FC<ExpenseRowProps> = ({ expense, onPress }) => {
+export const ExpenseRow: React.FC<ExpenseRowProps> = memo(({ expense, onPress }) => {
   const currentUserId = useSession((state) => state.user?.id);
   const isPayer = expense.paidBy === currentUserId;
 
@@ -120,4 +120,4 @@ export const ExpenseRow: React.FC<ExpenseRowProps> = ({ expense, onPress }) => {
   }
 
   return Content;
-};
+});

@@ -12,6 +12,7 @@ import { MessageBubble } from "@/components/chat/MessageBubble";
 import { ChatInput } from "@/components/chat/ChatInput";
 import { SegmentedControl } from "@/components/ui/SegmentedControl";
 import { Card } from "@/components/ui/Card";
+import { CardSkeleton } from "@/components/ui/Skeleton";
 import {
   Plus,
   MessageCircle,
@@ -341,7 +342,9 @@ export default function HomePage() {
           )}
 
           {/* Kaam Cards */}
-          {filteredTasks.length > 0 ? (
+          {kaamLoading && tasks.length === 0 ? (
+            <CardSkeleton count={3} />
+          ) : filteredTasks.length > 0 ? (
             <div className="flex flex-col gap-3 pb-[90px]">
               {filteredTasks.map((task) => (
                 <KaamCard

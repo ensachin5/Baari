@@ -36,7 +36,7 @@ export const getSocket = (): Socket => {
       reconnection: true,
       reconnectionAttempts: Infinity,
       reconnectionDelay: 2000,
-      reconnectionDelayMax: 10000,
+      reconnectionDelayMax: 30000, // Capped exponential backoff to 30s max
       randomizationFactor: 0.5,
       timeout: 45000, // 45s timeout to handle Render cold starts
       transports: ["polling", "websocket"], // Start with HTTP polling for reliable handshake, then upgrade to WebSocket
@@ -149,6 +149,32 @@ export function useSocket() {
     } else if (!user) {
       disconnectSocket();
     }
+
+    // Tab visibility change listener: pause socket when tab is hidden to preserve CPU & battery
+    const handleVisibilityChange = () => {
+      if (typeof document === 'undefined') return;
+      if (document.hidden) {
+        console.log('[Socket] Document hidden (tab backgrounded). Disconnecting socket...');
+        disconnectSocket();
+      } else {
+        console.log('[Socket] Document visible (tab active). Reconnecting socket...');
+        const currentUser = useSession.getState().user;
+        const currentToken = useSession.getState().token;
+        if (currentUser && currentToken) {
+          connectSocket();
+        }
+      }
+    };
+
+    if (typeof window !== 'undefined') {
+      window.addEventListener('visibilitychange', handleVisibilityChange);
+    }
+
+    return () => {
+      if (typeof window !== 'undefined') {
+        window.removeEventListener('visibilitychange', handleVisibilityChange);
+      }
+    };
   }, [user, token, activeFlat?.id, isHydrated]);
 
   return user ? getSocket() : null;

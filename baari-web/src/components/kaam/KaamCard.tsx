@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, memo } from "react";
 import { Card } from "../ui/Card";
 import { Badge } from "../ui/Badge";
 import { AssigneeStack, AssigneeInfo } from "./AssigneeStack";
@@ -62,7 +62,7 @@ interface KaamCardProps {
 /**
  * Mirrors baari-app/components/kaam/KaamCard.tsx exactly.
  */
-export const KaamCard: React.FC<KaamCardProps> = ({
+export const KaamCard: React.FC<KaamCardProps> = memo(({
   task,
   onComplete,
   onPress,
@@ -323,4 +323,4 @@ export const KaamCard: React.FC<KaamCardProps> = ({
     </Card>
   </div>
 );
-};
+});

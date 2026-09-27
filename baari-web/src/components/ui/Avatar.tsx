@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, memo } from "react";
 import Image from "next/image";
 
 export interface AvatarProps {
@@ -44,7 +44,7 @@ const isValidImageUri = (uri?: string | null): boolean => {
   );
 };
 
-export const Avatar: React.FC<AvatarProps> = ({
+export const Avatar: React.FC<AvatarProps> = memo(({
   name = "User",
   image,
   src,
@@ -125,4 +125,4 @@ export const Avatar: React.FC<AvatarProps> = ({
       </span>
     </div>
   );
-};
+});

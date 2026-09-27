@@ -8,6 +8,7 @@ import { ExpenseCharts } from "@/components/expense/ExpenseCharts";
 import { AddExpenseModal } from "@/components/expense/AddExpenseModal";
 import { SettleUpModal } from "@/components/expense/SettleUpModal";
 import { ExpenseDetailModal } from "@/components/expense/ExpenseDetailModal";
+import { CardSkeleton } from "@/components/ui/Skeleton";
 import { Avatar } from "@/components/ui/Avatar";
 import { Card } from "@/components/ui/Card";
 import {
@@ -253,7 +254,9 @@ export default function ExpensePage() {
           </div>
 
           {/* Expense Rows Card */}
-          {expenses.length > 0 ? (
+          {loading && expenses.length === 0 ? (
+            <CardSkeleton count={3} />
+          ) : expenses.length > 0 ? (
             <Card variant="outlined" className="p-3">
               {expenses.map((expense) => (
                 <ExpenseRow

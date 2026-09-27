@@ -1,6 +1,6 @@
 "use client";
 
-import React from "react";
+import React, { memo } from "react";
 import { Avatar } from "../ui/Avatar";
 import {
   Plus,
@@ -43,7 +43,7 @@ interface ActivityItemProps {
 /**
  * Mirrors baari-app/components/activity/ActivityItem.tsx exactly.
  */
-export const ActivityItem: React.FC<ActivityItemProps> = ({
+export const ActivityItem: React.FC<ActivityItemProps> = memo(({
   activity,
   onPress,
 }) => {
@@ -180,4 +180,4 @@ export const ActivityItem: React.FC<ActivityItemProps> = ({
       </div>
     </div>
   );
-};
+});
