@@ -101,10 +101,10 @@ export const requireAuth = async (
     }
 
     if (!token) {
-      const failMsg = `[Session Verification FAIL] ${req.method} ${reqUrl} | Reason: No cookie (better-auth.session_token) or Authorization header token present in request headers.`;
+      const failMsg = `[requireAuth REJECTED] ${req.method} ${reqUrl} | Reason: No cookie (better-auth.session_token) or Authorization header token present in request headers.`;
       console.log(`\n<<< ${failMsg}\n`);
       logger.warn({
-        msg: `[Session Verification FAIL] ${req.method} ${reqUrl}`,
+        msg: `[requireAuth REJECTED] ${req.method} ${reqUrl}`,
         reason: 'No cookie (better-auth.session_token) or Authorization header token present in request headers',
         hasCookieHeader: !!cookieHeader,
         hasAuthHeader: !!authHeader,
