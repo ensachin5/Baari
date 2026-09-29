@@ -93,7 +93,7 @@ if (process.env.NODE_ENV !== 'test') {
     pinoHttp({
       logger,
       autoLogging: {
-        ignore: (req) => req.url === '/health' || req.url === '/health-ping',
+        ignore: (req) => req.url === '/health' || req.url === '/health-ping' || req.url === '/health/db',
       },
     })
   );
@@ -119,9 +119,18 @@ app.get('/', (req, res) => {
   });
 });
 
-app.get('/health', async (_req, res) => {
+// Pure Express liveness check (Fast, zero database query - safe for 5-min UptimeRobot ping)
+app.get('/health', (_req, res) => {
+  res.json({
+    status: 'ok',
+    service: 'baari-backend',
+    timestamp: new Date().toISOString(),
+  });
+});
+
+// Deep health check (Includes DB connectivity ping - for manual verification only)
+app.get('/health/db', async (_req, res) => {
   try {
-    // Ping database
     await pool.query('SELECT 1');
     res.json({
       status: 'ok',
