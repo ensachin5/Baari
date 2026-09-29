@@ -4,7 +4,7 @@
     "slug": "baari",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/baari-logo-solid.png",
+    "icon": "./assets/baari-icon-solid.png",
     "scheme": "baari",
     "userInterfaceStyle": "light",
     "jsEngine": "hermes",
@@ -17,11 +17,11 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "app.baari.mobile",
-      "icon": "./assets/baari-logo-solid.png"
+      "icon": "./assets/baari-icon-solid.png"
     },
     "android": {
       "adaptiveIcon": {
-        "foregroundImage": "./assets/adaptive-icon.png",
+        "foregroundImage": "./assets/baari-icon-foreground.png",
         "backgroundColor": "#152447"
       },
       "package": "app.baari.mobile",
