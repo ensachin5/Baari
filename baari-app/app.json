@@ -7,8 +7,6 @@
     "icon": "./assets/baari-icon-solid.png",
     "scheme": "baari",
     "userInterfaceStyle": "light",
-    "jsEngine": "hermes",
-    "newArchEnabled": true,
     "splash": {
       "image": "./assets/splash.png",
       "resizeMode": "contain",
@@ -36,7 +34,9 @@
       "expo-router",
       "expo-secure-store",
       "expo-font",
-      "expo-sharing"
+      "expo-sharing",
+      "expo-dev-client",
+      "expo-updates"
     ],
     "extra": {
       "router": {},
