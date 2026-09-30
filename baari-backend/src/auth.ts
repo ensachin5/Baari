@@ -73,25 +73,62 @@ export const auth = betterAuth({
       : {}),
   },
   plugins: [expo(), bearer()],
-  trustedOrigins: [
-    'http://localhost:3000',
-    'http://localhost:3001',
-    'http://localhost:8081',
-    'http://localhost:19000',
-    'http://localhost:19006',
-    'http://10.*:*',
-    'http://192.168.*:*',
-    'http://172.*:*',
-    ...(resolvedBaseURL ? [resolvedBaseURL] : []),
-    ...(clientUrl ? [clientUrl] : []),
-    ...additionalOrigins,
-    'baari://',
-    'baari://*',
-    'baari://**',
-    'exp://',
-    'exp://*',
-    'exp://**',
-  ],
+  trustedOrigins: async (request) => {
+    const dynamicOrigins: string[] = [];
+    if (request && typeof (request as any).headers?.get === 'function') {
+      const origin = (request as any).headers.get('origin');
+      const referer = (request as any).headers.get('referer');
+      if (origin) {
+        if (
+          origin.endsWith('.vercel.app') ||
+          origin.endsWith('.onrender.com') ||
+          origin.includes('localhost') ||
+          origin.includes('127.0.0.1')
+        ) {
+          dynamicOrigins.push(origin);
+        }
+      }
+      if (referer) {
+        try {
+          const refOrigin = new URL(referer).origin;
+          if (
+            refOrigin.endsWith('.vercel.app') ||
+            refOrigin.endsWith('.onrender.com') ||
+            refOrigin.includes('localhost') ||
+            refOrigin.includes('127.0.0.1')
+          ) {
+            dynamicOrigins.push(refOrigin);
+          }
+        } catch {}
+      }
+    }
+    return [
+      'https://*.vercel.app',
+      '*.vercel.app',
+      'https://*.onrender.com',
+      '*.onrender.com',
+      'http://localhost:*',
+      'http://127.0.0.1:*',
+      'http://localhost:3000',
+      'http://localhost:3001',
+      'http://localhost:8081',
+      'http://localhost:19000',
+      'http://localhost:19006',
+      'http://10.*:*',
+      'http://192.168.*:*',
+      'http://172.*:*',
+      ...(resolvedBaseURL ? [resolvedBaseURL] : []),
+      ...(clientUrl ? [clientUrl] : []),
+      ...additionalOrigins,
+      ...dynamicOrigins,
+      'baari://',
+      'baari://*',
+      'baari://**',
+      'exp://',
+      'exp://*',
+      'exp://**',
+    ];
+  },
 });
 
 
