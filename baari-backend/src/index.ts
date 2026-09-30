@@ -153,6 +153,34 @@ app.get('/health/db', async (_req, res) => {
   }
 });
 
+// Diagnostic endpoint to verify OAuth and Better Auth environment variables safely
+app.get('/health/auth-config', (_req, res) => {
+  const hasId = Boolean(process.env.GOOGLE_CLIENT_ID);
+  const id = (process.env.GOOGLE_CLIENT_ID || '').trim().replace(/^["']|["']$/g, '');
+  const idPrefix = id ? id.slice(0, 15) : '';
+  const idSuffix = id ? id.slice(-15) : '';
+  const hasSecret = Boolean(process.env.GOOGLE_CLIENT_SECRET);
+  const secret = (process.env.GOOGLE_CLIENT_SECRET || '').trim().replace(/^["']|["']$/g, '');
+  const secretPrefix = secret ? secret.slice(0, 7) : '';
+  const secretLength = secret.length;
+  const rawBetterAuthUrl = process.env.BETTER_AUTH_URL || '';
+  const resolvedBaseURL = rawBetterAuthUrl.trim().replace(/^["']|["']$/g, '').replace(/\/+$/, '');
+
+  res.json({
+    hasGoogleClientId: hasId,
+    googleClientIdPrefix: idPrefix,
+    googleClientIdSuffix: idSuffix,
+    googleClientIdLength: id.length,
+    hasGoogleClientSecret: hasSecret,
+    googleClientSecretPrefix: secretPrefix,
+    googleClientSecretLength: secretLength,
+    rawBetterAuthUrl,
+    resolvedBaseURL,
+    computedRedirectUri: `${resolvedBaseURL}/api/auth/callback/google`,
+    nodeEnv: process.env.NODE_ENV || 'undefined',
+  });
+});
+
 import crypto from 'crypto';
 
 // Ensure one_time_auth_codes table exists in PostgreSQL
@@ -189,6 +217,15 @@ app.use('/api/auth/callback/*', async (req, res, next) => {
     const finalStatus = typeof statusOrUrl === 'number' ? statusOrUrl : 302;
 
     if (finalUrl) {
+      if (finalUrl.includes('error=')) {
+        logger.error({
+          msg: 'OAuth callback redirected with error from Better Auth',
+          finalUrl,
+          query: req.query,
+          headers: req.headers,
+        });
+      }
+
       // Mobile app redirects use custom schemes (baari:// or exp://) and receive session cookies
       // directly via @better-auth/expo deep link parameters. DO NOT intercept them!
       const isMobileRedirect =
@@ -201,6 +238,7 @@ app.use('/api/auth/callback/*', async (req, res, next) => {
         logger.info({ msg: 'Passing through mobile OAuth redirect to Expo scheme', finalUrl });
         return (originalRedirect as any)(finalStatus, finalUrl);
       }
+
 
       try {
         let tokenToExchange = capturedSessionToken;

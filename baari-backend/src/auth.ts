@@ -10,24 +10,36 @@ dotenv.config();
 
 const resolvedBaseURL = (
   process.env.BETTER_AUTH_URL || 'http://localhost:3000'
-).trim().replace(/\/+$/, '');
+).trim().replace(/^["']|["']$/g, '').replace(/\/+$/, '');
 
 const isProduction = process.env.NODE_ENV === 'production';
 const isLocalhost = resolvedBaseURL.includes('localhost') || resolvedBaseURL.includes('127.0.0.1');
-const useSecureCookies = isProduction && !isLocalhost;
+const isHttps = resolvedBaseURL.startsWith('https://');
+const useSecureCookies = isHttps || (isProduction && !isLocalhost);
 
-const clientUrl = process.env.CLIENT_URL ? process.env.CLIENT_URL.replace(/\/+$/, '') : null;
+const clientUrl = process.env.CLIENT_URL ? process.env.CLIENT_URL.trim().replace(/^["']|["']$/g, '').replace(/\/+$/, '') : null;
 const additionalOrigins = process.env.ALLOWED_ORIGINS
-  ? process.env.ALLOWED_ORIGINS.split(',').map((o) => o.trim().replace(/\/+$/, ''))
+  ? process.env.ALLOWED_ORIGINS.split(',').map((o) => o.trim().replace(/^["']|["']$/g, '').replace(/\/+$/, ''))
   : [];
 
+const googleClientId = (process.env.GOOGLE_CLIENT_ID || '').trim().replace(/^["']|["']$/g, '');
+const googleClientSecret = (process.env.GOOGLE_CLIENT_SECRET || '').trim().replace(/^["']|["']$/g, '');
+
 export const auth = betterAuth({
-  secret: process.env.BETTER_AUTH_SECRET || 'baari-default-secret-change-in-production-min-32-chars',
+  secret: (process.env.BETTER_AUTH_SECRET || 'baari-default-secret-change-in-production-min-32-chars').trim().replace(/^["']|["']$/g, ''),
   database: drizzleAdapter(db, {
     provider: 'pg',
     schema: authSchema,
   }),
   baseURL: resolvedBaseURL,
+  logger: {
+    level: 'debug',
+  },
+  onAPIError: {
+    onError(error) {
+      console.error('[BETTER_AUTH_API_ERROR]', error);
+    },
+  },
   session: {
     expiresIn: 60 * 60 * 24 * 30, // 30 days in seconds
     updateAge: 60 * 60 * 24,      // Refresh/extend session if active within last 24 hours (rolling expiry)
@@ -51,11 +63,11 @@ export const auth = betterAuth({
     },
   },
   socialProviders: {
-    ...(process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET
+    ...(googleClientId && googleClientSecret
       ? {
           google: {
-            clientId: process.env.GOOGLE_CLIENT_ID,
-            clientSecret: process.env.GOOGLE_CLIENT_SECRET,
+            clientId: googleClientId,
+            clientSecret: googleClientSecret,
           },
         }
       : {}),
@@ -70,13 +82,16 @@ export const auth = betterAuth({
     'http://10.*:*',
     'http://192.168.*:*',
     'http://172.*:*',
+    ...(resolvedBaseURL ? [resolvedBaseURL] : []),
     ...(clientUrl ? [clientUrl] : []),
     ...additionalOrigins,
     'baari://',
     'baari://*',
+    'baari://**',
     'exp://',
     'exp://*',
     'exp://**',
   ],
 });
+
 
