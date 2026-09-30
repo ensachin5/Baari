@@ -4,9 +4,18 @@
   "private": true,
   "scripts": {
     "dev:backend": "npm --prefix baari-backend run dev",
+    "dev:web": "npm --prefix baari-web run dev",
     "dev:app": "npm --prefix baari-app start",
-    "start:app": "npm --prefix baari-app start",
     "build:backend": "npm --prefix baari-backend run build",
-    "build:app": "npm --prefix baari-app run build"
+    "build:web": "npm --prefix baari-web run build",
+    "build:app": "npm --prefix baari-app run typecheck",
+    "build:all": "npm run build:backend && npm run build:web && npm run build:app",
+    "lint:web": "npm --prefix baari-web run lint",
+    "typecheck:backend": "npm --prefix baari-backend run build",
+    "typecheck:app": "npm --prefix baari-app run typecheck",
+    "db:generate": "npm --prefix baari-backend run db:generate",
+    "db:migrate": "npm --prefix baari-backend run db:migrate",
+    "db:push": "npm --prefix baari-backend run db:push",
+    "db:studio": "npm --prefix baari-backend run db:studio"
   }
 }

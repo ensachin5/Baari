@@ -1,10 +1,49 @@
 import { Platform } from 'react-native';
+import Constants from 'expo-constants';
 import * as SecureStore from 'expo-secure-store';
 import { useSession } from '../store/session';
 
-export const API_BASE_URL = (
-  process.env.EXPO_PUBLIC_API_URL || 'https://baari-wkqq.onrender.com'
-).replace(/\/+$/, '');
+export function resolveBaseUrl(): string {
+  const envUrl = process.env.EXPO_PUBLIC_API_URL || 'https://baari-wkqq.onrender.com';
+
+  // If pointing to a remote server (e.g. Render / production), use as-is
+  if (!envUrl.includes('localhost') && !envUrl.includes('127.0.0.1')) {
+    return envUrl.replace(/\/+$/, '');
+  }
+
+  // On web, localhost is the browser host machine
+  if (Platform.OS === 'web') {
+    return envUrl.replace(/\/+$/, '');
+  }
+
+  // On physical mobile device or development client:
+  // Constants.expoConfig?.hostUri contains the developer computer's LAN IP (e.g. "10.156.35.18:8081")
+  const hostUri = Constants.expoConfig?.hostUri || (Constants as any).manifest2?.extra?.expoClient?.hostUri;
+  const metroHost = hostUri ? hostUri.split(':')[0] : null;
+
+  if (metroHost && metroHost !== 'localhost' && metroHost !== '127.0.0.1') {
+    return envUrl.replace(/localhost|127\.0\.0\.1/, metroHost).replace(/\/+$/, '');
+  }
+
+  // Fallback for Android Emulator (where host is 10.0.2.2)
+  if (Platform.OS === 'android') {
+    return envUrl.replace('localhost', '10.0.2.2').replace(/\/+$/, '');
+  }
+
+  return envUrl.replace(/\/+$/, '');
+}
+
+export const API_BASE_URL = resolveBaseUrl();
+
+function cleanAuthToken(raw?: string | null): string | null {
+  if (!raw) return null;
+  try {
+    const decoded = decodeURIComponent(raw);
+    return decoded.replace(/^s:/, '').split('.')[0].trim();
+  } catch (_) {
+    return raw.replace(/^s:/, '').split('.')[0].trim();
+  }
+}
 
 interface RequestOptions extends RequestInit {
   params?: Record<string, string | number | boolean | undefined>;
@@ -54,12 +93,13 @@ async function ensureHydrated(timeoutMs = 1500): Promise<void> {
  */
 async function resolveAuthCredentials(): Promise<{ token: string | null; cookie: string | null }> {
   // 1. Check in-memory Zustand store
-  let token = useSession.getState().token;
+  let token = cleanAuthToken(useSession.getState().token);
 
   // 2. Fallback: check SecureStore dedicated session key
   if (!token && Platform.OS !== 'web') {
     try {
-      token = await SecureStore.getItemAsync('baari_session_token');
+      const stored = await SecureStore.getItemAsync('baari_session_token');
+      token = cleanAuthToken(stored);
     } catch (_) {}
   }
 
@@ -72,8 +112,8 @@ async function resolveAuthCredentials(): Promise<{ token: string | null; cookie:
         const parsed = JSON.parse(rawCookie);
         for (const key of Object.keys(parsed)) {
           if (key.includes('session_token') && parsed[key]?.value) {
-            token = parsed[key].value;
-            if (useSession.getState().token !== token) {
+            token = cleanAuthToken(parsed[key].value);
+            if (token && useSession.getState().token !== token) {
               useSession.getState().setToken(token).catch(() => {});
             }
             break;
@@ -95,8 +135,10 @@ async function resolveAuthCredentials(): Promise<{ token: string | null; cookie:
   if (!token && cookie) {
     const match = cookie.match(/session_token=([^;]+)/);
     if (match?.[1]) {
-      token = match[1];
-      useSession.getState().setToken(token).catch(() => {});
+      token = cleanAuthToken(match[1]);
+      if (token) {
+        useSession.getState().setToken(token).catch(() => {});
+      }
     }
   }
 
@@ -143,7 +185,7 @@ export async function apiRequest<T = any>(endpoint: string, options: RequestOpti
   let response: Response;
   try {
     response = await fetch(url, {
-      credentials: 'include',
+      credentials: Platform.OS === 'web' ? 'include' : 'omit',
       ...customConfig,
       headers: {
         ...defaultHeaders,

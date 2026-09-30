@@ -46,6 +46,9 @@ export const initSocket = (httpServer: HTTPServer): SocketIOServer => {
           origin.endsWith('.vercel.app') ||
           origin.startsWith('http://localhost:') ||
           origin.startsWith('http://127.0.0.1:') ||
+          origin.startsWith('http://192.168.') ||
+          origin.startsWith('http://10.') ||
+          origin.startsWith('http://172.') ||
           origin.startsWith('baari://') ||
           origin.startsWith('exp://')
         ) {
@@ -111,7 +114,11 @@ export const initSocket = (httpServer: HTTPServer): SocketIOServer => {
 
       // 2. Direct database query fallback against session & user tables
       if (token) {
-        const cleanToken = token.split('.')[0] || token;
+        let decodedToken = token;
+        try {
+          decodedToken = decodeURIComponent(token);
+        } catch (_) {}
+        const cleanToken = decodedToken.replace(/^s:/, '').split('.')[0].trim();
         const [foundSession] = await db
           .select()
           .from(sessionTable)

@@ -31,7 +31,7 @@ export const useChat = () => {
   const processConfirmedMessage = useCallback(
     (tempId: string, confirmedMsg: ChatMessage): ChatMessage => {
       const pendingOp = pendingOpsRef.current.get(tempId);
-      let finalMsg: ChatMessage = { ...confirmedMsg, status: "sent" as const };
+      const finalMsg: ChatMessage = { ...confirmedMsg, status: "sent" as const };
 
       if (pendingOp) {
         pendingOpsRef.current.delete(tempId);

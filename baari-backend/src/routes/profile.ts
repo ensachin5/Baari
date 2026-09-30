@@ -92,7 +92,9 @@ profileRouter.get('/', requireAuth, async (req: AuthenticatedRequest, res: Respo
   // Get active flat
   const membership = await db
     .select({
+      id: flats.id,
       flatId: flats.id,
+      name: flats.name,
       flatName: flats.name,
       flatType: flats.type,
       type: flats.type,

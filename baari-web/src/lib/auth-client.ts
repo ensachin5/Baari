@@ -12,7 +12,7 @@ export const authClient = createAuthClient({
   },
 });
 
-export const { signIn, signOut, useSession: useAuthSession, getSession } = authClient;
+export const { signIn, signUp, signOut, useSession: useAuthSession, getSession } = authClient;
 
 /**
  * Fetch the current user's profile and active flat membership from the backend.

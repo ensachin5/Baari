@@ -8,25 +8,21 @@ import * as dotenv from 'dotenv';
 
 dotenv.config();
 
-// Safely resolve the base URL to prevent mismatches
-const getBaseURL = () => {
-  const envUrl = process.env.BETTER_AUTH_URL;
-  if (envUrl && envUrl.includes('baari-backend.onrender.com')) {
-    return 'https://baari-wkqq.onrender.com';
-  }
-  if (envUrl && envUrl.trim() !== '') {
-    return envUrl.trim().replace(/\/+$/, '');
-  }
-  if (process.env.NODE_ENV === 'production' || process.env.RENDER) {
-    return 'https://baari-wkqq.onrender.com';
-  }
-  return 'http://localhost:3000';
-};
+const resolvedBaseURL = (
+  process.env.BETTER_AUTH_URL || 'http://localhost:3000'
+).trim().replace(/\/+$/, '');
 
-const resolvedBaseURL = getBaseURL();
-console.log(`[Better Auth Init] Resolved baseURL: ${resolvedBaseURL} (process.env.BETTER_AUTH_URL: ${process.env.BETTER_AUTH_URL})`);
+const isProduction = process.env.NODE_ENV === 'production';
+const isLocalhost = resolvedBaseURL.includes('localhost') || resolvedBaseURL.includes('127.0.0.1');
+const useSecureCookies = isProduction && !isLocalhost;
+
+const clientUrl = process.env.CLIENT_URL ? process.env.CLIENT_URL.replace(/\/+$/, '') : null;
+const additionalOrigins = process.env.ALLOWED_ORIGINS
+  ? process.env.ALLOWED_ORIGINS.split(',').map((o) => o.trim().replace(/\/+$/, ''))
+  : [];
 
 export const auth = betterAuth({
+  secret: process.env.BETTER_AUTH_SECRET || 'baari-default-secret-change-in-production-min-32-chars',
   database: drizzleAdapter(db, {
     provider: 'pg',
     schema: authSchema,
@@ -36,13 +32,18 @@ export const auth = betterAuth({
     expiresIn: 60 * 60 * 24 * 30, // 30 days in seconds
     updateAge: 60 * 60 * 24,      // Refresh/extend session if active within last 24 hours (rolling expiry)
   },
+  emailAndPassword: {
+    enabled: true,
+    autoSignIn: true,
+    requireEmailVerification: false,
+  },
   advanced: {
     database: {
       generateId: 'uuid',
     },
     defaultCookieAttributes: {
-      sameSite: 'none',
-      secure: true,
+      sameSite: useSecureCookies ? 'none' : 'lax',
+      secure: useSecureCookies,
       httpOnly: true,
     },
     ipAddress: {
@@ -61,19 +62,21 @@ export const auth = betterAuth({
   },
   plugins: [expo(), bearer()],
   trustedOrigins: [
-    'https://baari-app.vercel.app',
-    'https://*.vercel.app',
-    'https://baari-wkqq.onrender.com',
-    'https://baari-backend.onrender.com',
     'http://localhost:3000',
     'http://localhost:3001',
     'http://localhost:8081',
     'http://localhost:19000',
     'http://localhost:19006',
-    ...(process.env.CLIENT_URL ? [process.env.CLIENT_URL.replace(/\/+$/, '')] : []),
+    'http://10.*:*',
+    'http://192.168.*:*',
+    'http://172.*:*',
+    ...(clientUrl ? [clientUrl] : []),
+    ...additionalOrigins,
     'baari://',
     'baari://*',
     'exp://',
     'exp://*',
+    'exp://**',
   ],
 });
+

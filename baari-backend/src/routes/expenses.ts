@@ -156,6 +156,15 @@ async function calculateBalances(flatId: string, currentUserId: string) {
   };
 }
 
+// Helper: check flat membership
+async function isFlatMember(flatId: string, userId: string): Promise<boolean> {
+  const [membership] = await db
+    .select({ id: flatMembers.id })
+    .from(flatMembers)
+    .where(and(eq(flatMembers.flatId, flatId), eq(flatMembers.userId, userId)));
+  return !!membership;
+}
+
 // GET /api/expenses/balances/simplified?flatId=
 expensesRouter.get(
   '/balances/simplified',
@@ -166,6 +175,11 @@ expensesRouter.get(
 
     if (!flatId) {
       res.status(400).json({ error: 'flatId is required' });
+      return;
+    }
+
+    if (!(await isFlatMember(flatId, currentUserId))) {
+      res.status(403).json({ error: 'Forbidden. You are not a member of this flat.' });
       return;
     }
 
@@ -187,6 +201,11 @@ expensesRouter.get(
       return;
     }
 
+    if (!(await isFlatMember(flatId, currentUserId))) {
+      res.status(403).json({ error: 'Forbidden. You are not a member of this flat.' });
+      return;
+    }
+
     const result = await calculateBalances(flatId, currentUserId);
     res.json(result);
   }
@@ -200,6 +219,11 @@ expensesRouter.get('/', requireAuth, async (req: AuthenticatedRequest, res: Resp
 
   if (!flatId) {
     res.status(400).json({ error: 'flatId query param is required' });
+    return;
+  }
+
+  if (!(await isFlatMember(flatId, req.user!.id))) {
+    res.status(403).json({ error: 'Forbidden. You are not a member of this flat.' });
     return;
   }
 
@@ -277,6 +301,11 @@ expensesRouter.post(
   async (req: AuthenticatedRequest, res: Response): Promise<void> => {
     const { flatId, title, amount, category, splitType, splits, isRecurring, recurrenceInterval } = req.body;
     const userId = req.user!.id;
+
+    if (!(await isFlatMember(flatId, userId))) {
+      res.status(403).json({ error: 'Forbidden. You are not a member of this flat.' });
+      return;
+    }
 
     // 1. Insert expense
     const [newExpense] = await db
@@ -424,12 +453,58 @@ expensesRouter.patch(
   }
 );
 
+// DELETE /api/expenses/:id (Creator or flat admin only)
+expensesRouter.delete(
+  '/:id',
+  requireAuth,
+  async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+    const expenseId = String(req.params.id);
+    const userId = req.user!.id;
+
+    const [existing] = await db.select().from(expenses).where(eq(expenses.id, expenseId));
+    if (!existing) {
+      res.status(404).json({ error: 'Expense not found' });
+      return;
+    }
+
+    const [membership] = await db
+      .select({ role: flatMembers.role })
+      .from(flatMembers)
+      .where(and(eq(flatMembers.flatId, existing.flatId), eq(flatMembers.userId, userId)));
+
+    const isCreator = existing.paidBy === userId;
+    const isAdmin = membership?.role === 'admin';
+
+    if (!isCreator && !isAdmin) {
+      res.status(403).json({ error: 'Only the creator or a flat admin can delete this expense' });
+      return;
+    }
+
+    await db.delete(expenseSplits).where(eq(expenseSplits.expenseId, expenseId));
+    await db.delete(expenseComments).where(eq(expenseComments.expenseId, expenseId));
+    await db.delete(expenses).where(eq(expenses.id, expenseId));
+
+    res.json({ success: true, message: 'Expense deleted successfully' });
+  }
+);
+
 // GET /api/expenses/:id/comments
 expensesRouter.get(
   '/:id/comments',
   requireAuth,
   async (req: AuthenticatedRequest, res: Response): Promise<void> => {
     const expenseId = String(req.params.id);
+
+    const [expense] = await db.select({ flatId: expenses.flatId }).from(expenses).where(eq(expenses.id, expenseId));
+    if (!expense) {
+      res.status(404).json({ error: 'Expense not found' });
+      return;
+    }
+
+    if (!(await isFlatMember(expense.flatId, req.user!.id))) {
+      res.status(403).json({ error: 'Forbidden. You are not a member of this flat.' });
+      return;
+    }
 
     const comments = await db
       .select({
@@ -461,6 +536,17 @@ expensesRouter.post(
 
     if (!content || !String(content).trim()) {
       res.status(400).json({ error: 'Comment content cannot be empty' });
+      return;
+    }
+
+    const [expense] = await db.select({ flatId: expenses.flatId }).from(expenses).where(eq(expenses.id, expenseId));
+    if (!expense) {
+      res.status(404).json({ error: 'Expense not found' });
+      return;
+    }
+
+    if (!(await isFlatMember(expense.flatId, userId))) {
+      res.status(403).json({ error: 'Forbidden. You are not a member of this flat.' });
       return;
     }
 
@@ -503,6 +589,11 @@ expensesRouter.post(
     const [expense] = await db.select().from(expenses).where(eq(expenses.id, expenseId));
     if (!expense) {
       res.status(404).json({ error: 'Expense not found' });
+      return;
+    }
+
+    if (!(await isFlatMember(expense.flatId, userId))) {
+      res.status(403).json({ error: 'Forbidden. You are not a member of this flat.' });
       return;
     }
 
@@ -553,6 +644,11 @@ expensesRouter.get(
       return;
     }
 
+    if (!(await isFlatMember(flatId, userId))) {
+      res.status(403).json({ error: 'Forbidden. You are not a member of this flat.' });
+      return;
+    }
+
     const pending = await db
       .select({
         id: settlements.id,
@@ -589,6 +685,16 @@ expensesRouter.post(
   async (req: AuthenticatedRequest, res: Response): Promise<void> => {
     const { flatId, paidTo, amount, note } = req.body;
     const paidBy = req.user!.id;
+
+    if (!(await isFlatMember(flatId, paidBy))) {
+      res.status(403).json({ error: 'Forbidden. You are not a member of this flat.' });
+      return;
+    }
+
+    if (!(await isFlatMember(flatId, paidTo))) {
+      res.status(400).json({ error: 'Recipient is not a member of this flat.' });
+      return;
+    }
 
     // Insert settlement as pending
     const [newSettlement] = await db

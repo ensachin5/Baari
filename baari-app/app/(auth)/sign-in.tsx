@@ -24,6 +24,12 @@ export default function SignInScreen() {
     // 1. Sync session token into Zustand store & SecureStore
     await syncSessionToStore(data);
 
+    const sessionToken = useSession.getState().token;
+    if (!sessionToken) {
+      // User dismissed/cancelled sign-in or no session was established
+      return;
+    }
+
     // 2. Check if user has an active flat via GET /api/flats/me
     try {
       const res = await api.get<{ flat: any }>('/api/flats/me');
@@ -35,12 +41,19 @@ export default function SignInScreen() {
         useSession.getState().setActiveFlat(null);
         router.replace('/(onboarding)/choose');
       }
-    } catch {
+    } catch (err: any) {
+      if (err?.status === 401) {
+        return;
+      }
       // Fallback: check profile
-      const { activeFlat } = await fetchUserProfile();
-      if (activeFlat) {
-        router.replace('/(tabs)/home');
-      } else {
+      try {
+        const { activeFlat } = await fetchUserProfile();
+        if (activeFlat) {
+          router.replace('/(tabs)/home');
+        } else {
+          router.replace('/(onboarding)/choose');
+        }
+      } catch {
         router.replace('/(onboarding)/choose');
       }
     }

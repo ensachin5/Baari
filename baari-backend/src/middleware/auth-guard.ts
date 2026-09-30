@@ -73,20 +73,17 @@ export const requireAuth = async (
     });
 
     if (session && session.user) {
-      const successMsg = `[Session Verification SUCCESS via BetterAuth] ${req.method} ${reqUrl} | User ID: ${session.user.id} | Session ID: ${session.session.id}`;
-      console.log(`\n>>> ${successMsg}\n`);
       logger.info({
         msg: `[Session Verification SUCCESS via BetterAuth] ${req.method} ${reqUrl}`,
         userId: session.user.id,
         sessionId: session.session.id,
-        tokenSnippet: session.session.token ? `${session.session.token.substring(0, 12)}...` : undefined,
       });
       req.user = session.user as any;
       req.session = session.session as any;
       return next();
     }
 
-    logger.info({
+    logger.debug({
       msg: `[Session Verification BetterAuth Returned Null] ${req.method} ${reqUrl} - Attempting direct DB token fallback verification`,
     });
 
@@ -101,19 +98,19 @@ export const requireAuth = async (
     }
 
     if (!token) {
-      const failMsg = `[requireAuth REJECTED] ${req.method} ${reqUrl} | Reason: No cookie (better-auth.session_token) or Authorization header token present in request headers.`;
-      console.log(`\n<<< ${failMsg}\n`);
       logger.warn({
         msg: `[requireAuth REJECTED] ${req.method} ${reqUrl}`,
-        reason: 'No cookie (better-auth.session_token) or Authorization header token present in request headers',
-        hasCookieHeader: !!cookieHeader,
-        hasAuthHeader: !!authHeader,
+        reason: 'No session cookie or Authorization header token present',
       });
       res.status(401).json({ error: 'Unauthorized. Valid session required.' });
       return;
     }
 
-    const cleanToken = token.split('.')[0] || token;
+    let decodedToken = token;
+    try {
+      decodedToken = decodeURIComponent(token);
+    } catch (_) {}
+    const cleanToken = decodedToken.replace(/^s:/, '').split('.')[0].trim();
     const tokenSnippet = cleanToken ? `${cleanToken.substring(0, 12)}...` : '';
 
     const [foundSession] = await db
@@ -122,29 +119,21 @@ export const requireAuth = async (
       .where(and(eq(sessionTable.token, cleanToken), gt(sessionTable.expiresAt, new Date())));
 
     if (!foundSession) {
-      // Check if session exists in DB but is expired
       const [expiredSession] = await db
         .select()
         .from(sessionTable)
         .where(eq(sessionTable.token, cleanToken));
 
       if (expiredSession) {
-        const expiredMsg = `[Session Verification FAIL] ${req.method} ${reqUrl} | Reason: Token (${tokenSnippet}) found in DB for session ${expiredSession.id}, but session is EXPIRED (expired at: ${expiredSession.expiresAt.toISOString()})`;
-        console.log(`\n<<< ${expiredMsg}\n`);
         logger.warn({
-          msg: `[Session Verification FAIL] ${req.method} ${reqUrl}`,
-          reason: `Token (${tokenSnippet}) found in DB for session ${expiredSession.id}, but session is EXPIRED`,
+          msg: `[Session Verification FAIL] ${req.method} ${reqUrl} - Token found but session expired`,
           sessionId: expiredSession.id,
           userId: expiredSession.userId,
           expiresAt: expiredSession.expiresAt,
-          currentTime: new Date(),
         });
       } else {
-        const noSessionMsg = `[Session Verification FAIL] ${req.method} ${reqUrl} | Reason: Token (${tokenSnippet}) present in request header/cookie but NO matching session record found in database.`;
-        console.log(`\n<<< ${noSessionMsg}\n`);
         logger.warn({
-          msg: `[Session Verification FAIL] ${req.method} ${reqUrl}`,
-          reason: `Token (${tokenSnippet}) present in request header/cookie, but NO matching session record found in database`,
+          msg: `[Session Verification FAIL] ${req.method} ${reqUrl} - Token present but no matching session record found`,
           tokenSnippet,
         });
       }
@@ -159,11 +148,8 @@ export const requireAuth = async (
       .where(eq(userTable.id, foundSession.userId));
 
     if (!foundUser) {
-      const noUserMsg = `[Session Verification FAIL] ${req.method} ${reqUrl} | Reason: Session ${foundSession.id} found in DB for token ${tokenSnippet}, but user ${foundSession.userId} record not found in database.`;
-      console.log(`\n<<< ${noUserMsg}\n`);
       logger.warn({
-        msg: `[Session Verification FAIL] ${req.method} ${reqUrl}`,
-        reason: `Session ${foundSession.id} found in DB for token ${tokenSnippet}, but user ${foundSession.userId} record not found in database`,
+        msg: `[Session Verification FAIL] ${req.method} ${reqUrl} - Session found but user record not found`,
         sessionId: foundSession.id,
         userId: foundSession.userId,
       });
@@ -171,13 +157,10 @@ export const requireAuth = async (
       return;
     }
 
-    const fallbackSuccessMsg = `[Session Verification SUCCESS via Fallback DB Lookup] ${req.method} ${reqUrl} | User ID: ${foundUser.id} | Session ID: ${foundSession.id}`;
-    console.log(`\n>>> ${fallbackSuccessMsg}\n`);
     logger.info({
       msg: `[Session Verification SUCCESS via Fallback DB Lookup] ${req.method} ${reqUrl}`,
       userId: foundUser.id,
       sessionId: foundSession.id,
-      tokenSnippet,
     });
 
     req.user = foundUser as any;

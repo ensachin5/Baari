@@ -1,6 +1,6 @@
 import { Router, Response } from 'express';
 import { db } from '../db/index.js';
-import { activityLog, user } from '../db/schema.js';
+import { activityLog, flatMembers, user } from '../db/schema.js';
 import { requireAuth, AuthenticatedRequest } from '../middleware/auth-guard.js';
 import { eq, desc, lt, and } from 'drizzle-orm';
 
@@ -14,6 +14,17 @@ activityRouter.get('/', requireAuth, async (req: AuthenticatedRequest, res: Resp
 
   if (!flatId) {
     res.status(400).json({ error: 'flatId query param is required' });
+    return;
+  }
+
+  const userId = req.user!.id;
+  const [membership] = await db
+    .select()
+    .from(flatMembers)
+    .where(and(eq(flatMembers.flatId, flatId), eq(flatMembers.userId, userId)));
+
+  if (!membership) {
+    res.status(403).json({ error: 'Forbidden. You are not a member of this flat.' });
     return;
   }
 

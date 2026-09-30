@@ -7,15 +7,24 @@ dotenv.config();
 
 const { Pool } = pg;
 
-const rawConnectionString = process.env.DATABASE_URL || 'postgresql://postgres:postgres@localhost:5432/baari';
-// Normalize sslmode=require / prefer / verify-ca to verify-full to silence pg v8.13+ alias warnings on Neon
-const connectionString = rawConnectionString.replace(/sslmode=(require|prefer|verify-ca)/g, 'sslmode=verify-full');
+const connectionString =
+  process.env.DATABASE_URL || 'postgresql://postgres:postgres@localhost:5432/baari';
+
+const isLocal =
+  connectionString.includes('localhost') || connectionString.includes('127.0.0.1');
 
 export const pool = new Pool({
   connectionString,
+  ssl: isLocal ? false : { rejectUnauthorized: false },
   max: 20,
   idleTimeoutMillis: 30000,
   connectionTimeoutMillis: 10000,
 });
 
+// Prevent unhandled error crashes when idle pooler connections drop
+pool.on('error', (err) => {
+  console.warn('[Postgres Pool Error]', err?.message || err);
+});
+
 export const db = drizzle(pool, { schema });
+

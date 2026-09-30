@@ -36,6 +36,37 @@ const TOKEN_KEY = 'baari_session_token';
 const USER_KEY = 'baari_session_user';
 const FLAT_KEY = 'baari_session_flat';
 
+const storageHelper = {
+  getItem: async (key: string): Promise<string | null> => {
+    if (Platform.OS === 'web') {
+      try {
+        return typeof window !== 'undefined' ? window.localStorage.getItem(key) : null;
+      } catch {
+        return null;
+      }
+    }
+    return SecureStore.getItemAsync(key);
+  },
+  setItem: async (key: string, value: string): Promise<void> => {
+    if (Platform.OS === 'web') {
+      try {
+        if (typeof window !== 'undefined') window.localStorage.setItem(key, value);
+      } catch {}
+      return;
+    }
+    return SecureStore.setItemAsync(key, value);
+  },
+  deleteItem: async (key: string): Promise<void> => {
+    if (Platform.OS === 'web') {
+      try {
+        if (typeof window !== 'undefined') window.localStorage.removeItem(key);
+      } catch {}
+      return;
+    }
+    return SecureStore.deleteItemAsync(key);
+  },
+};
+
 export const useSession = create<SessionState>((set, get) => ({
   user: null,
   activeFlat: null,
@@ -45,26 +76,24 @@ export const useSession = create<SessionState>((set, get) => ({
 
   setUser: (user) => {
     set({ user });
-    if (Platform.OS !== 'web' && user) {
-      SecureStore.setItemAsync(USER_KEY, JSON.stringify(user)).catch(() => {});
+    if (user) {
+      storageHelper.setItem(USER_KEY, JSON.stringify(user)).catch(() => {});
     }
   },
 
   setActiveFlat: (activeFlat) => {
     set({ activeFlat });
-    if (Platform.OS !== 'web' && activeFlat) {
-      SecureStore.setItemAsync(FLAT_KEY, JSON.stringify(activeFlat)).catch(() => {});
+    if (activeFlat) {
+      storageHelper.setItem(FLAT_KEY, JSON.stringify(activeFlat)).catch(() => {});
     }
   },
 
   setToken: async (token) => {
     set({ token });
-    if (Platform.OS !== 'web') {
-      if (token) {
-        await SecureStore.setItemAsync(TOKEN_KEY, token);
-      } else {
-        await SecureStore.deleteItemAsync(TOKEN_KEY);
-      }
+    if (token) {
+      await storageHelper.setItem(TOKEN_KEY, token);
+    } else {
+      await storageHelper.deleteItem(TOKEN_KEY);
     }
   },
 
@@ -72,37 +101,65 @@ export const useSession = create<SessionState>((set, get) => ({
 
   hydrate: async () => {
     try {
-      if (Platform.OS !== 'web') {
-        let token = await SecureStore.getItemAsync(TOKEN_KEY);
-        const userStr = await SecureStore.getItemAsync(USER_KEY);
-        const flatStr = await SecureStore.getItemAsync(FLAT_KEY);
+      let token = await storageHelper.getItem(TOKEN_KEY);
+      const userStr = await storageHelper.getItem(USER_KEY);
+      const flatStr = await storageHelper.getItem(FLAT_KEY);
+      let user: UserProfile | null = userStr ? JSON.parse(userStr) : null;
+      let activeFlat: ActiveFlat | null = flatStr ? JSON.parse(flatStr) : null;
 
-        // Check Better Auth expoClient cookie storage for authoritative active session
+      // 1. Check Better Auth expoClient cookie storage for authoritative active session on native
+      if (Platform.OS !== 'web') {
         try {
           const rawCookie = await SecureStore.getItemAsync('baari_cookie');
           if (rawCookie) {
             const parsed = JSON.parse(rawCookie);
             for (const key of Object.keys(parsed)) {
               if (key.includes('session_token') && parsed[key]?.value) {
-                token = parsed[key].value;
+                try {
+                  const decoded = decodeURIComponent(parsed[key].value);
+                  token = decoded.replace(/^s:/, '').split('.')[0].trim();
+                } catch (_) {
+                  token = parsed[key].value.replace(/^s:/, '').split('.')[0].trim();
+                }
                 if (token) {
-                  await SecureStore.setItemAsync(TOKEN_KEY, token);
+                  await storageHelper.setItem(TOKEN_KEY, token);
                 }
                 break;
               }
             }
           }
         } catch (_) {}
-
-        set({
-          token,
-          user: userStr ? JSON.parse(userStr) : null,
-          activeFlat: flatStr ? JSON.parse(flatStr) : null,
-          isHydrated: true,
-        });
-      } else {
-        set({ isHydrated: true });
       }
+
+      // 2. Fallback / Web session recovery: query authClient.getSession() to verify active session cookie
+      if (!token) {
+        try {
+          const { authClient, extractCleanToken } = await import('../lib/auth-client');
+          const session = await authClient.getSession();
+          if (session?.data?.session?.token) {
+            token = extractCleanToken(session.data.session.token);
+            if (token) {
+              await storageHelper.setItem(TOKEN_KEY, token);
+            }
+          }
+          if (session?.data?.user) {
+            user = {
+              id: session.data.user.id,
+              name: session.data.user.name,
+              email: session.data.user.email,
+              image: session.data.user.image ?? null,
+            };
+            await storageHelper.setItem(USER_KEY, JSON.stringify(user));
+          }
+        } catch (_) {}
+      }
+
+      set({
+        token,
+        user,
+        activeFlat,
+        isHydrated: true,
+      });
     } catch {
       set({ isHydrated: true });
     }
@@ -114,14 +171,16 @@ export const useSession = create<SessionState>((set, get) => ({
       const { disconnectSocket } = await import('../lib/socket');
       disconnectSocket();
     } catch (_) {}
-    if (Platform.OS !== 'web') {
-      await Promise.all([
-        SecureStore.deleteItemAsync(TOKEN_KEY).catch(() => {}),
-        SecureStore.deleteItemAsync(USER_KEY).catch(() => {}),
-        SecureStore.deleteItemAsync(FLAT_KEY).catch(() => {}),
-        SecureStore.deleteItemAsync('baari_cookie').catch(() => {}),
-        SecureStore.deleteItemAsync('baari_session_data').catch(() => {}),
-      ]);
-    }
+    await Promise.all([
+      storageHelper.deleteItem(TOKEN_KEY).catch(() => {}),
+      storageHelper.deleteItem(USER_KEY).catch(() => {}),
+      storageHelper.deleteItem(FLAT_KEY).catch(() => {}),
+      ...(Platform.OS !== 'web'
+        ? [
+            SecureStore.deleteItemAsync('baari_cookie').catch(() => {}),
+            SecureStore.deleteItemAsync('baari_session_data').catch(() => {}),
+          ]
+        : []),
+    ]);
   },
 }));

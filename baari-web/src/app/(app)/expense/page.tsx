@@ -35,7 +35,6 @@ export default function ExpensePage() {
     search,
     category,
     loading,
-    refreshing,
     setSearch,
     setCategory,
     addExpense,

@@ -324,3 +324,6 @@ export const KaamCard: React.FC<KaamCardProps> = memo(({
   </div>
 );
 });
+
+KaamCard.displayName = "KaamCard";
+

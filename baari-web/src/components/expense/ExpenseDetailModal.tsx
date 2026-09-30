@@ -97,6 +97,7 @@ export const ExpenseDetailModal: React.FC<ExpenseDetailModalProps> = ({
       );
       setComments((prev) => [...prev, res.comment]);
       setCommentText("");
+      onRefresh?.();
     } catch (err: any) {
       alert(err?.message || "Failed to post comment");
     } finally {

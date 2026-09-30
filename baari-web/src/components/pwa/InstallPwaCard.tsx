@@ -168,7 +168,7 @@ export const InstallPwaCard: React.FC = () => {
               </div>
               <div className="text-[12px] leading-[17px] text-black">
                 Tap <span className="font-semibold text-deepNavy">Share</span> in Safari toolbar, then select{" "}
-                <span className="font-semibold text-deepNavy">"Add to Home Screen"</span>.
+                <span className="font-semibold text-deepNavy">&ldquo;Add to Home Screen&rdquo;</span>.
               </div>
             </div>
           )}

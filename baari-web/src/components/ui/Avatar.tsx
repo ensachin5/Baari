@@ -126,3 +126,6 @@ export const Avatar: React.FC<AvatarProps> = memo(({
     </div>
   );
 });
+
+Avatar.displayName = "Avatar";
+

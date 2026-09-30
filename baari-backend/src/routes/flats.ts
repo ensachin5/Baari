@@ -214,6 +214,18 @@ flatsRouter.post(
 // Get flat by ID
 flatsRouter.get('/:id', requireAuth, async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   const flatId = String(req.params.id);
+  const userId = req.user!.id;
+
+  const [membership] = await db
+    .select({ role: flatMembers.role })
+    .from(flatMembers)
+    .where(and(eq(flatMembers.flatId, flatId), eq(flatMembers.userId, userId)));
+
+  if (!membership) {
+    res.status(403).json({ error: 'Forbidden. You are not a member of this flat.' });
+    return;
+  }
+
   const [flat] = await db.select().from(flats).where(eq(flats.id, flatId));
   if (!flat) {
     res.status(404).json({ error: 'Flat not found' });
@@ -224,12 +236,23 @@ flatsRouter.get('/:id', requireAuth, async (req: AuthenticatedRequest, res: Resp
     .from(flatMembers)
     .where(eq(flatMembers.flatId, flatId));
   const memberCount = Number(countRes?.count || 1);
-  res.json({ flat: { ...flat, memberCount } });
+  res.json({ flat: { ...flat, memberCount, role: membership.role } });
 });
 
 // Get members of a flat
 flatsRouter.get('/:id/members', requireAuth, async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   const flatId = String(req.params.id);
+  const userId = req.user!.id;
+
+  const [callerMembership] = await db
+    .select({ role: flatMembers.role })
+    .from(flatMembers)
+    .where(and(eq(flatMembers.flatId, flatId), eq(flatMembers.userId, userId)));
+
+  if (!callerMembership) {
+    res.status(403).json({ error: 'Forbidden. You are not a member of this flat.' });
+    return;
+  }
 
   const members = await db
     .select({
@@ -261,19 +284,6 @@ flatsRouter.get('/:id/members', requireAuth, async (req: AuthenticatedRequest, r
   res.json({ members: membersWithStreaks });
 });
 
-// Get single flat details
-flatsRouter.get('/:id', requireAuth, async (req: AuthenticatedRequest, res: Response): Promise<void> => {
-  const flatId = String(req.params.id);
-
-  const [foundFlat] = await db.select().from(flats).where(eq(flats.id, flatId));
-
-  if (!foundFlat) {
-    res.status(404).json({ error: 'Flat not found' });
-    return;
-  }
-
-  res.json({ flat: foundFlat });
-});
 
 // Admin-only remove member from flat
 flatsRouter.delete('/:id/members/:userId', requireAuth, async (req: AuthenticatedRequest, res: Response): Promise<void> => {

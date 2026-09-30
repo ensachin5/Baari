@@ -1,12 +1,21 @@
-import { createAuthClient } from 'better-auth/client';
+import { Platform } from 'react-native';
+import { createAuthClient } from 'better-auth/react';
 import { expoClient } from '@better-auth/expo/client';
 import * as SecureStore from 'expo-secure-store';
-import { api } from './api';
+import { api, resolveBaseUrl } from './api';
 import { useSession, UserProfile, ActiveFlat } from '../store/session';
 
-const baseURL = (
-  process.env.EXPO_PUBLIC_API_URL || 'https://baari-wkqq.onrender.com'
-).replace(/\/+$/, '');
+export function extractCleanToken(raw?: string | null): string | null {
+  if (!raw) return null;
+  try {
+    const decoded = decodeURIComponent(raw);
+    return decoded.replace(/^s:/, '').split('.')[0].trim();
+  } catch (_) {
+    return raw.replace(/^s:/, '').split('.')[0].trim();
+  }
+}
+
+const baseURL = resolveBaseUrl();
 
 export const authClient = createAuthClient({
   baseURL,
@@ -45,7 +54,8 @@ export async function syncSessionToStore(authResultData?: any): Promise<void> {
     authResultData?.data?.session?.token;
 
   if (rawToken) {
-    await useSession.getState().setToken(rawToken);
+    const clean = extractCleanToken(rawToken);
+    if (clean) await useSession.getState().setToken(clean);
   }
 
   const rawUser = authResultData?.user || authResultData?.data?.user;
@@ -64,7 +74,8 @@ export async function syncSessionToStore(authResultData?: any): Promise<void> {
     if (cookie) {
       const match = cookie.match(/session_token=([^;]+)/);
       if (match?.[1]) {
-        await useSession.getState().setToken(match[1]);
+        const clean = extractCleanToken(match[1]);
+        if (clean) await useSession.getState().setToken(clean);
       }
     }
   } catch (_) {}
@@ -76,8 +87,11 @@ export async function syncSessionToStore(authResultData?: any): Promise<void> {
       const parsed = JSON.parse(rawCookie);
       for (const key of Object.keys(parsed)) {
         if (key.includes('session_token') && parsed[key]?.value) {
-          await useSession.getState().setToken(parsed[key].value);
-          break;
+          const clean = extractCleanToken(parsed[key].value);
+          if (clean) {
+            await useSession.getState().setToken(clean);
+            break;
+          }
         }
       }
     }
@@ -87,7 +101,8 @@ export async function syncSessionToStore(authResultData?: any): Promise<void> {
   try {
     const session = await authClient.getSession();
     if (session.data?.session?.token) {
-      await useSession.getState().setToken(session.data.session.token);
+      const clean = extractCleanToken(session.data.session.token);
+      if (clean) await useSession.getState().setToken(clean);
     }
     if (session.data?.user) {
       useSession.getState().setUser({

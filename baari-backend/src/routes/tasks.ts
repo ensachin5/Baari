@@ -105,6 +105,16 @@ tasksRouter.get('/weekly-summary', requireAuth, async (req: AuthenticatedRequest
     return;
   }
 
+  const [membership] = await db
+    .select({ role: flatMembers.role })
+    .from(flatMembers)
+    .where(and(eq(flatMembers.flatId, flatId), eq(flatMembers.userId, req.user!.id)));
+
+  if (!membership) {
+    res.status(403).json({ error: 'Forbidden. You are not a member of this flat.' });
+    return;
+  }
+
   const sevenDaysAgo = new Date();
   sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
 
@@ -174,6 +184,17 @@ tasksRouter.get('/', requireAuth, async (req: AuthenticatedRequest, res: Respons
   const flatId = req.query.flatId as string;
   if (!flatId) {
     res.status(400).json({ error: 'flatId query param is required' });
+    return;
+  }
+
+  const userId = req.user!.id;
+  const [membership] = await db
+    .select({ role: flatMembers.role })
+    .from(flatMembers)
+    .where(and(eq(flatMembers.flatId, flatId), eq(flatMembers.userId, userId)));
+
+  if (!membership) {
+    res.status(403).json({ error: 'Forbidden. You are not a member of this flat.' });
     return;
   }
 
@@ -503,6 +524,16 @@ tasksRouter.post(
       occurrenceDate,
     } = req.body;
     const userId = req.user!.id;
+
+    const [membership] = await db
+      .select({ role: flatMembers.role })
+      .from(flatMembers)
+      .where(and(eq(flatMembers.flatId, flatId), eq(flatMembers.userId, userId)));
+
+    if (!membership) {
+      res.status(403).json({ error: 'Forbidden. You are not a member of this flat.' });
+      return;
+    }
 
     const todayStr = occurrenceDate || new Date().toISOString().split('T')[0];
 

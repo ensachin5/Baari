@@ -181,3 +181,5 @@ export const ActivityItem: React.FC<ActivityItemProps> = memo(({
     </div>
   );
 });
+
+ActivityItem.displayName = "ActivityItem";

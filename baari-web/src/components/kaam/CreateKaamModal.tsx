@@ -135,7 +135,7 @@ export const CreateKaamModal: React.FC<CreateKaamModalProps> = ({
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Reusable function to reset all form state to defaults for consecutive creations
-  const resetFormState = () => {
+  const resetFormState = React.useCallback(() => {
     if (presets.length > 0) {
       setSelectedQuickPickId(presets[0].id);
       setTitle(presets[0].title);
@@ -156,20 +156,20 @@ export const CreateKaamModal: React.FC<CreateKaamModalProps> = ({
     setDueOffsetDays(0);
     setError("");
     setIsSubmitting(false);
-  };
+  }, [presets]);
 
   // Helper to partition assignees into initial groups
   const createInitialGroups = (assignees: string[], size: number) => {
     if (assignees.length === 0) return [];
     if (assignees.length === 1 || size >= assignees.length) {
-      return [{ id: `grp-${Date.now()}-0`, userIds: [...assignees] }];
+      return [{ id: `grp-0`, userIds: [...assignees] }];
     }
     const effectiveSize = Math.max(1, size);
     const groups: Array<{ id: string; userIds: string[] }> = [];
     let grpIdx = 0;
     for (let i = 0; i < assignees.length; i += effectiveSize) {
       const chunk = assignees.slice(i, i + effectiveSize);
-      groups.push({ id: `grp-${Date.now()}-${grpIdx++}`, userIds: chunk });
+      groups.push({ id: `grp-${grpIdx++}`, userIds: chunk });
     }
     return groups;
   };
@@ -179,7 +179,7 @@ export const CreateKaamModal: React.FC<CreateKaamModalProps> = ({
     if (visible) {
       resetFormState();
     }
-  }, [visible]);
+  }, [visible, resetFormState]);
 
   // Derived unassigned users from the selectedAssignees pool
   const assignedUserIds = React.useMemo(() => {
