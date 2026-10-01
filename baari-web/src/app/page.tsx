@@ -20,6 +20,11 @@ export default function RootIndexPage() {
   const { data: session, isPending: sessionLoading } = useAuthSession();
   const { isHydrated, setUser, setActiveFlat, setToken, hydrate } = useSession();
 
+  const storeUser = useSession((state) => state.user);
+  const storeToken = useSession((state) => state.token);
+  const currentUser = session?.user || storeUser;
+  const currentToken = session?.session?.token || storeToken;
+
   const [status, setStatus] = useState<StartupStatus>("initializing");
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [slowServerHint, setSlowServerHint] = useState(false);
@@ -225,23 +230,25 @@ export default function RootIndexPage() {
   useEffect(() => {
     if (!isHydrated || sessionLoading) return;
 
-    if (!session?.user) {
-      console.log("[WakeUp] No active session. Redirecting to /sign-in...");
+    if (!currentUser && !currentToken) {
+      console.log("[WakeUp] No active session or token. Redirecting to /sign-in...");
       router.replace("/sign-in");
       return;
     }
 
-    if (session.session?.token) {
-      setToken(session.session.token);
+    if (currentToken) {
+      setToken(currentToken);
     }
 
     // Sync user into store
-    setUser({
-      id: session.user.id,
-      name: session.user.name || "User",
-      email: session.user.email,
-      image: session.user.image,
-    });
+    if (currentUser) {
+      setUser({
+        id: currentUser.id,
+        name: currentUser.name || "User",
+        email: currentUser.email,
+        image: currentUser.image ?? null,
+      });
+    }
 
     startWakeUpAndResolve();
 
@@ -250,7 +257,16 @@ export default function RootIndexPage() {
         abortControllerRef.current.abort();
       }
     };
-  }, [isHydrated, sessionLoading, session?.user, setUser, startWakeUpAndResolve, router]);
+  }, [
+    isHydrated,
+    sessionLoading,
+    currentUser,
+    currentToken,
+    setToken,
+    setUser,
+    startWakeUpAndResolve,
+    router,
+  ]);
 
   const handleRetry = () => {
     startWakeUpAndResolve();

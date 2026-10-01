@@ -15,7 +15,12 @@ import Image from "next/image";
 export default function SignInPage() {
   const router = useRouter();
   const { data: session, isPending: sessionLoading } = useAuthSession();
-  const { setUser, setActiveFlat, setToken, hydrate } = useSession();
+  const { setUser, setActiveFlat, setToken, hydrate, isHydrated } = useSession();
+  const storeUser = useSession((state) => state.user);
+  const storeToken = useSession((state) => state.token);
+  const currentUser = session?.user || storeUser;
+  const currentToken = session?.session?.token || storeToken;
+
   const [googleLoading, setGoogleLoading] = useState(false);
   const [error, setError] = useState("");
 
@@ -34,28 +39,31 @@ export default function SignInPage() {
     }
   }, [hydrate]);
 
-  // If already authenticated via session, resolve flat and redirect
+  // If already authenticated via session or store, resolve flat and redirect
   useEffect(() => {
     console.log("[SignInPage Post-Login Trace]", {
       sessionLoading,
+      isHydrated,
       hasSession: !!session,
       hasUser: !!session?.user,
-      userId: session?.user?.id || null,
-      email: session?.user?.email || null,
-      tokenSnippet: session?.session?.token ? `${session.session.token.substring(0, 10)}...` : null,
+      hasStoreUser: !!storeUser,
+      hasStoreToken: !!storeToken,
+      userId: currentUser?.id || null,
+      email: currentUser?.email || null,
+      tokenSnippet: currentToken ? `${currentToken.substring(0, 10)}...` : null,
       timestamp: new Date().toISOString(),
     });
 
-    if (!sessionLoading && session?.user) {
+    if (!sessionLoading && isHydrated && currentUser) {
       console.log("[SignInPage Log] User is authenticated. Updating session store & fetching /api/flats/me...");
-      if (session.session?.token) {
-        setToken(session.session.token);
+      if (currentToken) {
+        setToken(currentToken);
       }
       setUser({
-        id: session.user.id,
-        name: session.user.name || "User",
-        email: session.user.email,
-        image: session.user.image,
+        id: currentUser.id,
+        name: currentUser.name || "User",
+        email: currentUser.email,
+        image: currentUser.image ?? null,
       });
 
       console.log("[SignInPage Log] Calling GET /api/flats/me...");
@@ -93,7 +101,7 @@ export default function SignInPage() {
           }
         });
     }
-  }, [session, sessionLoading, router, setUser, setActiveFlat, setToken]);
+  }, [session, sessionLoading, isHydrated, currentUser, currentToken, storeUser, storeToken, router, setUser, setActiveFlat, setToken]);
 
   const handleGoogleSignIn = async () => {
     try {

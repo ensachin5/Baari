@@ -1,4 +1,5 @@
 import { createAuthClient } from "better-auth/react";
+import { bearer } from "better-auth/plugins";
 import { api } from "./api";
 import { useSession, UserProfile, ActiveFlat } from "@/store/session";
 
@@ -10,7 +11,17 @@ export const authClient = createAuthClient({
   baseURL: API_BASE_URL,
   fetchOptions: {
     credentials: "include",
+    auth: {
+      type: "Bearer",
+      token: () =>
+        useSession.getState().token ||
+        (typeof window !== "undefined"
+          ? localStorage.getItem("baari_web_token")
+          : null) ||
+        "",
+    },
   },
+  plugins: [bearer()],
 });
 
 export const { signIn, signUp, signOut, useSession: useAuthSession, getSession } = authClient;

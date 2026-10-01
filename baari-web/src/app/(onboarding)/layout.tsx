@@ -22,6 +22,11 @@ export default function OnboardingLayout({
   const router = useRouter();
   const { data: session, isPending: sessionLoading } = useAuthSession();
   const { setUser, setActiveFlat, hydrate, isHydrated } = useSession();
+  const storeUser = useSession((state) => state.user);
+  const storeToken = useSession((state) => state.token);
+  const currentUser = session?.user || storeUser;
+  const currentToken = session?.session?.token || storeToken;
+
   const [checking, setChecking] = useState(true);
   const [allowed, setAllowed] = useState(false);
 
@@ -32,19 +37,25 @@ export default function OnboardingLayout({
   useEffect(() => {
     if (sessionLoading || !isHydrated) return;
 
-    // No session → sign-in
-    if (!session?.user) {
+    // No session & no token -> sign-in
+    if (!currentUser && !currentToken) {
       router.replace("/sign-in");
       return;
     }
 
+    if (currentToken) {
+      useSession.getState().setToken(currentToken);
+    }
+
     // Sync user to Zustand store
-    setUser({
-      id: session.user.id,
-      name: session.user.name || "User",
-      email: session.user.email,
-      image: session.user.image,
-    });
+    if (currentUser) {
+      setUser({
+        id: currentUser.id,
+        name: currentUser.name || "User",
+        email: currentUser.email,
+        image: currentUser.image ?? null,
+      });
+    }
 
     // Check if user already has a flat
     api
@@ -66,7 +77,16 @@ export default function OnboardingLayout({
         setAllowed(true);
         setChecking(false);
       });
-  }, [session, sessionLoading, isHydrated, router, setUser, setActiveFlat, hydrate]);
+  }, [
+    session,
+    sessionLoading,
+    isHydrated,
+    currentUser,
+    currentToken,
+    router,
+    setUser,
+    setActiveFlat,
+  ]);
 
   if (checking && !allowed) {
     return (
