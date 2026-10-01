@@ -88,7 +88,7 @@ export const requireAuth = async (
     });
 
     // 2. Direct fallback verification: check Authorization: Bearer <token> or Cookie
-    let token = authHeader && authHeader.startsWith('Bearer ') ? authHeader.substring(7).trim() : null;
+    let token = authHeader ? authHeader.replace(/^Bearer\s+/i, '').trim() : null;
 
     if (!token && cookieHeader) {
       const match = cookieHeader.match(/(?:better-auth\.session_token|session_token|baari_session_token)=([^;]+)/);
@@ -110,7 +110,12 @@ export const requireAuth = async (
     try {
       decodedToken = decodeURIComponent(token);
     } catch (_) {}
-    const cleanToken = decodedToken.replace(/^s:/, '').split('.')[0].trim();
+    const cleanToken = decodedToken
+      .replace(/^Bearer\s+/i, '')
+      .replace(/^s:/, '')
+      .replace(/^["']|["']$/g, '')
+      .split('.')[0]
+      .trim();
     const tokenSnippet = cleanToken ? `${cleanToken.substring(0, 12)}...` : '';
 
     const [foundSession] = await db
