@@ -18,7 +18,7 @@ type StartupStatus = "initializing" | "waking" | "resolving" | "error";
 export default function RootIndexPage() {
   const router = useRouter();
   const { data: session, isPending: sessionLoading } = useAuthSession();
-  const { isHydrated, setUser, setActiveFlat, hydrate } = useSession();
+  const { isHydrated, setUser, setActiveFlat, setToken, hydrate } = useSession();
 
   const [status, setStatus] = useState<StartupStatus>("initializing");
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -200,7 +200,7 @@ export default function RootIndexPage() {
         router.replace("/choose");
       }
     } catch (apiErr: any) {
-      console.error(
+      console.warn(
         `[WakeUp] Failed to resolve flat via /api/flats/me: [${apiErr?.status}] ${apiErr?.message}`
       );
       if (apiErr?.status === 401) {
@@ -229,6 +229,10 @@ export default function RootIndexPage() {
       console.log("[WakeUp] No active session. Redirecting to /sign-in...");
       router.replace("/sign-in");
       return;
+    }
+
+    if (session.session?.token) {
+      setToken(session.session.token);
     }
 
     // Sync user into store
