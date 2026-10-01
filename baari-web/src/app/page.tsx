@@ -209,7 +209,8 @@ export default function RootIndexPage() {
         `[WakeUp] Failed to resolve flat via /api/flats/me: [${apiErr?.status}] ${apiErr?.message}`
       );
       if (apiErr?.status === 401) {
-        console.log("[WakeUp] 401 Unauthorized — Redirecting to /sign-in...");
+        console.log("[WakeUp] 401 Unauthorized — Clearing session & redirecting to /sign-in...");
+        useSession.getState().logout().catch(() => {});
         router.replace("/sign-in");
       } else if (apiErr?.status === 404) {
         console.log("[WakeUp] 404 Not Found — Redirecting to /choose...");
@@ -226,6 +227,8 @@ export default function RootIndexPage() {
     }
   }, [router, setActiveFlat]);
 
+  const hasStartedWakeUpRef = useRef(false);
+
   // Trigger on session & hydration resolution
   useEffect(() => {
     if (!isHydrated || sessionLoading) return;
@@ -236,21 +239,10 @@ export default function RootIndexPage() {
       return;
     }
 
-    if (currentToken) {
-      setToken(currentToken);
+    if (!hasStartedWakeUpRef.current) {
+      hasStartedWakeUpRef.current = true;
+      startWakeUpAndResolve();
     }
-
-    // Sync user into store
-    if (currentUser) {
-      setUser({
-        id: currentUser.id,
-        name: currentUser.name || "User",
-        email: currentUser.email,
-        image: currentUser.image ?? null,
-      });
-    }
-
-    startWakeUpAndResolve();
 
     return () => {
       if (abortControllerRef.current) {
@@ -262,8 +254,6 @@ export default function RootIndexPage() {
     sessionLoading,
     currentUser,
     currentToken,
-    setToken,
-    setUser,
     startWakeUpAndResolve,
     router,
   ]);
