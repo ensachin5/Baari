@@ -3,7 +3,7 @@
 import { useEffect, useState, Suspense } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import Image from "next/image";
-import { syncSessionToStore } from "@/lib/auth-client";
+import { syncSessionToStore, getSession } from "@/lib/auth-client";
 import { api } from "@/lib/api";
 import { useSession } from "@/store/session";
 import { AlertTriangle, LogOut, CheckCircle2, ChevronDown, ChevronUp } from "lucide-react";
@@ -95,6 +95,20 @@ function AuthCompleteContent() {
           userEmail: storeState.user?.email,
           storeHasToken: !!storeState.token,
         }, storeState.user ? "success" : "error");
+
+        addLog("STEP 3.2: GET-SESSION VERIFICATION", "Invoking getSession() to verify cookie persistence...", null, "info");
+        try {
+          const sessionCheck = await getSession();
+          const sessionFound = !!sessionCheck?.data?.user;
+          addLog("STEP 3.2: GET-SESSION RESULT", sessionFound ? "Session successfully verified via getSession()!" : "getSession() returned null session", {
+            hasUser: sessionFound,
+            userId: sessionCheck?.data?.user?.id || null,
+            userEmail: sessionCheck?.data?.user?.email || null,
+            sessionTokenSnippet: sessionCheck?.data?.session?.token ? `${sessionCheck.data.session.token.substring(0, 10)}...` : null,
+          }, sessionFound ? "success" : "error");
+        } catch (sessErr: any) {
+          addLog("STEP 3.2: GET-SESSION ERROR", "getSession() call failed: " + (sessErr?.message || sessErr), null, "error");
+        }
 
         addLog("STEP 4: GET-SESSION & FLAT CHECK", "Checking user's active flat via GET /api/flats/me...");
         const flatRes = await api.get<{ flat: any }>("/api/flats/me").catch((err) => {
