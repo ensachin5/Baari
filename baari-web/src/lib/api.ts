@@ -45,7 +45,14 @@ export async function apiRequest<T = any>(
     Accept: "application/json",
   };
 
-  const token = useSession.getState().token;
+  const token =
+    useSession.getState().token ||
+    (typeof window !== "undefined"
+      ? localStorage.getItem("baari_web_token") ||
+        localStorage.getItem("better-auth.session_token") ||
+        localStorage.getItem("bearer_token")
+      : null);
+
   if (token) {
     defaultHeaders["Authorization"] = `Bearer ${token}`;
   }
@@ -78,9 +85,6 @@ export async function apiRequest<T = any>(
   const data = isJson ? await response.json() : null;
 
   if (!response.ok) {
-    if (response.status === 401) {
-      useSession.getState().logout().catch(() => {});
-    }
     const errorMessage =
       data?.error || data?.message || `Request failed with status ${response.status}`;
     throw new ApiError(errorMessage, response.status, data);

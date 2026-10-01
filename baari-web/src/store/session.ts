@@ -71,8 +71,12 @@ export const useSession = create<SessionState>((set) => ({
     if (typeof window !== "undefined") {
       if (token) {
         localStorage.setItem(TOKEN_STORAGE_KEY, token);
+        localStorage.setItem("better-auth.session_token", token);
+        localStorage.setItem("bearer_token", token);
       } else {
         localStorage.removeItem(TOKEN_STORAGE_KEY);
+        localStorage.removeItem("better-auth.session_token");
+        localStorage.removeItem("bearer_token");
       }
     }
   },
@@ -84,13 +88,24 @@ export const useSession = create<SessionState>((set) => ({
       try {
         const storedUser = localStorage.getItem(USER_STORAGE_KEY);
         const storedFlat = localStorage.getItem(FLAT_STORAGE_KEY);
-        const storedToken = localStorage.getItem(TOKEN_STORAGE_KEY);
+        const storedToken =
+          localStorage.getItem(TOKEN_STORAGE_KEY) ||
+          localStorage.getItem("better-auth.session_token") ||
+          localStorage.getItem("bearer_token");
+
         set({
           user: storedUser ? JSON.parse(storedUser) : null,
           activeFlat: storedFlat ? JSON.parse(storedFlat) : null,
           token: storedToken || null,
           isHydrated: true,
         });
+
+        // Mirror back stored token across all storage keys if present
+        if (storedToken) {
+          localStorage.setItem(TOKEN_STORAGE_KEY, storedToken);
+          localStorage.setItem("better-auth.session_token", storedToken);
+          localStorage.setItem("bearer_token", storedToken);
+        }
       } catch {
         set({ isHydrated: true });
       }
@@ -105,6 +120,8 @@ export const useSession = create<SessionState>((set) => ({
       localStorage.removeItem(USER_STORAGE_KEY);
       localStorage.removeItem(FLAT_STORAGE_KEY);
       localStorage.removeItem(TOKEN_STORAGE_KEY);
+      localStorage.removeItem("better-auth.session_token");
+      localStorage.removeItem("bearer_token");
     }
     try {
       const { disconnectSocket } = await import("@/lib/socket");
