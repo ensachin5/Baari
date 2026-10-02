@@ -91,7 +91,7 @@ export const requireAuth = async (
     let token = authHeader ? authHeader.replace(/^Bearer\s+/i, '').trim() : null;
 
     if (!token && cookieHeader) {
-      const match = cookieHeader.match(/(?:better-auth\.session_token|session_token|baari_session_token)=([^;]+)/);
+      const match = cookieHeader.match(/(?:better-auth\.session_token|baari\.session_token|session_token|baari_session_token)=([^;]+)/);
       if (match?.[1]) {
         token = decodeURIComponent(match[1]);
       }
