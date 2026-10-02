@@ -90,6 +90,10 @@ export default function AppLayout({
     };
   }, []);
 
+  const storeToken = useSession((state) => state.token);
+  const currentToken = session?.session?.token || storeToken;
+  const isFetchingProfileRef = React.useRef(false);
+
   useEffect(() => {
     console.log("[AppLayout Session Guard Trace]", {
       pathname,
@@ -97,18 +101,46 @@ export default function AppLayout({
       isHydrated,
       hasSessionUser: !!session?.user,
       hasStoreUser: !!user,
-      sessionTokenSnippet: session?.session?.token ? `${session.session.token.substring(0, 10)}...` : null,
+      sessionTokenSnippet: currentToken ? `${currentToken.substring(0, 10)}...` : null,
       timestamp: new Date().toISOString(),
     });
 
     if (session?.session?.token) {
       useSession.getState().setToken(session.session.token);
     }
-    if (!sessionLoading && !session?.user && isHydrated && !user) {
+
+    const hasUser = !!user || !!session?.user;
+    const hasToken = !!currentToken || (typeof window !== "undefined" && Boolean(
+      localStorage.getItem("baari_web_token") ||
+      localStorage.getItem("better-auth.session_token") ||
+      localStorage.getItem("bearer_token")
+    ));
+
+    // If session check finished and there is no user and no token anywhere -> redirect
+    if (!sessionLoading && !hasUser && !hasToken && isHydrated) {
       console.warn("[AppLayout Decision] No active session found in Better Auth or Zustand store -> Redirecting to /sign-in");
       router.replace("/sign-in");
+      return;
     }
-  }, [session, sessionLoading, user, isHydrated, router, pathname]);
+
+    // Token exists but user profile object is missing in store (common in Brave/Safari with blocked cookies)
+    if (!hasUser && hasToken && isHydrated && !isFetchingProfileRef.current) {
+      isFetchingProfileRef.current = true;
+      console.log("[AppLayout] Stored Bearer token found. Fetching user profile via /api/profile...");
+      import("@/lib/auth-client")
+        .then(({ fetchUserProfile }) => fetchUserProfile())
+        .catch((err) => {
+          console.warn("[AppLayout] Failed fetching profile with stored token:", err);
+          if (err?.status === 401) {
+            useSession.getState().logout().catch(() => {});
+            router.replace("/sign-in");
+          }
+        })
+        .finally(() => {
+          isFetchingProfileRef.current = false;
+        });
+    }
+  }, [session, sessionLoading, user, isHydrated, currentToken, router, pathname]);
 
   // Register Web Push notifications on session and active flat mount
   useEffect(() => {

@@ -233,8 +233,14 @@ export default function RootIndexPage() {
   useEffect(() => {
     if (!isHydrated || sessionLoading) return;
 
-    if (!currentUser && !currentToken) {
-      console.log("[WakeUp] No active session or token. Redirecting to /sign-in...");
+    const hasToken = !!currentToken || (typeof window !== "undefined" && Boolean(
+      localStorage.getItem("baari_web_token") ||
+      localStorage.getItem("better-auth.session_token") ||
+      localStorage.getItem("bearer_token")
+    ));
+
+    if (!currentUser && !hasToken) {
+      console.log("[WakeUp] No active session or token found. Redirecting to /sign-in...");
       router.replace("/sign-in");
       return;
     }
