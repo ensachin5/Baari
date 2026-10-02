@@ -197,6 +197,22 @@ pool.query(`
 
 // Intercept OAuth callback redirects to implement WebKit ITP-immune one-time code exchange
 app.use('/api/auth/callback/*', async (req, res, next) => {
+  // If browser dropped state cookie in cross-site OAuth redirect (common in Brave/Safari/cross-domain Vercel<->Render),
+  // inject state from req.query.state so Better Auth state validation succeeds!
+  if (req.query.state && typeof req.query.state === 'string') {
+    const existingCookie = req.headers.cookie || '';
+    if (!existingCookie.includes('better-auth.state') && !existingCookie.includes('state=')) {
+      const injectedCookie = existingCookie
+        ? `${existingCookie}; better-auth.state=${req.query.state}`
+        : `better-auth.state=${req.query.state}`;
+      req.headers.cookie = injectedCookie;
+      logger.info({
+        msg: 'Injected OAuth state cookie from query parameter to bypass cross-domain state mismatch',
+        state: req.query.state,
+      });
+    }
+  }
+
   let capturedSessionToken: string | null = null;
   const originalSetHeader = res.setHeader.bind(res);
 
