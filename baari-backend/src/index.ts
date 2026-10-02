@@ -195,177 +195,169 @@ pool.query(`
   );
 `).catch((err) => logger.error({ msg: 'Failed creating one_time_auth_codes table', error: err.message }));
 
-// Intercept OAuth callback redirects to implement WebKit ITP-immune one-time code exchange
-app.use('/api/auth/callback/*', async (req, res, next) => {
-  // If browser dropped state cookie in cross-site OAuth redirect (common in Brave/Safari/cross-domain Vercel<->Render),
-  // inject state from req.query.state so Better Auth state validation succeeds!
-  if (req.query.state && typeof req.query.state === 'string') {
-    const existingCookie = req.headers.cookie || '';
-    if (!existingCookie.includes('better-auth.state') && !existingCookie.includes('state=')) {
-      const injectedCookie = existingCookie
-        ? `${existingCookie}; better-auth.state=${req.query.state}`
-        : `better-auth.state=${req.query.state}`;
-      req.headers.cookie = injectedCookie;
-      logger.info({
-        msg: 'Injected OAuth state cookie from query parameter to bypass cross-domain state mismatch',
-        state: req.query.state,
-      });
+const SESSION_COOKIE_RE = /(?:^|[\s;,])((?:__Secure-)?(?:better-auth|baari)\.session_token)=([^;]+)/;
+
+/** Signed cookie value is "<token>.<signature>"; DB stores only "<token>". */
+const rawTokenFromCookieValue = (value: string): string => {
+  let v = value;
+  try { v = decodeURIComponent(v); } catch (_) {}
+  return v.replace(/^["']|["']$/g, '').split('.')[0].trim();
+};
+
+app.use('/api/auth/callback/*', (req, res, next) => {
+  // Re-inject the OAuth state cookie from ?state= (plain + __Secure- names)
+  if (typeof req.query.state === 'string' && req.query.state) {
+    const existing = req.headers.cookie || '';
+    if (!/(?:^|;\s*)(?:__Secure-)?better-auth\.state=/.test(existing)) {
+      const extra = `better-auth.state=${req.query.state}; __Secure-better-auth.state=${req.query.state}`;
+      req.headers.cookie = existing ? `${existing}; ${extra}` : extra;
+      logger.info({ msg: 'Injected OAuth state cookie from query parameter' });
     }
   }
 
-  let capturedSessionToken: string | null = null;
-  const originalSetHeader = res.setHeader.bind(res);
-
-  res.setHeader = function (name: string, value: any) {
-    if (name.toLowerCase() === 'set-cookie') {
-      const cookieStr = Array.isArray(value) ? value.join('; ') : String(value);
-      const match = cookieStr.match(/(?:better-auth|baari)\.session_token=([^;]+)/);
-      if (match?.[1]) {
-        capturedSessionToken = match[1];
-      }
+  let capturedCookieValue: string | null = null;
+  const captureFrom = (setCookie: unknown) => {
+    if (!setCookie) return;
+    const list = Array.isArray(setCookie) ? setCookie : [String(setCookie)];
+    for (const c of list) {
+      const m = String(c).match(SESSION_COOKIE_RE);
+      if (m?.[2]) capturedCookieValue = m[2];
     }
-    return originalSetHeader(name, value);
   };
 
-  const originalRedirect = res.redirect.bind(res);
-  res.redirect = async function (statusOrUrl: any, url?: any) {
-    const finalUrl = typeof statusOrUrl === 'string' ? statusOrUrl : url;
-    const finalStatus = typeof statusOrUrl === 'number' ? statusOrUrl : 302;
+  const originalSetHeader = res.setHeader.bind(res);
+  res.setHeader = ((name: string, value: any) => {
+    if (name.toLowerCase() === 'set-cookie') captureFrom(value);
+    return originalSetHeader(name, value);
+  }) as typeof res.setHeader;
 
-    if (finalUrl) {
-      if (finalUrl.includes('error=')) {
-        logger.error({
-          msg: 'OAuth callback redirected with error from Better Auth',
-          finalUrl,
-          query: req.query,
-          headers: req.headers,
-        });
-      }
+  const isMobileRedirect = (loc: string) =>
+    Boolean(req.headers['expo-origin']) ||
+    loc.startsWith('baari://') ||
+    loc.startsWith('exp://') ||
+    !/^https?:\/\//i.test(loc);
 
-      // Mobile app redirects use custom schemes (baari:// or exp://) and receive session cookies
-      // directly via @better-auth/expo deep link parameters. DO NOT intercept them!
-      const isMobileRedirect =
-        finalUrl.startsWith('baari://') ||
-        finalUrl.startsWith('exp://') ||
-        (!finalUrl.startsWith('http://') && !finalUrl.startsWith('https://')) ||
-        Boolean(req.headers['expo-origin']);
+  const originalWriteHead = res.writeHead.bind(res) as any;
+  (res as any).writeHead = (statusCode: number, ...rest: any[]) => {
+    let statusMessage: string | undefined;
+    let headers: any;
+    if (typeof rest[0] === 'string') { statusMessage = rest[0]; headers = rest[1]; }
+    else { headers = rest[0]; }
 
-      if (isMobileRedirect) {
-        logger.info({ msg: 'Passing through mobile OAuth redirect to Expo scheme', finalUrl });
-        return (originalRedirect as any)(finalStatus, finalUrl);
-      }
-
-
-      try {
-        let tokenToExchange = capturedSessionToken;
-        let targetUserId: string | null = null;
-
-        if (!tokenToExchange) {
-          const sessionRes = await pool.query(
-            `SELECT token, user_id FROM "session" ORDER BY created_at DESC LIMIT 1`
-          );
-          if (sessionRes.rowCount && sessionRes.rowCount > 0) {
-            tokenToExchange = sessionRes.rows[0].token;
-            targetUserId = sessionRes.rows[0].user_id;
+    let location: string | undefined;
+    const readHeaders = (h: any) => {
+      if (!h) return;
+      if (Array.isArray(h)) {
+        if (h.length && Array.isArray(h[0])) {
+          for (const [k, v] of h) {
+            if (String(k).toLowerCase() === 'location') location = String(v);
+            if (String(k).toLowerCase() === 'set-cookie') captureFrom(v);
           }
         } else {
-          const userRes = await pool.query(
-            `SELECT user_id FROM "session" WHERE token = $1 LIMIT 1`,
-            [tokenToExchange]
-          );
-          if (userRes.rowCount && userRes.rowCount > 0) {
-            targetUserId = userRes.rows[0].user_id;
+          for (let i = 0; i + 1 < h.length; i += 2) {
+            if (String(h[i]).toLowerCase() === 'location') location = String(h[i + 1]);
+            if (String(h[i]).toLowerCase() === 'set-cookie') captureFrom(h[i + 1]);
           }
         }
-
-        if (tokenToExchange && targetUserId) {
-          const exchangeCode = crypto.randomBytes(32).toString('hex');
-          const expiresAt = new Date(Date.now() + 60000); // 60s single-use
-
-          await pool.query(
-            `INSERT INTO one_time_auth_codes (code, user_id, session_token, expires_at) VALUES ($1, $2, $3, $4)`,
-            [exchangeCode, targetUserId, tokenToExchange, expiresAt]
-          );
-
-          let targetOrigin = clientUrl || 'http://localhost:3000';
-          try {
-            if (finalUrl && (finalUrl.startsWith('http://') || finalUrl.startsWith('https://'))) {
-              const urlObj = new URL(finalUrl);
-              if (!urlObj.hostname.includes('google.com') && !urlObj.hostname.includes('accounts.google')) {
-                targetOrigin = urlObj.origin;
-              }
-            }
-          } catch (_) {}
-
-          const completionUrl = `${targetOrigin}/auth/complete?code=${exchangeCode}`;
-          logger.info({ msg: 'One-time auth code created for OAuth callback', targetUserId, completionUrl });
-
-          // Remove Set-Cookie header from redirect so WebKit ITP doesn't drop it mid-redirect
-          res.removeHeader('Set-Cookie');
-
-          return (originalRedirect as any)(finalStatus, completionUrl);
+      } else {
+        for (const k of Object.keys(h)) {
+          if (k.toLowerCase() === 'location') location = String(h[k]);
+          if (k.toLowerCase() === 'set-cookie') captureFrom(h[k]);
         }
-      } catch (err: any) {
-        logger.error({ msg: 'Error generating one-time auth exchange code', error: err.message });
+      }
+    };
+    readHeaders(headers);
+    if (!location) { const l = res.getHeader('location'); if (l) location = String(l); }
+    captureFrom(res.getHeader('set-cookie'));
+
+    const isRedirect = statusCode >= 300 && statusCode < 400 && !!location;
+
+    if (isRedirect && location) {
+      if (location.includes('error=')) {
+        logger.error({ msg: 'OAuth callback redirected with error', location, query: req.query });
+      } else if (isMobileRedirect(location)) {
+        logger.info({ msg: 'Passing through mobile OAuth redirect', location });
+      } else if (capturedCookieValue) {
+        const cookieValue = capturedCookieValue;
+        const rawToken = rawTokenFromCookieValue(cookieValue);
+        const loc = location;
+        (async () => {
+          try {
+            const sess = await pool.query(`SELECT user_id FROM "session" WHERE token = $1 LIMIT 1`, [rawToken]);
+            if (!sess.rowCount) throw new Error('session row not found for callback token');
+            const code = crypto.randomBytes(32).toString('hex');
+            await pool.query(
+              `INSERT INTO one_time_auth_codes (code, user_id, session_token, expires_at) VALUES ($1, $2, $3, $4)`,
+              [code, sess.rows[0].user_id, decodeURIComponent(cookieValue), new Date(Date.now() + 60_000)]
+            );
+            const origin = new URL(loc).origin;
+            const completionUrl = `${origin}/auth/complete?code=${code}`;
+            logger.info({ msg: 'One-time auth code created for OAuth callback', completionUrl: `${origin}/auth/complete` });
+            res.removeHeader('Set-Cookie');
+            res.removeHeader('set-cookie');
+            originalSetHeader('Location', completionUrl);
+            originalWriteHead(302, { Location: completionUrl, 'Cache-Control': 'no-store' });
+            res.end();
+          } catch (err: any) {
+            logger.error({ msg: 'One-time code handoff failed; using original redirect', error: err?.message });
+            originalWriteHead(statusCode, ...(statusMessage ? [statusMessage] : []), headers);
+            res.end();
+          }
+        })();
+        return res;
       }
     }
 
-    return (originalRedirect as any)(statusOrUrl, url);
+    return statusMessage !== undefined
+      ? originalWriteHead(statusCode, statusMessage, headers)
+      : originalWriteHead(statusCode, headers);
   };
 
   next();
 });
 
-// Endpoint for Same-Origin fetch completion (WebKit ITP Workaround)
 app.post('/api/auth/complete-login', async (req, res): Promise<void> => {
   const { code } = req.body || {};
-
   if (!code || typeof code !== 'string') {
     res.status(400).json({ error: 'One-time exchange code is required' });
     return;
   }
-
   try {
-    // Atomically find & delete code (single-use guarantee)
     const codeRes = await pool.query(
       `DELETE FROM one_time_auth_codes WHERE code = $1 AND expires_at > NOW() RETURNING *`,
       [code]
     );
-
-    if (!codeRes.rowCount || codeRes.rowCount === 0) {
+    if (!codeRes.rowCount) {
       res.status(400).json({ error: 'Invalid, used, or expired authentication code' });
       return;
     }
+    const { user_id, session_token: signedToken } = codeRes.rows[0];
+    const rawToken = rawTokenFromCookieValue(signedToken);
 
-    const { user_id, session_token } = codeRes.rows[0];
-
-    // Fetch user and session from DB
     const userRes = await pool.query(`SELECT id, name, email, image FROM "user" WHERE id = $1`, [user_id]);
-    const sessRes = await pool.query(`SELECT id, expires_at, token FROM "session" WHERE token = $1`, [session_token]);
-
+    const sessRes = await pool.query(
+      `SELECT id, expires_at, token FROM "session" WHERE token = $1 AND expires_at > NOW()`,
+      [rawToken]
+    );
     if (!userRes.rowCount || !sessRes.rowCount) {
       res.status(401).json({ error: 'Associated user or session not found' });
       return;
     }
 
-    const userData = userRes.rows[0];
-    const sessionData = sessRes.rows[0];
+    const isHttps =
+      (req.headers['x-forwarded-proto'] || req.protocol) === 'https' ||
+      process.env.NODE_ENV === 'production';
+    const cookieName = isHttps ? '__Secure-better-auth.session_token' : 'better-auth.session_token';
+    const attrs = `Path=/; Max-Age=2592000; HttpOnly; ${isHttps ? 'SameSite=None; Secure' : 'SameSite=Lax'}`;
 
-    const host = (req.headers.host || '').toString();
-    const isProd = process.env.NODE_ENV === 'production' && !host.includes('localhost') && !host.includes('127.0.0.1');
-
-    const cookieHeaders = [
-      `baari.session_token=${session_token}; Path=/; Max-Age=2592000; ${isProd ? 'SameSite=None; Secure;' : 'SameSite=Lax;'} HttpOnly`,
-      `better-auth.session_token=${session_token}; Path=/; Max-Age=2592000; ${isProd ? 'SameSite=None; Secure;' : 'SameSite=Lax;'} HttpOnly`,
-    ];
-
-    res.setHeader('Set-Cookie', cookieHeaders);
+    res.setHeader('Set-Cookie', `${cookieName}=${encodeURIComponent(decodeURIComponent(signedToken))}; ${attrs}`);
+    res.setHeader('Cache-Control', 'no-store');
 
     res.json({
       success: true,
-      token: session_token,
-      user: userData,
-      session: sessionData,
+      token: decodeURIComponent(signedToken), // signed value: works as Bearer for Better Auth AND requireAuth
+      user: userRes.rows[0],
+      session: sessRes.rows[0],
     });
   } catch (err: any) {
     logger.error({ msg: 'complete-login endpoint exception', error: err?.message });
