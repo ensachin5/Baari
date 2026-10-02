@@ -42,6 +42,10 @@ const nextConfig: NextConfig = {
         source: "/health",
         destination: `${backendUrl}/health`,
       },
+      {
+        source: "/socket.io/:path*",
+        destination: `${backendUrl}/socket.io/:path*`,
+      },
     ];
   },
 };
