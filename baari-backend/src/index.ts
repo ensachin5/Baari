@@ -271,8 +271,18 @@ app.use('/api/auth/callback/*', async (req, res, next) => {
             [exchangeCode, targetUserId, tokenToExchange, expiresAt]
           );
 
-          const completionUrl = `${clientUrl}/auth/complete?code=${exchangeCode}`;
-          logger.info({ msg: 'One-time auth code created for OAuth callback', targetUserId });
+          let targetOrigin = clientUrl;
+          try {
+            if (finalUrl && (finalUrl.startsWith('http://') || finalUrl.startsWith('https://'))) {
+              const urlObj = new URL(finalUrl);
+              if (!urlObj.hostname.includes('google.com') && !urlObj.hostname.includes('accounts.google')) {
+                targetOrigin = urlObj.origin;
+              }
+            }
+          } catch (_) {}
+
+          const completionUrl = `${targetOrigin}/auth/complete?code=${exchangeCode}`;
+          logger.info({ msg: 'One-time auth code created for OAuth callback', targetUserId, completionUrl });
 
           // Remove Set-Cookie header from redirect so WebKit ITP doesn't drop it mid-redirect
           res.removeHeader('Set-Cookie');
