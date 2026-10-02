@@ -66,7 +66,7 @@ export default function RootIndexPage() {
     const attemptStartTime = Date.now();
     const elapsedTotal = Math.round((attemptStartTime - totalStartTime) / 1000);
     console.log(
-      `[WakeUp] Attempt ${attempt}/${MAX_ATTEMPTS} — Pinging ${API_BASE_URL}/health-ping (total elapsed: ${elapsedTotal}s)...`
+      `[WakeUp] Attempt ${attempt}/${MAX_ATTEMPTS} — Pinging /health-ping (total elapsed: ${elapsedTotal}s)...`
     );
 
     // Per-attempt timeout controller (linked to parent signal)
@@ -80,7 +80,7 @@ export default function RootIndexPage() {
     signal.addEventListener("abort", onParentAbort);
 
     try {
-      const res = await fetch(`${API_BASE_URL}/health-ping`, {
+      const res = await fetch("/health-ping", {
         method: "GET",
         signal: requestController.signal,
         cache: "no-store",

@@ -1,8 +1,10 @@
 import { useSession } from "@/store/session";
 
-export const API_BASE_URL = (
-  process.env.NEXT_PUBLIC_API_URL || "https://baari-wkqq.onrender.com"
-).replace(/\/+$/, "");
+/**
+ * Client-side base URL. Defaults to "" (empty string) so all fetch requests use relative
+ * paths (e.g. /api/flats/me), which are proxied Same-Origin by next.config.ts rewrites.
+ */
+export const API_BASE_URL = "";
 
 interface RequestOptions extends RequestInit {
   params?: Record<string, string | number | boolean | undefined | null>;

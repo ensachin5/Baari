@@ -7,7 +7,11 @@ const withSerwist = withSerwistInit({
   disable: process.env.NODE_ENV !== "production",
 });
 
-const backendUrl = (process.env.BACKEND_URL || "https://baari-wkqq.onrender.com").replace(/\/+$/, "");
+const backendUrl = (
+  process.env.BACKEND_URL ||
+  process.env.NEXT_PUBLIC_API_URL ||
+  "https://baari-wkqq.onrender.com"
+).replace(/\/+$/, "");
 
 const nextConfig: NextConfig = {
   reactStrictMode: true,
@@ -29,6 +33,14 @@ const nextConfig: NextConfig = {
       {
         source: "/api/:path*",
         destination: `${backendUrl}/api/:path*`,
+      },
+      {
+        source: "/health-ping",
+        destination: `${backendUrl}/health-ping`,
+      },
+      {
+        source: "/health",
+        destination: `${backendUrl}/health`,
       },
     ];
   },

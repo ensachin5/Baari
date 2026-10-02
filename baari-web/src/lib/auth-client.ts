@@ -3,9 +3,11 @@ import { bearer } from "better-auth/plugins";
 import { api } from "./api";
 import { useSession, UserProfile, ActiveFlat } from "@/store/session";
 
-export const API_BASE_URL = (
-  process.env.NEXT_PUBLIC_API_URL || "https://baari-wkqq.onrender.com"
-).replace(/\/+$/, "");
+/**
+ * Client-side base URL for authClient. Defaults to "" (empty string) so all Better Auth
+ * calls (/api/auth/*) use relative paths proxied Same-Origin by next.config.ts rewrites.
+ */
+export const API_BASE_URL = "";
 
 export const authClient = createAuthClient({
   baseURL: API_BASE_URL,

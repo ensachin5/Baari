@@ -1,10 +1,14 @@
 import { useEffect } from "react";
 import { io, Socket } from "socket.io-client";
-import { API_BASE_URL } from "./api";
 import { useSession } from "@/store/session";
 
 let socket: Socket | null = null;
 let isWarmingUp = false;
+
+const SOCKET_URL =
+  typeof window !== "undefined"
+    ? window.location.origin
+    : (process.env.NEXT_PUBLIC_API_URL || "https://baari-wkqq.onrender.com").replace(/\/+$/, "");
 
 // Pre-warm backend HTTP server before initiating WebSocket handshake
 async function warmUpBackend(): Promise<void> {
@@ -14,8 +18,8 @@ async function warmUpBackend(): Promise<void> {
     console.log('[Socket] Pinging backend /health-ping to warm up cold instance before socket handshake...');
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 45000);
-    const res = await fetch(`${API_BASE_URL}/health-ping`, {
-      method: 'GET',
+    const res = await fetch("/health-ping", {
+      method: "GET",
       signal: controller.signal,
     });
     clearTimeout(timeoutId);
@@ -31,7 +35,7 @@ let lastConnectErrorLog = 0;
 
 export const getSocket = (): Socket => {
   if (!socket) {
-    socket = io(API_BASE_URL, {
+    socket = io(SOCKET_URL, {
       autoConnect: false,
       reconnection: true,
       reconnectionAttempts: Infinity,
@@ -102,7 +106,7 @@ export const connectSocket = async () => {
   if (!s.connected) {
     console.log('[Socket] Initiating socket.connect(). Token present:', !!token);
     // Non-blocking pre-warm ping for cold start
-    if (!API_BASE_URL.includes('localhost')) {
+    if (!SOCKET_URL.includes('localhost')) {
       warmUpBackend().catch(() => {});
     }
     s.connect();
