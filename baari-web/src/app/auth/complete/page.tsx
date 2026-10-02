@@ -20,6 +20,7 @@ function AuthCompleteContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const code = searchParams.get("code");
+  const debugEnabled = searchParams.get("debug") === "1";
   const setActiveFlat = useSession((state) => state.setActiveFlat);
 
   const [status, setStatus] = useState<"loading" | "success" | "error">("loading");
@@ -214,56 +215,58 @@ function AuthCompleteContent() {
         )}
       </div>
 
-      {/* On-Screen iPhone Debug HUD Box */}
-      <div className="w-full max-w-md mt-8 border border-border rounded-xl bg-slate-900 text-slate-100 overflow-hidden text-left shadow-lg">
-        <div
-          onClick={() => setShowDebugLogs(!showDebugLogs)}
-          className="flex items-center justify-between px-4 py-2.5 bg-slate-800 border-b border-slate-700 cursor-pointer select-none"
-        >
-          <div className="flex items-center gap-2">
-            <div className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse" />
-            <span className="text-xs font-mono font-bold uppercase tracking-wider text-slate-200">
-              iPhone Debug HUD ({debugLogs.length} Steps)
-            </span>
+      {/* On-Screen iPhone Debug HUD Box (Only renders when ?debug=1 is in URL) */}
+      {debugEnabled && (
+        <div className="w-full max-w-md mt-8 border border-border rounded-xl bg-slate-900 text-slate-100 overflow-hidden text-left shadow-lg">
+          <div
+            onClick={() => setShowDebugLogs(!showDebugLogs)}
+            className="flex items-center justify-between px-4 py-2.5 bg-slate-800 border-b border-slate-700 cursor-pointer select-none"
+          >
+            <div className="flex items-center gap-2">
+              <div className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse" />
+              <span className="text-xs font-mono font-bold uppercase tracking-wider text-slate-200">
+                iPhone Debug HUD ({debugLogs.length} Steps)
+              </span>
+            </div>
+            <button type="button" className="text-slate-400 hover:text-white">
+              {showDebugLogs ? <ChevronDown size={16} /> : <ChevronUp size={16} />}
+            </button>
           </div>
-          <button type="button" className="text-slate-400 hover:text-white">
-            {showDebugLogs ? <ChevronDown size={16} /> : <ChevronUp size={16} />}
-          </button>
-        </div>
 
-        {showDebugLogs && (
-          <div className="p-3 max-h-64 overflow-y-auto space-y-2 font-mono text-[11px] leading-relaxed select-text">
-            {debugLogs.length === 0 ? (
-              <p className="text-slate-500 italic">Initializing debug logs...</p>
-            ) : (
-              debugLogs.map((log, index) => (
-                <div key={index} className="border-b border-slate-800/80 pb-1.5 last:border-0">
-                  <div className="flex items-center gap-1.5">
-                    <span className="text-slate-500 text-[10px]">{log.time}</span>
-                    <span
-                      className={`font-bold px-1 rounded text-[10px] ${
-                        log.type === "success"
-                          ? "bg-emerald-950 text-emerald-300 border border-emerald-800"
-                          : log.type === "error"
-                          ? "bg-red-950 text-red-300 border border-red-800"
-                          : "bg-slate-800 text-sky-300"
-                      }`}
-                    >
-                      {log.step}
-                    </span>
+          {showDebugLogs && (
+            <div className="p-3 max-h-64 overflow-y-auto space-y-2 font-mono text-[11px] leading-relaxed select-text">
+              {debugLogs.length === 0 ? (
+                <p className="text-slate-500 italic">Initializing debug logs...</p>
+              ) : (
+                debugLogs.map((log, index) => (
+                  <div key={index} className="border-b border-slate-800/80 pb-1.5 last:border-0">
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-slate-500 text-[10px]">{log.time}</span>
+                      <span
+                        className={`font-bold px-1 rounded text-[10px] ${
+                          log.type === "success"
+                            ? "bg-emerald-950 text-emerald-300 border border-emerald-800"
+                            : log.type === "error"
+                            ? "bg-red-950 text-red-300 border border-red-800"
+                            : "bg-slate-800 text-sky-300"
+                        }`}
+                      >
+                        {log.step}
+                      </span>
+                    </div>
+                    <p className="text-slate-200 mt-0.5">{log.message}</p>
+                    {log.details && (
+                      <pre className="mt-1 text-[10px] bg-slate-950 p-1.5 rounded text-slate-400 overflow-x-auto">
+                        {JSON.stringify(log.details, null, 2)}
+                      </pre>
+                    )}
                   </div>
-                  <p className="text-slate-200 mt-0.5">{log.message}</p>
-                  {log.details && (
-                    <pre className="mt-1 text-[10px] bg-slate-950 p-1.5 rounded text-slate-400 overflow-x-auto">
-                      {JSON.stringify(log.details, null, 2)}
-                    </pre>
-                  )}
-                </div>
-              ))
-            )}
-          </div>
-        )}
-      </div>
+                ))
+              )}
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }
