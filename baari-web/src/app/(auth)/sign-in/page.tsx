@@ -85,8 +85,14 @@ export default function SignInPage() {
           message: err?.message || "Unknown error",
         });
         if (err?.status === 401) {
-          console.log("[SignInPage Decision] GET /api/flats/me returned 401 Unauthorized -> Clearing stale store session.");
-          useSession.getState().logout().catch(() => {});
+          import("@/lib/auth-client").then(({ verifyOrRestoreSession }) => {
+            verifyOrRestoreSession().then((isValid) => {
+              if (!isValid) {
+                console.log("[SignInPage Decision] Session confirmed unauthenticated -> Clearing stale session.");
+                useSession.getState().logout().catch(() => {});
+              }
+            });
+          });
         } else {
           console.log("[SignInPage Decision] GET /api/flats/me error (non-401) -> Redirecting to /choose");
           router.replace("/choose");

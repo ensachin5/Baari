@@ -209,7 +209,23 @@ export default function RootIndexPage() {
         `[WakeUp] Failed to resolve flat via /api/flats/me: [${apiErr?.status}] ${apiErr?.message}`
       );
       if (apiErr?.status === 401) {
-        console.log("[WakeUp] 401 Unauthorized — Clearing session & redirecting to /sign-in...");
+        console.log("[WakeUp] 401 received from /api/flats/me. Verifying session with Better Auth...");
+        const { verifyOrRestoreSession } = await import("@/lib/auth-client");
+        const isValid = await verifyOrRestoreSession();
+        if (isValid) {
+          try {
+            const retryRes = await api.get<{ flat: any }>("/api/flats/me");
+            if (retryRes?.flat) {
+              setActiveFlat(retryRes.flat);
+              router.replace("/home");
+            } else {
+              setActiveFlat(null);
+              router.replace("/choose");
+            }
+            return;
+          } catch (_) {}
+        }
+        console.log("[WakeUp] Session confirmed unauthenticated -> Redirecting to /sign-in...");
         useSession.getState().logout().catch(() => {});
         router.replace("/sign-in");
       } else if (apiErr?.status === 404) {

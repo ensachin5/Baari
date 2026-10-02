@@ -4,7 +4,7 @@ import React, { useEffect, useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { usePathname, useRouter } from "next/navigation";
-import { useAuthSession } from "@/lib/auth-client";
+import { useAuthSession, verifyOrRestoreSession } from "@/lib/auth-client";
 import { useSession } from "@/store/session";
 import { useSocket } from "@/lib/socket";
 import { registerWebPushAsync } from "@/lib/web-push";
@@ -27,9 +27,13 @@ export default function AppLayout({
   const pathname = usePathname();
   const router = useRouter();
   const { data: session, isPending: sessionLoading } = useAuthSession();
-  const { user, activeFlat, isHydrated, hydrate } = useSession();
+  const { user, activeFlat, isHydrated, hydrate, logout } = useSession();
+  const storeToken = useSession((state) => state.token);
+  const currentToken = session?.session?.token || storeToken;
+
   const [isKeyboardVisible, setIsKeyboardVisible] = useState(false);
   const [copiedInvite, setCopiedInvite] = useState(false);
+  const [isInitializing, setIsInitializing] = useState(true);
 
   // Initialize socket lifecycle
   useSocket();
@@ -44,7 +48,6 @@ export default function AppLayout({
 
     const checkViewport = () => {
       if (window.visualViewport) {
-        // If viewport height dropped by more than 120px, keyboard is open
         const isKeyboard = window.visualViewport.height < window.innerHeight - 120;
         setIsKeyboardVisible(isKeyboard);
       }
@@ -90,62 +93,51 @@ export default function AppLayout({
     };
   }, []);
 
-  const storeToken = useSession((state) => state.token);
-  const currentToken = session?.session?.token || storeToken;
-  const isFetchingProfileRef = React.useRef(false);
-
+  // Protected route session guard with proper loading / restoration state
   useEffect(() => {
-    console.log("[AppLayout Session Guard Trace]", {
-      pathname,
-      sessionLoading,
-      isHydrated,
-      hasSessionUser: !!session?.user,
-      hasStoreUser: !!user,
-      sessionTokenSnippet: currentToken ? `${currentToken.substring(0, 10)}...` : null,
-      timestamp: new Date().toISOString(),
-    });
+    let isMounted = true;
 
-    if (session?.session?.token) {
-      useSession.getState().setToken(session.session.token);
+    async function evaluateAuth() {
+      // Do not make authentication decisions until store is hydrated & Better Auth hook resolves initial state
+      if (!isHydrated || sessionLoading) return;
+
+      if (session?.session?.token) {
+        useSession.getState().setToken(session.session.token);
+      }
+
+      const hasUser = !!user || !!session?.user;
+
+      if (hasUser) {
+        if (isMounted) setIsInitializing(false);
+        return;
+      }
+
+      // If user is not yet in state, perform authoritative session verification
+      const isValid = await verifyOrRestoreSession();
+
+      if (isValid && isMounted) {
+        setIsInitializing(false);
+        return;
+      }
+
+      // Session genuinely unauthenticated -> redirect to /sign-in
+      if (isMounted) {
+        setIsInitializing(false);
+        logout().catch(() => {});
+        router.replace("/sign-in");
+      }
     }
 
-    const hasUser = !!user || !!session?.user;
-    const hasToken = !!currentToken || (typeof window !== "undefined" && Boolean(
-      localStorage.getItem("baari_web_token") ||
-      localStorage.getItem("better-auth.session_token") ||
-      localStorage.getItem("bearer_token")
-    ));
+    evaluateAuth();
 
-    // If session check finished and there is no user and no token anywhere -> redirect
-    if (!sessionLoading && !hasUser && !hasToken && isHydrated) {
-      console.warn("[AppLayout Decision] No active session found in Better Auth or Zustand store -> Redirecting to /sign-in");
-      router.replace("/sign-in");
-      return;
-    }
-
-    // Token exists but user profile object is missing in store (common in Brave/Safari with blocked cookies)
-    if (!hasUser && hasToken && isHydrated && !isFetchingProfileRef.current) {
-      isFetchingProfileRef.current = true;
-      console.log("[AppLayout] Stored Bearer token found. Fetching user profile via /api/profile...");
-      import("@/lib/auth-client")
-        .then(({ fetchUserProfile }) => fetchUserProfile())
-        .catch((err) => {
-          console.warn("[AppLayout] Failed fetching profile with stored token:", err);
-          if (err?.status === 401) {
-            useSession.getState().logout().catch(() => {});
-            router.replace("/sign-in");
-          }
-        })
-        .finally(() => {
-          isFetchingProfileRef.current = false;
-        });
-    }
-  }, [session, sessionLoading, user, isHydrated, currentToken, router, pathname]);
+    return () => {
+      isMounted = false;
+    };
+  }, [session, sessionLoading, user, isHydrated, currentToken, router, logout]);
 
   // Register Web Push notifications on session and active flat mount
   useEffect(() => {
     if (user && activeFlat?.id) {
-      console.log('[AppLayout] User and activeFlat ready. Evaluating Web Push registration...');
       registerWebPushAsync();
     }
   }, [user?.id, activeFlat?.id]);
@@ -158,6 +150,25 @@ export default function AppLayout({
       setTimeout(() => setCopiedInvite(false), 2000);
     }
   };
+
+  // Render branded loading screen while verifying session
+  if (isInitializing || !isHydrated || sessionLoading) {
+    return (
+      <div className="min-h-screen bg-white flex items-center justify-center">
+        <div className="flex flex-col items-center gap-3">
+          <Image
+            src="/baari-logo.png"
+            alt="Baari Logo"
+            width={48}
+            height={48}
+            className="w-12 h-12 rounded-xl animate-pulse object-contain"
+            priority
+          />
+          <p className="text-grayBlack text-sm font-medium">Verifying session...</p>
+        </div>
+      </div>
+    );
+  }
 
   const navTabs = [
     {
@@ -208,11 +219,8 @@ export default function AppLayout({
       {/* Global Offline Banner */}
       <OfflineBanner />
 
-      {/* ────────────────────────────────────────────────────────────────────────
-          DESKTOP LEFT SIDEBAR (Visible only on lg: breakpoint and above)
-      ────────────────────────────────────────────────────────────────────────── */}
+      {/* DESKTOP LEFT SIDEBAR */}
       <aside className="hidden lg:flex flex-col w-64 h-screen h-[100dvh] sticky top-0 bg-white border-r border-[#E5E9F0] flex-shrink-0 z-30 select-none pt-[env(safe-area-inset-top,0px)] pb-[env(safe-area-inset-bottom,0px)]">
-        {/* Flat Brand Header */}
         <div className="p-5 border-b border-[#E5E9F0]">
           <div className="flex items-center gap-3">
             <Image
@@ -232,7 +240,6 @@ export default function AppLayout({
             </div>
           </div>
 
-          {/* Invite Code Pill with Copy Action */}
           {activeFlat?.inviteCode && (
             <div className="mt-3 flex items-center justify-between bg-offWhite px-2.5 py-1.5 rounded-lg border border-border">
               <span className="text-xs text-mutedNavy font-medium">Invite Code:</span>
@@ -253,7 +260,6 @@ export default function AppLayout({
           )}
         </div>
 
-        {/* Navigation Links */}
         <nav className="flex-1 p-3 space-y-1 overflow-y-auto overscroll-contain">
           {navTabs.map((tab) => {
             const isActive = pathname.startsWith(tab.href);
@@ -274,7 +280,6 @@ export default function AppLayout({
           })}
         </nav>
 
-        {/* User Profile Footer */}
         <div className="p-3 border-t border-[#E5E9F0]">
           <Link
             href="/profile"
@@ -301,16 +306,10 @@ export default function AppLayout({
         </div>
       </aside>
 
-      {/* ────────────────────────────────────────────────────────────────────────
-          MAIN PAGE CONTENT
-      ────────────────────────────────────────────────────────────────────────── */}
       <main className="flex-1 flex flex-col min-h-0 w-full min-w-0">
         {children}
       </main>
 
-      {/* ────────────────────────────────────────────────────────────────────────
-          MOBILE BOTTOM TAB BAR (Visible only below lg: breakpoint)
-      ────────────────────────────────────────────────────────────────────────── */}
       <nav
         className={`mobile-bottom-nav lg:hidden fixed bottom-0 left-0 right-0 z-30 bg-white border-t border-[#E5E9F0] flex items-center justify-around px-2 shadow-lg transition-all duration-150 ${
           isKeyboardVisible

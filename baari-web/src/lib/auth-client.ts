@@ -18,7 +18,9 @@ export const authClient = createAuthClient({
       token: () =>
         useSession.getState().token ||
         (typeof window !== "undefined"
-          ? localStorage.getItem("baari_web_token")
+          ? localStorage.getItem("baari_web_token") ||
+            localStorage.getItem("better-auth.session_token") ||
+            localStorage.getItem("bearer_token")
           : null) ||
         "",
     },
@@ -38,11 +40,57 @@ export async function fetchUserProfile(): Promise<{
   const data = await api.get<{ user: UserProfile; activeFlat: ActiveFlat | null }>(
     "/api/profile"
   );
-  if (data.user) {
+  if (data?.user) {
     useSession.getState().setUser(data.user);
   }
-  useSession.getState().setActiveFlat(data.activeFlat || null);
+  useSession.getState().setActiveFlat(data?.activeFlat || null);
   return data;
+}
+
+/**
+ * Authoritative session verification & restoration function.
+ * 1. Checks if Better Auth has a valid server session via getSession().
+ * 2. If valid, syncs user & session token to Zustand store & local storage.
+ * 3. If getSession fails or returns null, attempts profile fetch using stored Bearer token.
+ * 4. Only returns false if server explicitly confirms session is unauthenticated (401 / null session).
+ */
+export async function verifyOrRestoreSession(): Promise<boolean> {
+  try {
+    const sessionRes = await getSession();
+    if (sessionRes?.data?.user && sessionRes?.data?.session?.token) {
+      useSession.getState().setToken(sessionRes.data.session.token);
+      useSession.getState().setUser({
+        id: sessionRes.data.user.id,
+        name: sessionRes.data.user.name,
+        email: sessionRes.data.user.email,
+        image: sessionRes.data.user.image ?? null,
+      });
+      return true;
+    }
+  } catch {}
+
+  const localToken =
+    useSession.getState().token ||
+    (typeof window !== "undefined"
+      ? localStorage.getItem("baari_web_token") ||
+        localStorage.getItem("better-auth.session_token") ||
+        localStorage.getItem("bearer_token")
+      : null);
+
+  if (localToken) {
+    try {
+      const profile = await fetchUserProfile();
+      if (profile?.user) {
+        return true;
+      }
+    } catch (err: any) {
+      if (err?.status === 401) {
+        return false;
+      }
+    }
+  }
+
+  return false;
 }
 
 /**
@@ -70,10 +118,10 @@ export async function syncSessionToStore(authResultData?: any): Promise<void> {
 
   try {
     const session = await getSession();
-    if (session.data?.session?.token) {
+    if (session?.data?.session?.token) {
       useSession.getState().setToken(session.data.session.token);
     }
-    if (session.data?.user) {
+    if (session?.data?.user) {
       useSession.getState().setUser({
         id: session.data.user.id,
         name: session.data.user.name,
@@ -82,4 +130,14 @@ export async function syncSessionToStore(authResultData?: any): Promise<void> {
       });
     }
   } catch (_) {}
+}
+
+/**
+ * Single authoritative logout helper that destroys server session and client store.
+ */
+export async function logoutUser(): Promise<void> {
+  try {
+    await signOut();
+  } catch {}
+  await useSession.getState().logout();
 }
