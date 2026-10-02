@@ -271,7 +271,7 @@ app.use('/api/auth/callback/*', async (req, res, next) => {
             [exchangeCode, targetUserId, tokenToExchange, expiresAt]
           );
 
-          let targetOrigin = clientUrl;
+          let targetOrigin = clientUrl || 'http://localhost:3000';
           try {
             if (finalUrl && (finalUrl.startsWith('http://') || finalUrl.startsWith('https://'))) {
               const urlObj = new URL(finalUrl);
