@@ -67,6 +67,29 @@ export const KaamCard: React.FC<KaamCardProps> = memo(({
   const [reminding, setReminding] = useState(false);
   const [remindFeedback, setRemindFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
 
+  const getTodayString = () => {
+    const d = new Date();
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
+
+  const formatShortDate = (dateStr?: string) => {
+    if (!dateStr) return '';
+    const d = new Date(dateStr);
+    if (isNaN(d.getTime())) return dateStr;
+    const today = new Date();
+    const tomorrow = new Date(today);
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    if (d.toDateString() === tomorrow.toDateString()) return 'Tomorrow';
+    return d.toLocaleDateString('en-US', { day: 'numeric', month: 'short' });
+  };
+
+  const todayStr = getTodayString();
+  const occDateStr = currentOcc ? String(currentOcc.occurrenceDate).substring(0, 10) : '';
+  const isFuture = Boolean(occDateStr && occDateStr > todayStr);
+
   const isCreator = task.createdBy === currentUser?.id;
   const isAdmin = activeFlat?.role === 'admin';
   const canDelete = isCreator || isAdmin;
@@ -80,6 +103,7 @@ export const KaamCard: React.FC<KaamCardProps> = memo(({
   const isCurrentUserPending = pendingMembers.some((m) => m.userId === currentUser?.id);
   const canRemind =
     !isFullyDone &&
+    !isFuture &&
     Boolean(currentOcc && (currentOcc.status === 'pending' || currentOcc.status === 'in_progress')) &&
     !isCurrentUserPending &&
     pendingMembers.length > 0;
@@ -194,6 +218,8 @@ export const KaamCard: React.FC<KaamCardProps> = memo(({
 
           {isFullyDone ? (
             <Badge label="Done" status="done" />
+          ) : isFuture ? (
+            <Badge label={`Scheduled ${formatShortDate(currentOcc?.occurrenceDate)}`} status="pending" />
           ) : (
             <Badge
               label={currentOcc?.status === 'in_progress' ? 'In Progress' : 'Pending'}
@@ -270,7 +296,7 @@ export const KaamCard: React.FC<KaamCardProps> = memo(({
         {/* Action Buttons */}
         {currentOcc && myAssignment && !isFullyDone && (
           <View style={styles.actionButtonsRow}>
-            {onSkipTurn && !isMyPartDone && (
+            {onSkipTurn && !isMyPartDone && !isFuture && (
               <TouchableOpacity
                 activeOpacity={0.7}
                 onPress={() => onSkipTurn(currentOcc.id, task.title)}
@@ -283,24 +309,40 @@ export const KaamCard: React.FC<KaamCardProps> = memo(({
 
             <TouchableOpacity
               activeOpacity={0.8}
-              disabled={isMyPartDone || loading}
+              disabled={isMyPartDone || loading || isFuture}
               onPress={() => onComplete(currentOcc.id)}
               style={[
                 styles.actionButton,
-                isMyPartDone ? styles.actionButtonDone : styles.actionButtonPending,
+                isMyPartDone
+                  ? styles.actionButtonDone
+                  : isFuture
+                  ? styles.actionButtonFuture
+                  : styles.actionButtonPending,
               ]}
             >
-              <CheckCircle2
-                size={16}
-                color={isMyPartDone ? Colors.deepNavy : Colors.white}
-              />
+              {isFuture ? (
+                <Clock size={15} color={Colors.mutedNavy} strokeWidth={2} />
+              ) : (
+                <CheckCircle2
+                  size={16}
+                  color={isMyPartDone ? Colors.deepNavy : Colors.white}
+                />
+              )}
               <Text
                 style={[
                   styles.actionButtonText,
-                  isMyPartDone ? styles.actionButtonTextDone : styles.actionButtonTextPending,
+                  isMyPartDone
+                    ? styles.actionButtonTextDone
+                    : isFuture
+                    ? styles.actionButtonTextFuture
+                    : styles.actionButtonTextPending,
                 ]}
               >
-                {isMyPartDone ? 'Your part done' : 'Mark Done'}
+                {isMyPartDone
+                  ? 'Your part done'
+                  : isFuture
+                  ? `Available ${formatShortDate(currentOcc.occurrenceDate)}`
+                  : 'Mark Done'}
               </Text>
             </TouchableOpacity>
           </View>
@@ -448,6 +490,12 @@ const styles = StyleSheet.create({
   actionButtonDone: {
     backgroundColor: Colors.paleSky,
   },
+  actionButtonFuture: {
+    backgroundColor: Colors.offWhite,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    opacity: 0.9,
+  },
   actionButtonText: {
     ...Typography.Caption,
     fontWeight: '600',
@@ -457,6 +505,9 @@ const styles = StyleSheet.create({
   },
   actionButtonTextDone: {
     color: Colors.deepNavy,
+  },
+  actionButtonTextFuture: {
+    color: Colors.mutedNavy,
   },
   remindButton: {
     flexDirection: 'row',

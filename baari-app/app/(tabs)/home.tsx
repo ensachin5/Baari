@@ -176,8 +176,22 @@ export default function HomeScreen() {
     return true; // upcoming
   });
 
+  const getTodayString = () => {
+    const d = new Date();
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
+  const todayStr = getTodayString();
+
   const todayTasks = tasks.filter((t) => t.recurrence === 'daily' || t.recurrence === 'once');
-  const todayCompleted = todayTasks.filter((t) => t.currentOccurrence?.status === 'done').length;
+  const todayCompleted = todayTasks.filter((t) => {
+    const occ = t.currentOccurrence;
+    if (!occ) return false;
+    const occDateStr = String(occ.occurrenceDate).substring(0, 10);
+    return occ.status === 'done' || occDateStr > todayStr;
+  }).length;
 
   return (
     <View style={styles.safeArea}>

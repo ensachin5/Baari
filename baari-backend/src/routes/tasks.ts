@@ -297,10 +297,37 @@ tasksRouter.get('/', requireAuth, async (req: AuthenticatedRequest, res: Respons
     .where(eq(flatMembers.flatId, flatId))
     .orderBy(asc(flatMembers.joinedAt));
 
-  // Attach latest occurrence and nextAssignee to each task
+  // Helper to format today's date YYYY-MM-DD
+  const getTodayString = () => {
+    const d = new Date();
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
+  const todayStr = getTodayString();
+
+  // Attach current occurrence and nextAssignee to each task
   const enrichedTasks = flatTasks.map((task) => {
     const taskOccs = occsByTaskId.get(task.id) || [];
-    const latestOccurrence = taskOccs[0] || null;
+    
+    // Pick the most relevant occurrence for today's view:
+    // 1. Occurrence matching today's date exactly
+    // 2. Uncompleted occurrence up to today
+    // 3. Latest occurrence up to today
+    // 4. Fallback to earliest upcoming future occurrence
+    let currentOcc = taskOccs.find((o) => String(o.occurrenceDate).substring(0, 10) === todayStr);
+    
+    if (!currentOcc) {
+      const pastOrTodayOccs = taskOccs.filter(
+        (o) => String(o.occurrenceDate).substring(0, 10) <= todayStr
+      );
+      if (pastOrTodayOccs.length > 0) {
+        currentOcc = pastOrTodayOccs.find((o) => o.status !== 'done') || pastOrTodayOccs[0];
+      } else {
+        currentOcc = taskOccs[taskOccs.length - 1] || null;
+      }
+    }
 
     let nextAssignee = null;
     if (task.recurrence !== 'once') {
@@ -320,7 +347,7 @@ tasksRouter.get('/', requireAuth, async (req: AuthenticatedRequest, res: Respons
     return {
       ...task,
       occurrences: taskOccs,
-      currentOccurrence: latestOccurrence,
+      currentOccurrence: currentOcc || null,
       nextAssignee,
     };
   });
@@ -692,6 +719,22 @@ tasksRouter.patch(
 
     if (!occ) {
       res.status(404).json({ error: 'Task occurrence not found' });
+      return;
+    }
+
+    // Check if occurrence date has arrived yet (prevent completing future tasks)
+    const getTodayString = () => {
+      const d = new Date();
+      const year = d.getFullYear();
+      const month = String(d.getMonth() + 1).padStart(2, '0');
+      const day = String(d.getDate()).padStart(2, '0');
+      return `${year}-${month}-${day}`;
+    };
+    const todayStr = getTodayString();
+    const occDateStr = String(occ.occurrenceDate).substring(0, 10);
+
+    if (occDateStr > todayStr) {
+      res.status(400).json({ error: `Cannot complete a task before its scheduled date (${occDateStr})` });
       return;
     }
 

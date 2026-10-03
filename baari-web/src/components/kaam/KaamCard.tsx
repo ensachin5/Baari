@@ -12,6 +12,7 @@ import {
   Trash2,
   Bell,
   Check,
+  Clock,
 } from "lucide-react";
 import { useSession } from "@/store/session";
 import { api } from "@/lib/api";
@@ -76,6 +77,28 @@ export const KaamCard: React.FC<KaamCardProps> = memo(({
 
   const [reminding, setReminding] = useState(false);
   const [remindFeedback, setRemindFeedback] = useState<{ type: "success" | "error"; message: string } | null>(null);
+  const getTodayString = () => {
+    const d = new Date();
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, "0");
+    const day = String(d.getDate()).padStart(2, "0");
+    return `${year}-${month}-${day}`;
+  };
+
+  const formatShortDate = (dateStr?: string) => {
+    if (!dateStr) return "";
+    const d = new Date(dateStr);
+    if (isNaN(d.getTime())) return dateStr;
+    const today = new Date();
+    const tomorrow = new Date(today);
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    if (d.toDateString() === tomorrow.toDateString()) return "Tomorrow";
+    return d.toLocaleDateString("en-US", { day: "numeric", month: "short" });
+  };
+
+  const todayStr = getTodayString();
+  const occDateStr = currentOcc ? String(currentOcc.occurrenceDate).substring(0, 10) : "";
+  const isFuture = Boolean(occDateStr && occDateStr > todayStr);
 
   const isCreator = task.createdBy === currentUser?.id;
   const isAdmin = activeFlat?.role === "admin";
@@ -90,6 +113,7 @@ export const KaamCard: React.FC<KaamCardProps> = memo(({
   const isCurrentUserPending = pendingMembers.some((m) => m.userId === currentUser?.id);
   const canRemind =
     !isFullyDone &&
+    !isFuture &&
     Boolean(currentOcc && (currentOcc.status === "pending" || currentOcc.status === "in_progress")) &&
     !isCurrentUserPending &&
     pendingMembers.length > 0;
@@ -206,6 +230,8 @@ export const KaamCard: React.FC<KaamCardProps> = memo(({
 
           {isFullyDone ? (
             <Badge label="Done" status="done" />
+          ) : isFuture ? (
+            <Badge label={`Scheduled ${formatShortDate(currentOcc?.occurrenceDate)}`} status="pending" />
           ) : (
             <Badge
               label={
@@ -284,7 +310,7 @@ export const KaamCard: React.FC<KaamCardProps> = memo(({
         {/* Action Buttons */}
         {currentOcc && myAssignment && !isFullyDone && (
           <div className="flex items-center gap-1 flex-wrap">
-            {onSkipTurn && !isMyPartDone && (
+            {onSkipTurn && !isMyPartDone && !isFuture && (
               <button
                 type="button"
                 onClick={(e) => {
@@ -300,7 +326,7 @@ export const KaamCard: React.FC<KaamCardProps> = memo(({
 
             <button
               type="button"
-              disabled={isMyPartDone || loading}
+              disabled={isMyPartDone || loading || isFuture}
               onClick={(e) => {
                 e.stopPropagation();
                 onComplete(currentOcc.id);
@@ -308,14 +334,26 @@ export const KaamCard: React.FC<KaamCardProps> = memo(({
               className={`flex items-center gap-1 px-3 py-[6px] rounded-[10px] text-[12px] leading-[16px] font-semibold transition-all cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed ${
                 isMyPartDone
                   ? "bg-paleSky text-deepNavy"
+                  : isFuture
+                  ? "bg-offWhite text-mutedNavy border border-border opacity-85"
                   : "bg-navy text-white hover:bg-deepNavy active:bg-deepNavy shadow-xs"
               }`}
             >
-              <CheckCircle2
-                size={16}
-                className={isMyPartDone ? "text-deepNavy" : "text-white"}
-              />
-              <span>{isMyPartDone ? "Your part done" : "Mark Done"}</span>
+              {isFuture ? (
+                <Clock size={15} className="text-mutedNavy" strokeWidth={2} />
+              ) : (
+                <CheckCircle2
+                  size={16}
+                  className={isMyPartDone ? "text-deepNavy" : "text-white"}
+                />
+              )}
+              <span>
+                {isMyPartDone
+                  ? "Your part done"
+                  : isFuture
+                  ? `Available ${formatShortDate(currentOcc.occurrenceDate)}`
+                  : "Mark Done"}
+              </span>
             </button>
           </div>
         )}

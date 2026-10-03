@@ -62,8 +62,15 @@ export const KaamDetailModal: React.FC<KaamDetailModalProps> = ({
   taskId,
   initialTask,
   onClose,
-  onComplete,
 }) => {
+  const getTodayString = () => {
+    const d = new Date();
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
+  const todayStr = getTodayString();
   const [taskData, setTaskData] = useState<TaskHistoryResponse['task'] | null>(
     (initialTask as any) || null
   );
@@ -286,6 +293,8 @@ export const KaamDetailModal: React.FC<KaamDetailModalProps> = ({
               {occurrences.map((occ) => {
                 const isDone = occ.status === 'done';
                 const isMissed = occ.status === 'missed';
+                const occDateStr = String(occ.occurrenceDate).substring(0, 10);
+                const isFuture = occDateStr > todayStr;
 
                 return (
                   <View
@@ -329,7 +338,7 @@ export const KaamDetailModal: React.FC<KaamDetailModalProps> = ({
                               : { color: Colors.mutedNavy },
                           ]}
                         >
-                          {isDone ? 'Completed' : isMissed ? 'Missed' : 'Pending'}
+                          {isDone ? 'Completed' : isMissed ? 'Missed' : isFuture ? 'Scheduled' : 'Pending'}
                         </Text>
                       </View>
                     </View>
