@@ -108,11 +108,22 @@ export const ChatSection: React.FC<ChatSectionProps> = React.memo(({
         </div>
       )}
 
+      {typingUsers.length > 0 && (
+        <div className="px-4 py-1 bg-white flex-shrink-0">
+          <span className="text-[12px] italic text-mutedNavy">
+            {typingUsers.length === 1
+              ? `${typingUsers[0].userName} is typing...`
+              : typingUsers.length === 2
+              ? `${typingUsers[0].userName} and ${typingUsers[1].userName} are typing...`
+              : `${typingUsers.length} people are typing...`}
+          </span>
+        </div>
+      )}
+
       <div className="border-t border-border flex-shrink-0">
         <ChatInput
           onSend={sendMessage}
           onTyping={emitTyping}
-          typingUsers={typingUsers}
         />
       </div>
     </div>

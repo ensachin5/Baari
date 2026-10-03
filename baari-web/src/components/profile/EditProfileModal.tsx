@@ -60,13 +60,13 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = React.memo(({
         <Input
           label="Your Name"
           value={editName}
-          onChangeText={setEditName}
+          onChange={(e) => setEditName(e.target.value)}
           placeholder="Enter your full name"
         />
 
         <Button
           title="Save Changes"
-          onPress={() => onSave()}
+          onClick={() => onSave()}
           loading={updating}
           icon={<Check size={18} />}
           className="w-full mt-4"

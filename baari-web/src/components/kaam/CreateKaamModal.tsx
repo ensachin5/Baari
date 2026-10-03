@@ -535,7 +535,7 @@ export const CreateKaamModal: React.FC<CreateKaamModalProps> = ({
 
       <Button
         title="Add Kaam"
-        onPress={() => handleSave()}
+        onClick={() => handleSave()}
         loading={loading || isSubmitting}
         icon={<Plus size={18} strokeWidth={2.4} />}
         className="w-full mt-2"

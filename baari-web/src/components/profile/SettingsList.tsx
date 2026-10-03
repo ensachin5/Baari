@@ -73,7 +73,7 @@ export const SettingsList: React.FC<SettingsListProps> = React.memo(({
       <Button
         title="Sign Out"
         variant="outline"
-        onPress={onLogout}
+        onClick={onLogout}
         loading={loading}
         icon={<LogOut size={18} className="text-navy" />}
         className="w-full mb-8"
