@@ -10,7 +10,7 @@ import { Input } from "@/components/ui/Input";
 import { GoogleIcon } from "@/components/icons/GoogleIcon";
 import Image from "next/image";
 
-type AuthMode = "sign-in" | "sign-up" | "otp";
+type AuthMode = "sign-in" | "sign-up";
 
 /**
  * Mirrors baari-app/app/(auth)/sign-in.tsx exactly.
@@ -30,15 +30,11 @@ export default function SignInPage() {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [otp, setOtp] = useState(["", "", "", "", "", ""]);
 
   // Loading & error state
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-  const [resendMessage, setResendMessage] = useState("");
-  const [resendLoading, setResendLoading] = useState(false);
 
-  const otpInputRefs = useRef<(HTMLInputElement | null)[]>([]);
   const hasAttemptedRef = useRef(false);
 
   useEffect(() => {
@@ -124,13 +120,8 @@ export default function SignInPage() {
         setLoading(false);
         return;
       }
-      try {
-        await authClient.emailOtp.sendVerificationOtp({
-          email: email.trim().toLowerCase(),
-          type: "email-verification",
-        });
-      } catch (_) {}
-      setMode("otp");
+      // autoSignIn is true — session is created immediately, go straight to onboarding
+      await handlePostAuth(res.data);
     } catch (err: any) {
       setError(err?.message || "Sign up failed");
     } finally {
@@ -152,23 +143,7 @@ export default function SignInPage() {
         password,
       });
       if (res.error) {
-        const errMsg = res.error.message || "";
-        if (
-          errMsg.toLowerCase().includes("email not verified") ||
-          errMsg.toLowerCase().includes("verify your email") ||
-          res.error.code === "EMAIL_NOT_VERIFIED"
-        ) {
-          try {
-            await authClient.emailOtp.sendVerificationOtp({
-              email: email.trim().toLowerCase(),
-              type: "email-verification",
-            });
-          } catch (_) {}
-          setMode("otp");
-          setLoading(false);
-          return;
-        }
-        setError(errMsg || "Invalid email or password");
+        setError(res.error.message || "Invalid email or password");
         setLoading(false);
         return;
       }
@@ -177,83 +152,6 @@ export default function SignInPage() {
       setError(err?.message || "Sign in failed");
     } finally {
       setLoading(false);
-    }
-  };
-
-  const handleOtpChange = (text: string, index: number) => {
-    const cleanText = text.replace(/[^0-9]/g, "");
-    const newOtp = [...otp];
-    if (cleanText.length > 1) {
-      const digits = cleanText.slice(0, 6).split("");
-      for (let i = 0; i < 6; i++) {
-        newOtp[i] = digits[i] || "";
-      }
-      setOtp(newOtp);
-      if (digits.length === 6) {
-        otpInputRefs.current[5]?.focus();
-      }
-      return;
-    }
-
-    newOtp[index] = cleanText;
-    setOtp(newOtp);
-
-    if (cleanText && index < 5) {
-      otpInputRefs.current[index + 1]?.focus();
-    }
-  };
-
-  const handleOtpKeyDown = (e: React.KeyboardEvent<HTMLInputElement>, index: number) => {
-    if (e.key === "Backspace" && !otp[index] && index > 0) {
-      otpInputRefs.current[index - 1]?.focus();
-    }
-  };
-
-  const handleVerifyOtp = async (e: React.FormEvent) => {
-    e.preventDefault();
-    const code = otp.join("");
-    if (code.length < 6) {
-      setError("Please enter the full 6-digit code");
-      return;
-    }
-    setLoading(true);
-    setError("");
-    try {
-      const res = await authClient.emailOtp.verifyEmail({
-        email: email.trim().toLowerCase(),
-        otp: code,
-      });
-      if (res.error) {
-        setError(res.error.message || "Invalid or expired code");
-        setLoading(false);
-        return;
-      }
-      await handlePostAuth(res.data);
-    } catch (err: any) {
-      setError(err?.message || "Verification failed");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleResendOtp = async () => {
-    setResendLoading(true);
-    setError("");
-    setResendMessage("");
-    try {
-      const res = await authClient.emailOtp.sendVerificationOtp({
-        email: email.trim().toLowerCase(),
-        type: "email-verification",
-      });
-      if (res.error) {
-        setError(res.error.message || "Failed to send code");
-      } else {
-        setResendMessage("Verification code sent!");
-      }
-    } catch (err: any) {
-      setError(err?.message || "Failed to send code");
-    } finally {
-      setResendLoading(false);
     }
   };
 
@@ -301,15 +199,6 @@ export default function SignInPage() {
         <div className="bg-[#FEF2F2] rounded-[6px] px-3 py-2 mb-4 border border-[#FECACA]">
           <p className="text-[13px] leading-[18px] font-medium text-[#DC2626] text-center">
             {error}
-          </p>
-        </div>
-      )}
-
-      {/* Resend Success Message */}
-      {resendMessage && (
-        <div className="bg-[#F0FDF4] rounded-[6px] px-3 py-2 mb-4 border border-[#BBF7D0]">
-          <p className="text-[13px] leading-[18px] font-medium text-[#166534] text-center">
-            {resendMessage}
           </p>
         </div>
       )}
@@ -443,75 +332,6 @@ export default function SignInPage() {
           </div>
         </form>
       )}
-
-      {/* MODE: OTP ENTRY */}
-      {mode === "otp" && (
-        <form onSubmit={handleVerifyOtp} className="w-full">
-          <h2 className="text-[22px] font-bold text-navy text-center mb-2">
-            Verify your email
-          </h2>
-          <p className="text-[14px] text-grayBlack text-center mb-6 leading-5">
-            We sent a 6-digit verification code to <br />
-            <span className="font-semibold text-navy">{email}</span>
-          </p>
-
-          <div className="flex justify-between mb-6 px-1 gap-2">
-            {otp.map((digit, idx) => (
-              <input
-                key={idx}
-                ref={(el) => {
-                  otpInputRefs.current[idx] = el;
-                }}
-                type="text"
-                inputMode="numeric"
-                pattern="[0-9]*"
-                maxLength={idx === 0 ? 6 : 1}
-                value={digit}
-                onChange={(e) => handleOtpChange(e.target.value, idx)}
-                onKeyDown={(e) => handleOtpKeyDown(e, idx)}
-                className={`w-11 h-13 border-[1.5px] rounded-[10px] text-center text-[22px] font-semibold text-navy transition-colors focus:outline-none focus:border-navy ${
-                  digit ? "border-navy bg-slate-50" : "border-border bg-white"
-                }`}
-              />
-            ))}
-          </div>
-
-          <Button
-            title="Verify Code"
-            variant="primary"
-            size="lg"
-            type="submit"
-            loading={loading}
-            className="w-full"
-          />
-
-          <div className="mt-4 text-center">
-            <button
-              type="button"
-              onClick={handleResendOtp}
-              disabled={resendLoading}
-              className="text-[13px] font-semibold text-navy hover:underline cursor-pointer disabled:opacity-50"
-            >
-              {resendLoading ? "Sending..." : "Didn't receive a code? Resend code"}
-            </button>
-          </div>
-
-          <div className="mt-6 text-center">
-            <button
-              type="button"
-              onClick={() => {
-                setError("");
-                setResendMessage("");
-                setMode("sign-in");
-              }}
-              className="text-[14px] text-grayBlack hover:underline cursor-pointer"
-            >
-              ← Back to sign in
-            </button>
-          </div>
-        </form>
-      )}
     </div>
   );
 }
-

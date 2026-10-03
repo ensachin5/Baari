@@ -1,7 +1,7 @@
 import { betterAuth } from 'better-auth';
 import { drizzleAdapter } from 'better-auth/adapters/drizzle';
 import { expo } from '@better-auth/expo';
-import { bearer, emailOTP } from 'better-auth/plugins';
+import { bearer } from 'better-auth/plugins';
 import { db } from './db/index.js';
 import * as authSchema from './db/auth-schema.js';
 import * as dotenv from 'dotenv';
@@ -47,7 +47,7 @@ export const auth = betterAuth({
   emailAndPassword: {
     enabled: true,
     autoSignIn: true,
-    requireEmailVerification: true,
+    requireEmailVerification: false,
   },
   advanced: {
     database: {
@@ -75,23 +75,6 @@ export const auth = betterAuth({
   plugins: [
     expo(),
     bearer(),
-    emailOTP({
-      overrideDefaultEmailVerification: true,
-      otpLength: 6,
-      expiresIn: 300, // 5 minutes
-      async sendVerificationOTP({ email, otp, type }) {
-        const { sendEmail } = await import('./services/resend.js');
-        await sendEmail({
-          to: email,
-          subject: type === 'sign-in' ? 'Your Baari sign-in code' : 'Verify your Baari email',
-          html: `<div style="font-family: Arial, sans-serif; color: #0A2540;">
-            <h2>Your verification code</h2>
-            <p style="font-size: 32px; font-weight: bold; letter-spacing: 4px;">${otp}</p>
-            <p>This code expires in 5 minutes.</p>
-          </div>`,
-        });
-      },
-    }),
   ],
   trustedOrigins: async (request) => {
     const dynamicOrigins: string[] = [];

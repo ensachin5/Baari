@@ -1,7 +1,6 @@
 import { Platform } from 'react-native';
 import { createAuthClient } from 'better-auth/react';
 import { expoClient } from '@better-auth/expo/client';
-import { emailOTPClient } from 'better-auth/client/plugins';
 import * as SecureStore from 'expo-secure-store';
 import { api, resolveBaseUrl } from './api';
 import { useSession, UserProfile, ActiveFlat } from '../store/session';
@@ -26,7 +25,6 @@ export const authClient = createAuthClient({
       storagePrefix: 'baari',
       storage: SecureStore,
     }),
-    emailOTPClient(),
   ],
 });
 

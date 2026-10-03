@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+wimport React, { useState } from 'react';
 import {
   View,
   Text,
@@ -7,21 +7,18 @@ import {
   KeyboardAvoidingView,
   Platform,
   ScrollView,
-  TextInput,
 } from 'react-native';
 import { Image } from 'expo-image';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
-import { GoogleIcon } from '../../components/icons/GoogleIcon';
 import { Colors, Typography, Spacing, BorderRadius } from '../../lib/theme';
 import { authClient, syncSessionToStore, fetchUserProfile } from '../../lib/auth-client';
 import { api } from '../../lib/api';
-import * as Linking from 'expo-linking';
 import { useSession } from '../../store/session';
 
-type AuthMode = 'sign-in' | 'sign-up' | 'otp';
+type AuthMode = 'sign-in' | 'sign-up';
 
 export default function SignInScreen() {
   const router = useRouter();
@@ -31,16 +28,10 @@ export default function SignInScreen() {
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [otp, setOtp] = useState(['', '', '', '', '', '']);
 
   // Loading & error states
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  const [resendMessage, setResendMessage] = useState('');
-  const [resendLoading, setResendLoading] = useState(false);
-
-  // References for 6-digit OTP input boxes
-  const otpInputRefs = useRef<(TextInput | null)[]>([]);
 
   // TEMP: Google sign-in disabled while fixing WebKit cookie issue — re-enable by uncommenting
   /*
@@ -72,7 +63,7 @@ export default function SignInScreen() {
       const res = await api.get<{ flat: any }>('/api/flats/me');
       if (res?.flat) {
         useSession.getState().setActiveFlat(res.flat);
-        fetchUserProfile().catch(() => {});
+        fetchUserProfile().catch(() => { });
         router.replace('/(tabs)/home');
       } else {
         useSession.getState().setActiveFlat(null);
@@ -111,13 +102,8 @@ export default function SignInScreen() {
         setLoading(false);
         return;
       }
-      try {
-        await authClient.emailOtp.sendVerificationOtp({
-          email: email.trim().toLowerCase(),
-          type: 'email-verification',
-        });
-      } catch (_) {}
-      setMode('otp');
+      // autoSignIn is true — session is created immediately, go straight to onboarding
+      await handlePostAuth(res.data);
     } catch (err: any) {
       setError(err?.message || 'Sign up failed');
     } finally {
@@ -138,23 +124,7 @@ export default function SignInScreen() {
         password,
       });
       if (res.error) {
-        const errMsg = res.error.message || '';
-        if (
-          errMsg.toLowerCase().includes('email not verified') ||
-          errMsg.toLowerCase().includes('verify your email') ||
-          res.error.code === 'EMAIL_NOT_VERIFIED'
-        ) {
-          try {
-            await authClient.emailOtp.sendVerificationOtp({
-              email: email.trim().toLowerCase(),
-              type: 'email-verification',
-            });
-          } catch (_) {}
-          setMode('otp');
-          setLoading(false);
-          return;
-        }
-        setError(errMsg || 'Invalid email or password');
+        setError(res.error.message || 'Invalid email or password');
         setLoading(false);
         return;
       }
@@ -163,82 +133,6 @@ export default function SignInScreen() {
       setError(err?.message || 'Sign in failed');
     } finally {
       setLoading(false);
-    }
-  };
-
-  const handleOtpChange = (text: string, index: number) => {
-    const cleanText = text.replace(/[^0-9]/g, '');
-    const newOtp = [...otp];
-    if (cleanText.length > 1) {
-      const digits = cleanText.slice(0, 6).split('');
-      for (let i = 0; i < 6; i++) {
-        newOtp[i] = digits[i] || '';
-      }
-      setOtp(newOtp);
-      if (digits.length === 6) {
-        otpInputRefs.current[5]?.focus();
-      }
-      return;
-    }
-
-    newOtp[index] = cleanText;
-    setOtp(newOtp);
-
-    if (cleanText && index < 5) {
-      otpInputRefs.current[index + 1]?.focus();
-    }
-  };
-
-  const handleOtpKeyPress = (e: any, index: number) => {
-    if (e.nativeEvent.key === 'Backspace' && !otp[index] && index > 0) {
-      otpInputRefs.current[index - 1]?.focus();
-    }
-  };
-
-  const handleVerifyOtp = async () => {
-    const code = otp.join('');
-    if (code.length < 6) {
-      setError('Please enter the full 6-digit code');
-      return;
-    }
-    setLoading(true);
-    setError('');
-    try {
-      const res = await authClient.emailOtp.verifyEmail({
-        email: email.trim().toLowerCase(),
-        otp: code,
-      });
-      if (res.error) {
-        setError(res.error.message || 'Invalid or expired code');
-        setLoading(false);
-        return;
-      }
-      await handlePostAuth(res.data);
-    } catch (err: any) {
-      setError(err?.message || 'Verification failed');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleResendOtp = async () => {
-    setResendLoading(true);
-    setError('');
-    setResendMessage('');
-    try {
-      const res = await authClient.emailOtp.sendVerificationOtp({
-        email: email.trim().toLowerCase(),
-        type: 'email-verification',
-      });
-      if (res.error) {
-        setError(res.error.message || 'Failed to send code');
-      } else {
-        setResendMessage('Verification code sent!');
-      }
-    } catch (err: any) {
-      setError(err?.message || 'Failed to send code');
-    } finally {
-      setResendLoading(false);
     }
   };
 
@@ -266,13 +160,6 @@ export default function SignInScreen() {
           {error ? (
             <View style={styles.errorContainer}>
               <Text style={styles.errorText}>{error}</Text>
-            </View>
-          ) : null}
-
-          {/* Resend Success Message */}
-          {resendMessage ? (
-            <View style={styles.successContainer}>
-              <Text style={styles.successText}>{resendMessage}</Text>
             </View>
           ) : null}
 
@@ -399,70 +286,6 @@ export default function SignInScreen() {
               </TouchableOpacity>
             </View>
           )}
-
-          {/* MODE: OTP ENTRY */}
-          {mode === 'otp' && (
-            <View style={styles.formContainer}>
-              <Text style={styles.formTitle}>Verify your email</Text>
-              <Text style={styles.otpSubtitle}>
-                We sent a 6-digit verification code to {'\n'}
-                <Text style={styles.otpEmailText}>{email}</Text>
-              </Text>
-
-              <View style={styles.otpInputRow}>
-                {otp.map((digit, idx) => (
-                  <TextInput
-                    key={idx}
-                    ref={(el) => {
-                      otpInputRefs.current[idx] = el;
-                    }}
-                    style={[
-                      styles.otpBox,
-                      digit ? styles.otpBoxFilled : null,
-                    ]}
-                    value={digit}
-                    onChangeText={(text) => handleOtpChange(text, idx)}
-                    onKeyPress={(e) => handleOtpKeyPress(e, idx)}
-                    keyboardType="number-pad"
-                    maxLength={idx === 0 ? 6 : 1}
-                    selectTextOnFocus
-                  />
-                ))}
-              </View>
-
-              <Button
-                title="Verify Code"
-                variant="primary"
-                size="lg"
-                onPress={handleVerifyOtp}
-                loading={loading}
-                style={styles.actionButton}
-              />
-
-              <TouchableOpacity
-                onPress={handleResendOtp}
-                disabled={resendLoading}
-                style={styles.resendButton}
-              >
-                <Text style={styles.resendText}>
-                  {resendLoading ? 'Sending...' : "Didn't receive a code? Resend code"}
-                </Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                onPress={() => {
-                  setError('');
-                  setResendMessage('');
-                  setMode('sign-in');
-                }}
-                style={styles.switchModeButton}
-              >
-                <Text style={styles.switchModeText}>
-                  ← Back to sign in
-                </Text>
-              </TouchableOpacity>
-            </View>
-          )}
         </ScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>
@@ -511,22 +334,6 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     lineHeight: 18,
   },
-  successContainer: {
-    backgroundColor: '#F0FDF4',
-    borderRadius: BorderRadius.sm,
-    paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.sm,
-    marginBottom: Spacing.lg,
-    borderWidth: 1,
-    borderColor: '#BBF7D0',
-  },
-  successText: {
-    fontFamily: 'Inter_500Medium',
-    fontSize: 13,
-    color: '#166534',
-    textAlign: 'center',
-    lineHeight: 18,
-  },
   formContainer: {
     width: '100%',
   },
@@ -556,47 +363,5 @@ const styles = StyleSheet.create({
   switchModeHighlight: {
     ...Typography.BodySmallMedium,
     color: Colors.navy,
-  },
-  otpSubtitle: {
-    ...Typography.BodySmall,
-    color: Colors.grayBlack,
-    textAlign: 'center',
-    marginBottom: Spacing.xl,
-    lineHeight: 20,
-  },
-  otpEmailText: {
-    ...Typography.BodySmallMedium,
-    color: Colors.navy,
-  },
-  otpInputRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginBottom: Spacing.xl,
-    paddingHorizontal: Spacing.xs,
-  },
-  otpBox: {
-    width: 44,
-    height: 52,
-    borderWidth: 1.5,
-    borderColor: Colors.border,
-    borderRadius: BorderRadius.md,
-    textAlign: 'center',
-    fontSize: 22,
-    fontFamily: 'Inter_600SemiBold',
-    color: Colors.navy,
-    backgroundColor: Colors.white,
-  },
-  otpBoxFilled: {
-    borderColor: Colors.navy,
-    backgroundColor: '#F8FAFC',
-  },
-  resendButton: {
-    marginTop: Spacing.md,
-    alignItems: 'center',
-  },
-  resendText: {
-    ...Typography.Caption,
-    color: Colors.navy,
-    fontWeight: '600',
   },
 });

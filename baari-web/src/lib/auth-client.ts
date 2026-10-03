@@ -1,6 +1,5 @@
 import { createAuthClient } from "better-auth/react";
 import { bearer } from "better-auth/plugins";
-import { emailOTPClient } from "better-auth/client/plugins";
 import { api } from "./api";
 import { useSession, UserProfile, ActiveFlat } from "@/store/session";
 
@@ -26,7 +25,7 @@ export const authClient = createAuthClient({
         "",
     },
   },
-  plugins: [bearer(), emailOTPClient()],
+  plugins: [bearer()],
 });
 
 export const { signIn, signUp, signOut, useSession: useAuthSession, getSession } = authClient;
