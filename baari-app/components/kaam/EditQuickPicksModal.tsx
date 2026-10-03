@@ -1,11 +1,10 @@
-import React, { useState } from 'react';
+import React, { useState, useCallback } from 'react';
 import {
   View,
   Text,
   StyleSheet,
   TouchableOpacity,
   ScrollView,
-  TextInput,
   Alert,
 } from 'react-native';
 import { Modal } from '../ui/Modal';
@@ -25,12 +24,12 @@ import {
   Flame,
   Zap,
   Bed,
-  Tv,
-  Package,
   Coffee,
   CheckCircle2,
-  Check,
 } from 'lucide-react-native';
+
+import { PresetItemRow } from './edit-quickpicks/PresetItemRow';
+import { AddPresetForm } from './edit-quickpicks/AddPresetForm';
 
 interface EditQuickPicksModalProps {
   visible: boolean;
@@ -84,7 +83,6 @@ export const renderQuickPickIcon = (
     category = (presetOrName.category || '').toLowerCase();
   }
 
-  // 1. Direct icon key matching
   const keyLower = iconKey.toLowerCase();
   if (keyLower.includes('droplet') || keyLower.includes('water') || label.includes('water') || category === 'water') {
     return <Droplet size={size} color={color} strokeWidth={2.2} />;
@@ -123,7 +121,6 @@ export const renderQuickPickIcon = (
     return <Coffee size={size} color={color} strokeWidth={2.2} />;
   }
 
-  // Fallback
   return <CheckCircle2 size={size} color={color} strokeWidth={2.2} />;
 };
 
@@ -175,7 +172,7 @@ export const EditQuickPicksModal: React.FC<EditQuickPicksModalProps> = ({
     }
   };
 
-  const handleDelete = (preset: QuickPickPreset) => {
+  const handleDelete = useCallback((preset: QuickPickPreset) => {
     Alert.alert(
       'Remove Preset',
       `Are you sure you want to remove "${preset.label}" from your flat's Quick Picks?`,
@@ -194,7 +191,7 @@ export const EditQuickPicksModal: React.FC<EditQuickPicksModalProps> = ({
         },
       ]
     );
-  };
+  }, [onDelete]);
 
   return (
     <Modal visible={visible} onClose={onClose} title="Customize Quick Picks">
@@ -211,125 +208,35 @@ export const EditQuickPicksModal: React.FC<EditQuickPicksModalProps> = ({
       {/* Existing Presets List */}
       <ScrollView style={styles.presetList} showsVerticalScrollIndicator={false}>
         {presets.map((preset, idx) => (
-          <View key={preset.id || idx} style={styles.presetRow}>
-            <View style={styles.presetIconWrap}>
-              {renderQuickPickIcon(preset, 18, Colors.navy)}
-            </View>
-            <View style={styles.presetInfo}>
-              <View style={styles.presetLabelRow}>
-                <Text style={styles.presetLabelText}>{preset.label}</Text>
-                <View style={styles.categoryBadge}>
-                  <Text style={styles.categoryBadgeText}>{preset.category}</Text>
-                </View>
-              </View>
-              <Text style={styles.presetTitleText}>{preset.title}</Text>
-            </View>
-
-            {presets.length > 1 && (
-              <TouchableOpacity
-                activeOpacity={0.7}
-                onPress={() => handleDelete(preset)}
-                style={styles.deleteBtn}
-              >
-                <Trash2 size={16} color="#DC2626" />
-              </TouchableOpacity>
-            )}
-          </View>
+          <PresetItemRow
+            key={preset.id || idx}
+            preset={preset}
+            canDelete={presets.length > 1}
+            onDelete={handleDelete}
+          />
         ))}
       </ScrollView>
 
       {/* Add New Preset Form */}
       {isAdding ? (
-        <View style={styles.addFormContainer}>
-          <Text style={styles.addFormHeader}>Add New Preset</Text>
-
-          <Text style={styles.inputLabel}>Chip Label (Short)</Text>
-          <TextInput
-            style={styles.input}
-            placeholder="e.g. Balcony"
-            placeholderTextColor={Colors.mutedNavy}
-            value={newLabel}
-            onChangeText={setNewLabel}
-          />
-
-          <Text style={styles.inputLabel}>Full Kaam Title</Text>
-          <TextInput
-            style={styles.input}
-            placeholder="e.g. Clean balcony & watering plants"
-            placeholderTextColor={Colors.mutedNavy}
-            value={newTitle}
-            onChangeText={setNewTitle}
-          />
-
-          <Text style={styles.inputLabel}>Select Icon</Text>
-          <View style={styles.iconPickerGrid}>
-            {ICON_OPTIONS.map((opt) => {
-              const isSelected = selectedIconName === opt.name;
-              const IconComponent = opt.icon;
-              return (
-                <TouchableOpacity
-                  key={opt.name}
-                  activeOpacity={0.7}
-                  onPress={() => setSelectedIconName(opt.name)}
-                  style={[
-                    styles.iconPickerCell,
-                    isSelected && styles.iconPickerCellActive,
-                  ]}
-                >
-                  <IconComponent
-                    size={18}
-                    color={isSelected ? Colors.white : Colors.navy}
-                    strokeWidth={2.2}
-                  />
-                </TouchableOpacity>
-              );
-            })}
-          </View>
-
-          <Text style={styles.inputLabel}>Category</Text>
-          <View style={styles.categoryRow}>
-            {CATEGORIES.map((cat) => (
-              <TouchableOpacity
-                key={cat.value}
-                activeOpacity={0.7}
-                onPress={() => setNewCategory(cat.value)}
-                style={[
-                  styles.categoryPill,
-                  newCategory === cat.value && styles.categoryPillActive,
-                ]}
-              >
-                <Text
-                  style={[
-                    styles.categoryPillText,
-                    newCategory === cat.value && styles.categoryPillTextActive,
-                  ]}
-                >
-                  {cat.label}
-                </Text>
-              </TouchableOpacity>
-            ))}
-          </View>
-
-          <View style={styles.formActionRow}>
-            <Button
-              title="Cancel"
-              variant="outline"
-              size="sm"
-              onPress={() => {
-                setIsAdding(false);
-                setError('');
-              }}
-              style={{ flex: 1 }}
-            />
-            <Button
-              title="Save Preset"
-              size="sm"
-              loading={loading}
-              onPress={handleAddPreset}
-              style={{ flex: 1 }}
-            />
-          </View>
-        </View>
+        <AddPresetForm
+          newLabel={newLabel}
+          setNewLabel={setNewLabel}
+          newTitle={newTitle}
+          setNewTitle={setNewTitle}
+          newCategory={newCategory}
+          setNewCategory={setNewCategory}
+          selectedIconName={selectedIconName}
+          setSelectedIconName={setSelectedIconName}
+          iconOptions={ICON_OPTIONS}
+          categories={CATEGORIES}
+          loading={loading}
+          onCancel={() => {
+            setIsAdding(false);
+            setError('');
+          }}
+          onSubmit={handleAddPreset}
+        />
       ) : (
         <TouchableOpacity
           activeOpacity={0.7}
@@ -372,63 +279,6 @@ const styles = StyleSheet.create({
     maxHeight: 280,
     marginBottom: Spacing.md,
   },
-  presetRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 10,
-    paddingHorizontal: Spacing.sm,
-    backgroundColor: Colors.offWhite,
-    borderRadius: BorderRadius.md,
-    marginBottom: Spacing.xs,
-    borderWidth: 1,
-    borderColor: Colors.border,
-  },
-  presetIconWrap: {
-    width: 34,
-    height: 34,
-    borderRadius: BorderRadius.sm,
-    backgroundColor: Colors.paleSky,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: Spacing.sm,
-  },
-  presetInfo: {
-    flex: 1,
-  },
-  presetLabelRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-  },
-  presetLabelText: {
-    fontFamily: 'Inter_600SemiBold',
-    fontSize: 13,
-    color: Colors.deepNavy,
-  },
-  categoryBadge: {
-    backgroundColor: Colors.white,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    paddingHorizontal: 5,
-    paddingVertical: 1,
-    borderRadius: BorderRadius.sm,
-  },
-  categoryBadgeText: {
-    fontSize: 9,
-    fontFamily: 'Inter_500Medium',
-    color: Colors.mutedNavy,
-    textTransform: 'uppercase',
-  },
-  presetTitleText: {
-    ...Typography.Caption,
-    color: Colors.grayBlack,
-    fontSize: 11,
-    marginTop: 1,
-  },
-  deleteBtn: {
-    padding: 8,
-    borderRadius: BorderRadius.sm,
-  },
   addNewButton: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -445,88 +295,5 @@ const styles = StyleSheet.create({
     fontFamily: 'Inter_600SemiBold',
     fontSize: 13,
     color: Colors.navy,
-  },
-  addFormContainer: {
-    backgroundColor: '#F8FAFC',
-    borderRadius: BorderRadius.md,
-    padding: Spacing.md,
-    borderWidth: 1,
-    borderColor: Colors.border,
-  },
-  addFormHeader: {
-    fontFamily: 'Inter_700Bold',
-    fontSize: 13,
-    color: Colors.deepNavy,
-    marginBottom: Spacing.sm,
-  },
-  inputLabel: {
-    ...Typography.Caption,
-    fontFamily: 'Inter_600SemiBold',
-    color: Colors.grayBlack,
-    marginBottom: 4,
-    marginTop: 6,
-  },
-  input: {
-    backgroundColor: Colors.white,
-    borderRadius: BorderRadius.sm,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    paddingHorizontal: Spacing.sm,
-    paddingVertical: 8,
-    fontSize: 13,
-    color: Colors.black,
-  },
-  iconPickerGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
-    marginTop: 4,
-    marginBottom: Spacing.xs,
-  },
-  iconPickerCell: {
-    width: 38,
-    height: 38,
-    borderRadius: BorderRadius.sm,
-    backgroundColor: Colors.white,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  iconPickerCellActive: {
-    backgroundColor: Colors.navy,
-    borderColor: Colors.navy,
-  },
-  categoryRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 6,
-    marginTop: 4,
-    marginBottom: Spacing.md,
-  },
-  categoryPill: {
-    paddingVertical: 5,
-    paddingHorizontal: 8,
-    borderRadius: BorderRadius.sm,
-    backgroundColor: Colors.white,
-    borderWidth: 1,
-    borderColor: Colors.border,
-  },
-  categoryPillActive: {
-    backgroundColor: Colors.navy,
-    borderColor: Colors.navy,
-  },
-  categoryPillText: {
-    fontSize: 11,
-    fontFamily: 'Inter_500Medium',
-    color: Colors.deepNavy,
-  },
-  categoryPillTextActive: {
-    color: Colors.white,
-  },
-  formActionRow: {
-    flexDirection: 'row',
-    gap: Spacing.sm,
-    marginTop: 4,
   },
 });
