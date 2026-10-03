@@ -1,33 +1,31 @@
 "use client";
 
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useCallback, useRef } from "react";
 import { useSession } from "@/store/session";
 import { getSocket } from "@/lib/socket";
 import { api } from "@/lib/api";
 import { ChatMessage } from "@/components/chat/MessageBubble";
+import { useChatSocket, TypingUser } from "./chat/useChatSocket";
+import { useChatPagination } from "./chat/useChatPagination";
 
-export interface TypingUser {
-  userId: string;
-  userName: string;
-}
+export type { TypingUser };
 
-/**
- * Mirrors baari-app/hooks/useChat.ts exactly.
- */
 export const useChat = () => {
   const activeFlat = useSession((state) => state.activeFlat);
   const currentUser = useSession((state) => state.user);
-  const [messages, setMessages] = useState<ChatMessage[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [loadingMore, setLoadingMore] = useState(false);
-  const [nextCursor, setNextCursor] = useState<string | null>(null);
-  const [typingUsers, setTypingUsers] = useState<TypingUser[]>([]);
 
-  const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const {
+    messages,
+    setMessages,
+    loading,
+    loadingMore,
+    hasMore,
+    loadMore,
+  } = useChatPagination({ activeFlatId: activeFlat?.id });
+
   const pendingOpsRef = useRef<Map<string, { action: "edit"; content: string } | { action: "delete" }>>(new Map());
   const sendingTempMsgsRef = useRef<{ tempId: string; originalContent: string }[]>([]);
 
-  // Helper to execute queued pending operations (edit/delete) when server confirms real message ID
   const processConfirmedMessage = useCallback(
     (tempId: string, confirmedMsg: ChatMessage): ChatMessage => {
       const pendingOp = pendingOpsRef.current.get(tempId);
@@ -54,40 +52,6 @@ export const useChat = () => {
     []
   );
 
-  // Fetch initial message history
-  const fetchMessages = useCallback(async () => {
-    if (!activeFlat?.id) return;
-    try {
-      setLoading(true);
-      const data = await api.get<{
-        messages: ChatMessage[];
-        nextCursor: string | null;
-      }>("/api/messages", {
-        flatId: activeFlat.id,
-      });
-      const fetched = (data.messages || [])
-        .map((m) => ({ ...m, status: "sent" as const }))
-        .reverse();
-      setMessages(fetched);
-      setNextCursor(data.nextCursor);
-    } catch (error) {
-      console.error("[useChat] Error fetching message history:", error);
-    } finally {
-      setLoading(false);
-    }
-  }, [activeFlat?.id]);
-
-  useEffect(() => {
-    fetchMessages();
-  }, [fetchMessages]);
-
-  // Ref to hold currentUser to avoid re-binding socket listeners when currentUser object updates
-  const currentUserRef = useRef(currentUser);
-  useEffect(() => {
-    currentUserRef.current = currentUser;
-  }, [currentUser]);
-
-  // Mark read up to message
   const markReadUpTo = useCallback(
     async (messageId: string) => {
       if (!activeFlat?.id || !messageId || messageId.startsWith("temp")) return;
@@ -98,237 +62,118 @@ export const useChat = () => {
     [activeFlat?.id]
   );
 
-  // Socket.io Realtime Listeners for new_message, user_typing, message_read
-  useEffect(() => {
-    if (!activeFlat?.id) return;
+  const handleNewMessage = useCallback(
+    (incomingMsg: ChatMessage) => {
+      const incoming = {
+        ...incomingMsg,
+        status: "sent" as const,
+        reads: incomingMsg.reads || [],
+      };
 
-    const flatId = activeFlat.id;
-    const socket = getSocket();
+      setMessages((prev) => {
+        let tempIdx = -1;
+        let matchedTempId = "";
 
-    // Ensure socket is connecting/connected
-    if (!socket.connected) {
-      const token = useSession.getState().token;
-      if (token) {
-        socket.auth = { token };
-      }
-      socket.connect();
-    }
-
-    const joinRoom = () => {
-      console.log(`[useChat] [join_flat] Immediately BEFORE emitting join_flat. flatId: ${flatId}, socketId: ${socket.id}, connected: ${socket.connected}`);
-      socket.emit("join_flat", { flatId });
-      console.log(`[useChat] [join_flat] Immediately AFTER emitting join_flat for flatId: ${flatId}`);
-    };
-
-    if (socket.connected) {
-      joinRoom();
-    }
-
-    // Re-join room on connect and reconnect
-    socket.on("connect", joinRoom);
-
-    const handleNewMessage = (data: { message: ChatMessage }) => {
-      console.log('[useChat] [new_message] LISTENER FIRED! Received payload:', JSON.stringify(data, null, 2));
-      if (data?.message) {
-        const incoming = {
-          ...data.message,
-          status: "sent" as const,
-          reads: data.message.reads || [],
-        };
-
-        // Filter out messages for other flats if any
-        if (incoming.flatId && incoming.flatId !== flatId) {
-          console.warn("[useChat] Received message for different flat:", incoming.flatId, "expected:", flatId);
-          return;
+        const itemIdx = sendingTempMsgsRef.current.findIndex(
+          (item) => item.originalContent === incoming.content
+        );
+        if (itemIdx !== -1) {
+          matchedTempId = sendingTempMsgsRef.current[itemIdx].tempId;
+          sendingTempMsgsRef.current.splice(itemIdx, 1);
+          tempIdx = prev.findIndex((m) => m.id === matchedTempId);
         }
 
-        setMessages((prev) => {
-          let tempIdx = -1;
-          let matchedTempId = "";
-
-          // 1. Try matching by registered temp message item
-          const itemIdx = sendingTempMsgsRef.current.findIndex(
-            (item) => item.originalContent === incoming.content
+        if (tempIdx === -1) {
+          tempIdx = prev.findIndex(
+            (m) =>
+              m.status === "sending" &&
+              m.senderId === incoming.senderId &&
+              (m.content === incoming.content || pendingOpsRef.current.has(m.id))
           );
-          if (itemIdx !== -1) {
-            matchedTempId = sendingTempMsgsRef.current[itemIdx].tempId;
-            sendingTempMsgsRef.current.splice(itemIdx, 1);
-            tempIdx = prev.findIndex((m) => m.id === matchedTempId);
+          if (tempIdx !== -1) {
+            matchedTempId = prev[tempIdx].id;
           }
-
-          // 2. Fallback to searching temp messages by status and senderId
-          if (tempIdx === -1) {
-            tempIdx = prev.findIndex(
-              (m) =>
-                m.status === "sending" &&
-                m.senderId === incoming.senderId &&
-                (m.content === incoming.content || pendingOpsRef.current.has(m.id))
-            );
-            if (tempIdx !== -1) {
-              matchedTempId = prev[tempIdx].id;
-            }
-          }
-
-          if (tempIdx !== -1 && matchedTempId) {
-            console.log('[useChat] [new_message] Replaced optimistic temp message with confirmed message:', incoming.id);
-            const next = [...prev];
-            next[tempIdx] = processConfirmedMessage(matchedTempId, incoming);
-            return next;
-          }
-
-          // If message already exists in array (e.g. from history or ack), avoid duplication
-          if (prev.some((m) => m.id === incoming.id)) {
-            console.log('[useChat] [new_message] Message already exists in state, skipping duplicate:', incoming.id);
-            return prev;
-          }
-
-          console.log('[useChat] [new_message] Appending new message to state. ID:', incoming.id, 'Sender:', incoming.sender?.name);
-          return [...prev, incoming];
-        });
-
-        // If incoming message is from a flatmate, mark it read in real time
-        if (incoming.senderId !== currentUserRef.current?.id) {
-          markReadUpTo(incoming.id);
         }
-      }
-    };
 
-    const handleUserTyping = (data: {
-      userId: string;
-      userName: string;
-      isTyping: boolean;
-    }) => {
-      if (!data?.userId || data.userId === currentUserRef.current?.id) return;
-      setTypingUsers((prev) => {
-        if (data.isTyping) {
-          if (prev.some((u) => u.userId === data.userId)) return prev;
-          return [...prev, { userId: data.userId, userName: data.userName }];
-        } else {
-          return prev.filter((u) => u.userId !== data.userId);
+        if (tempIdx !== -1 && matchedTempId) {
+          const next = [...prev];
+          next[tempIdx] = processConfirmedMessage(matchedTempId, incoming);
+          return next;
         }
+
+        if (prev.some((m) => m.id === incoming.id)) {
+          return prev;
+        }
+
+        return [...prev, incoming];
       });
-    };
 
-    const handleMessageRead = (data: {
-      userId: string;
-      messageId: string;
-      userName?: string;
-      userImage?: string;
-    }) => {
-      if (!data?.messageId || !data?.userId) return;
-      setMessages((prev) =>
-        prev.map((msg) => {
-          if (msg.id === data.messageId) {
-            const existingReads = (msg as any).reads || [];
-            if (!existingReads.some((r: any) => r.userId === data.userId)) {
-              return {
-                ...msg,
-                reads: [
-                  ...existingReads,
-                  {
-                    userId: data.userId,
-                    userName: data.userName || "Flatmate",
-                    userImage: data.userImage,
-                  },
-                ],
-              };
-            }
-          }
-          return msg;
-        })
-      );
-    };
-
-    const handleMessageEdited = (data: { messageId: string; content: string; editedAt: string }) => {
-      if (!data?.messageId) return;
-      console.log("[useChat] Received message_edited event:", data.messageId);
-      setMessages((prev) =>
-        prev.map((msg) =>
-          msg.id === data.messageId
-            ? { ...msg, content: data.content, editedAt: data.editedAt }
-            : msg
-        )
-      );
-    };
-
-    const handleMessageDeleted = (data: { messageId: string; deletedAt: string }) => {
-      if (!data?.messageId) return;
-      console.log("[useChat] Received message_deleted event:", data.messageId);
-      setMessages((prev) =>
-        prev.map((msg) =>
-          msg.id === data.messageId
-            ? { ...msg, content: "", deletedAt: data.deletedAt }
-            : msg
-        )
-      );
-    };
-
-    socket.on("new_message", handleNewMessage);
-    socket.on("message_edited", handleMessageEdited);
-    socket.on("message_deleted", handleMessageDeleted);
-    socket.on("user_typing", handleUserTyping);
-    socket.on("message_read", handleMessageRead);
-
-    return () => {
-      console.log(`[useChat] Cleaning up socket listeners for flat room: ${flatId}`);
-      socket.off("connect", joinRoom);
-      socket.off("new_message", handleNewMessage);
-      socket.off("message_edited", handleMessageEdited);
-      socket.off("message_deleted", handleMessageDeleted);
-      socket.off("user_typing", handleUserTyping);
-      socket.off("message_read", handleMessageRead);
-    };
-  }, [activeFlat?.id, markReadUpTo, processConfirmedMessage]);
-
-  // Load older messages (pagination)
-  const loadMore = useCallback(async () => {
-    if (!activeFlat?.id || !nextCursor || loadingMore) return;
-    try {
-      setLoadingMore(true);
-      const data = await api.get<{
-        messages: ChatMessage[];
-        nextCursor: string | null;
-      }>("/api/messages", {
-        flatId: activeFlat.id,
-        cursor: nextCursor,
-      });
-      const olderMessages = (data.messages || [])
-        .map((m) => ({ ...m, status: "sent" as const }))
-        .reverse();
-      setMessages((prev) => [...olderMessages, ...prev]);
-      setNextCursor(data.nextCursor);
-    } catch (error) {
-      console.error("[useChat] Error loading more messages:", error);
-    } finally {
-      setLoadingMore(false);
-    }
-  }, [activeFlat?.id, nextCursor, loadingMore]);
-
-  // Emit typing indicator
-  const emitTyping = useCallback(
-    (isTyping: boolean) => {
-      if (!activeFlat?.id) return;
-      const socket = getSocket();
-      socket.emit("typing", { flatId: activeFlat.id, isTyping });
-
-      if (isTyping) {
-        if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
-        typingTimeoutRef.current = setTimeout(() => {
-          socket.emit("typing", { flatId: activeFlat.id, isTyping: false });
-        }, 3000);
+      if (incoming.senderId !== currentUser?.id) {
+        markReadUpTo(incoming.id);
       }
     },
-    [activeFlat?.id]
+    [currentUser?.id, markReadUpTo, processConfirmedMessage, setMessages]
   );
 
-  // Edit message
+  const handleMessageEdited = useCallback((data: { messageId: string; content: string; editedAt: string }) => {
+    setMessages((prev) =>
+      prev.map((msg) =>
+        msg.id === data.messageId
+          ? { ...msg, content: data.content, editedAt: data.editedAt }
+          : msg
+      )
+    );
+  }, [setMessages]);
+
+  const handleMessageDeleted = useCallback((data: { messageId: string; deletedAt: string }) => {
+    setMessages((prev) =>
+      prev.map((msg) =>
+        msg.id === data.messageId
+          ? { ...msg, content: "", deletedAt: data.deletedAt }
+          : msg
+      )
+    );
+  }, [setMessages]);
+
+  const handleMessageRead = useCallback((data: { userId: string; messageId: string; userName?: string; userImage?: string }) => {
+    setMessages((prev) =>
+      prev.map((msg) => {
+        if (msg.id === data.messageId) {
+          const existingReads = (msg as any).reads || [];
+          if (!existingReads.some((r: any) => r.userId === data.userId)) {
+            return {
+              ...msg,
+              reads: [
+                ...existingReads,
+                {
+                  userId: data.userId,
+                  userName: data.userName || "Flatmate",
+                  userImage: data.userImage,
+                },
+              ],
+            };
+          }
+        }
+        return msg;
+      })
+    );
+  }, [setMessages]);
+
+  const { typingUsers, emitTyping } = useChatSocket({
+    activeFlatId: activeFlat?.id,
+    currentUserId: currentUser?.id,
+    onNewMessage: handleNewMessage,
+    onMessageEdited: handleMessageEdited,
+    onMessageDeleted: handleMessageDeleted,
+    onMessageRead: handleMessageRead,
+  });
+
   const editMessage = useCallback(
     async (messageId: string, newContent: string) => {
       const trimmed = newContent.trim();
       if (!messageId || !trimmed) return;
 
       const editedAt = new Date().toISOString();
-      // Optimistic update
       setMessages((prev) =>
         prev.map((m) =>
           m.id === messageId ? { ...m, content: trimmed, editedAt } : m
@@ -346,16 +191,14 @@ export const useChat = () => {
         console.error("[useChat] Failed to edit message:", err);
       }
     },
-    []
+    [setMessages]
   );
 
-  // Soft delete message
   const deleteMessage = useCallback(
     async (messageId: string) => {
       if (!messageId) return;
 
       const deletedAt = new Date().toISOString();
-      // Optimistic update
       setMessages((prev) =>
         prev.map((m) =>
           m.id === messageId ? { ...m, content: "", deletedAt } : m
@@ -373,10 +216,9 @@ export const useChat = () => {
         console.error("[useChat] Failed to delete message:", err);
       }
     },
-    []
+    [setMessages]
   );
 
-  // Optimistic message send with Socket.io (with 5s ack timeout) & REST fallback
   const sendMessage = useCallback(
     async (content: string) => {
       if (!activeFlat?.id || !currentUser?.id || !content.trim()) return;
@@ -398,126 +240,108 @@ export const useChat = () => {
         },
       };
 
-      sendingTempMsgsRef.current.push({ tempId, originalContent: trimmed });
+      sendingTempMsgsRef.current.push({
+        tempId,
+        originalContent: trimmed,
+      });
+
       setMessages((prev) => [...prev, optimisticMsg]);
 
       const socket = getSocket();
-      let sentViaSocket = false;
+      let isAcked = false;
 
-      if (socket.connected) {
-        try {
-          console.log('[useChat] [send_message] Immediately BEFORE emitting send_message:', {
-            event: 'send_message',
-            flatId: activeFlat.id,
-            content: trimmed,
-            socketId: socket.id,
-            connected: socket.connected,
-          });
-
-          // Emit with 5-second ack timeout
-          const socketPromise = new Promise<{
-            success?: boolean;
-            message?: ChatMessage;
-            error?: string;
-          }>((resolve, reject) => {
-            const timeoutTimer = setTimeout(() => {
-              reject(
-                new Error("Socket send_message acknowledgment timed out after 5000ms")
-              );
-            }, 5000);
-
-            socket.emit(
-              "send_message",
-              { flatId: activeFlat.id, content: trimmed },
-              (ack: any) => {
-                clearTimeout(timeoutTimer);
-                console.log('[useChat] [send_message] ACK CALLBACK FIRED! Response from server:', JSON.stringify(ack, null, 2));
-                resolve(ack || {});
-              }
-            );
-          });
-
-          const response = await socketPromise;
-          if (response?.error) {
-            console.warn(
-              "[useChat] [send_message] Socket send returned error from server ack:",
-              response.error
-            );
-          } else if (response?.message) {
-            console.log(
-              "[useChat] [send_message] Message confirmed sent via Socket.io ack:",
-              response.message.id
-            );
-            sentViaSocket = true;
-            setMessages((prev) =>
-              prev.map((m) =>
-                m.id === tempId
-                  ? processConfirmedMessage(tempId, response.message!)
-                  : m
-              )
-            );
-          }
-        } catch (socketErr: any) {
-          console.warn(
-            "[useChat] [send_message] Socket send timed out or threw error:",
-            socketErr?.message
-          );
-        }
-      }
-
-      // If socket wasn't connected or socket emit failed/timed out, execute REST fallback
-      if (!sentViaSocket) {
-        console.log("[useChat] Executing REST POST /api/messages fallback...");
-        try {
-          const data = await api.post<{ message: ChatMessage }>(
-            "/api/messages",
-            {
+      const emitTimeout = setTimeout(() => {
+        if (!isAcked) {
+          console.warn("[useChat] Socket emit ack timed out (5s), using REST fallback");
+          api
+            .post<{ message: ChatMessage }>("/api/messages", {
               flatId: activeFlat.id,
               content: trimmed,
-            }
-          );
-          if (data?.message) {
-            console.log(
-              "[useChat] Message sent successfully via REST fallback:",
-              data.message.id
-            );
-            setMessages((prev) =>
-              prev.map((m) =>
-                m.id === tempId
-                  ? processConfirmedMessage(tempId, data.message)
-                  : m
-              )
-            );
-          }
-        } catch (restErr: any) {
-          console.error(
-            "[useChat] REST send fallback also failed:",
-            restErr?.message || restErr
-          );
-          pendingOpsRef.current.delete(tempId);
-          setMessages((prev) =>
-            prev.map((m) => (m.id === tempId ? { ...m, status: "failed" } : m))
-          );
+            })
+            .then((res) => {
+              if (res?.message) {
+                const confirmed = processConfirmedMessage(tempId, res.message);
+                setMessages((prev) =>
+                  prev.map((m) => (m.id === tempId ? confirmed : m))
+                );
+              }
+            })
+            .catch((err) => {
+              console.error("[useChat] REST fallback failed:", err);
+              setMessages((prev) =>
+                prev.map((m) => (m.id === tempId ? { ...m, status: "failed" } : m))
+              );
+            });
         }
+      }, 5000);
+
+      try {
+        socket.emit(
+          "send_message",
+          { flatId: activeFlat.id, content: trimmed },
+          (response: { success: boolean; message?: ChatMessage; error?: string }) => {
+            isAcked = true;
+            clearTimeout(emitTimeout);
+
+            if (response?.success && response.message) {
+              const confirmed = processConfirmedMessage(tempId, response.message);
+              setMessages((prev) =>
+                prev.map((m) => (m.id === tempId ? confirmed : m))
+              );
+            } else {
+              console.error("[useChat] Socket send_message ack error:", response?.error);
+              setMessages((prev) =>
+                prev.map((m) => (m.id === tempId ? { ...m, status: "failed" } : m))
+              );
+            }
+          }
+        );
+      } catch (err) {
+        clearTimeout(emitTimeout);
+        console.error("[useChat] Exception emitting send_message socket event:", err);
+        setMessages((prev) =>
+          prev.map((m) => (m.id === tempId ? { ...m, status: "failed" } : m))
+        );
       }
     },
-    [activeFlat?.id, currentUser, emitTyping, processConfirmedMessage]
+    [activeFlat?.id, currentUser, emitTyping, processConfirmedMessage, setMessages]
   );
 
   const retryMessage = useCallback(
-    async (msg: ChatMessage) => {
-      console.log("[useChat] Retrying failed message:", msg.id);
-      setMessages((prev) => prev.filter((m) => m.id !== msg.id));
-      await sendMessage(msg.content);
+    async (tempMsg: ChatMessage) => {
+      if (!activeFlat?.id || !tempMsg?.content) return;
+
+      setMessages((prev) =>
+        prev.map((m) => (m.id === tempMsg.id ? { ...m, status: "sending" } : m))
+      );
+
+      try {
+        const res = await api.post<{ message: ChatMessage }>("/api/messages", {
+          flatId: activeFlat.id,
+          content: tempMsg.content,
+        });
+
+        if (res?.message) {
+          const confirmed = processConfirmedMessage(tempMsg.id, res.message);
+          setMessages((prev) =>
+            prev.map((m) => (m.id === tempMsg.id ? confirmed : m))
+          );
+        }
+      } catch (err) {
+        console.error("[useChat] Retry message failed:", err);
+        setMessages((prev) =>
+          prev.map((m) => (m.id === tempMsg.id ? { ...m, status: "failed" } : m))
+        );
+      }
     },
-    [sendMessage]
+    [activeFlat?.id, processConfirmedMessage, setMessages]
   );
 
   return {
     messages,
     loading,
     loadingMore,
-    hasMore: Boolean(nextCursor),
+    hasMore,
     typingUsers,
     sendMessage,
     retryMessage,
