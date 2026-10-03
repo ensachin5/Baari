@@ -4,12 +4,15 @@ import cors from 'cors';
 import helmet from 'helmet';
 import pinoHttp from 'pino-http';
 import * as dotenv from 'dotenv';
+import { eq, and, gt } from 'drizzle-orm';
 import { auth } from './auth.js';
 import { toNodeHandler } from 'better-auth/node';
 import { db, pool } from './db/index.js';
+import { user, session, oneTimeAuthCodes } from './db/schema.js';
 import { initSocket } from './sockets/index.js';
 import { logger, errorHandler } from './middleware/error-handler.js';
 import { lenientAuthRateLimiter, generalRateLimiter } from './middleware/rate-limit.js';
+import { oauthCallbackInterceptor, rawTokenFromCookieValue } from './middleware/oauth-callback-interceptor.js';
 
 // Route imports
 import { flatsRouter } from './routes/flats.js';
@@ -53,7 +56,7 @@ const ALLOWED_ORIGINS = [
   ...additionalOrigins,
 ];
 
-// 2. CORS
+// 2. CORS (Enforcing strict origin whitelist)
 app.use(
   cors({
     origin: (origin, callback) => {
@@ -74,7 +77,7 @@ app.use(
         return callback(null, true);
       }
 
-      return callback(null, true);
+      return callback(new Error('Not allowed by CORS'));
     },
     credentials: true,
     allowedHeaders: ['Content-Type', 'Authorization', 'Cookie', 'expo-origin', 'x-skip-oauth-proxy', 'x-requested-with'],
@@ -153,168 +156,8 @@ app.get('/health/db', async (_req, res) => {
   }
 });
 
-// Diagnostic endpoint to verify OAuth and Better Auth environment variables safely
-app.get('/health/auth-config', (_req, res) => {
-  const hasId = Boolean(process.env.GOOGLE_CLIENT_ID);
-  const id = (process.env.GOOGLE_CLIENT_ID || '').trim().replace(/^["']|["']$/g, '');
-  const idPrefix = id ? id.slice(0, 15) : '';
-  const idSuffix = id ? id.slice(-15) : '';
-  const hasSecret = Boolean(process.env.GOOGLE_CLIENT_SECRET);
-  const secret = (process.env.GOOGLE_CLIENT_SECRET || '').trim().replace(/^["']|["']$/g, '');
-  const secretPrefix = secret ? secret.slice(0, 7) : '';
-  const secretLength = secret.length;
-  const rawBetterAuthUrl = process.env.BETTER_AUTH_URL || '';
-  const resolvedBaseURL = rawBetterAuthUrl.trim().replace(/^["']|["']$/g, '').replace(/\/+$/, '');
-
-  res.json({
-    hasGoogleClientId: hasId,
-    googleClientIdPrefix: idPrefix,
-    googleClientIdSuffix: idSuffix,
-    googleClientIdLength: id.length,
-    hasGoogleClientSecret: hasSecret,
-    googleClientSecretPrefix: secretPrefix,
-    googleClientSecretLength: secretLength,
-    rawBetterAuthUrl,
-    resolvedBaseURL,
-    computedRedirectUri: `${resolvedBaseURL}/api/auth/callback/google`,
-    nodeEnv: process.env.NODE_ENV || 'undefined',
-  });
-});
-
-import crypto from 'crypto';
-
-// Ensure one_time_auth_codes table exists in PostgreSQL
-pool.query(`
-  CREATE TABLE IF NOT EXISTS one_time_auth_codes (
-    id UUID PRIMARY KEY DEFAULT pg_catalog.gen_random_uuid(),
-    code TEXT NOT NULL UNIQUE,
-    user_id UUID NOT NULL REFERENCES "user"(id) ON DELETE CASCADE,
-    session_token TEXT NOT NULL,
-    expires_at TIMESTAMP NOT NULL,
-    created_at TIMESTAMP DEFAULT NOW() NOT NULL
-  );
-`).catch((err) => logger.error({ msg: 'Failed creating one_time_auth_codes table', error: err.message }));
-
-const SESSION_COOKIE_RE = /(?:^|[\s;,])((?:__Secure-)?(?:better-auth|baari)\.session_token)=([^;]+)/;
-
-/** Signed cookie value is "<token>.<signature>"; DB stores only "<token>". */
-const rawTokenFromCookieValue = (value: string): string => {
-  let v = value;
-  try { v = decodeURIComponent(v); } catch (_) {}
-  return v.replace(/^["']|["']$/g, '').split('.')[0].trim();
-};
-
-app.use('/api/auth/callback/*', (req, res, next) => {
-  // Re-inject the OAuth state cookie from ?state= (plain + __Secure- names)
-  if (typeof req.query.state === 'string' && req.query.state) {
-    const existing = req.headers.cookie || '';
-    if (!/(?:^|;\s*)(?:__Secure-)?better-auth\.state=/.test(existing)) {
-      const extra = `better-auth.state=${req.query.state}; __Secure-better-auth.state=${req.query.state}`;
-      req.headers.cookie = existing ? `${existing}; ${extra}` : extra;
-      logger.info({ msg: 'Injected OAuth state cookie from query parameter' });
-    }
-  }
-
-  let capturedCookieValue: string | null = null;
-  const captureFrom = (setCookie: unknown) => {
-    if (!setCookie) return;
-    const list = Array.isArray(setCookie) ? setCookie : [String(setCookie)];
-    for (const c of list) {
-      const m = String(c).match(SESSION_COOKIE_RE);
-      if (m?.[2]) capturedCookieValue = m[2];
-    }
-  };
-
-  const originalSetHeader = res.setHeader.bind(res);
-  res.setHeader = ((name: string, value: any) => {
-    if (name.toLowerCase() === 'set-cookie') captureFrom(value);
-    return originalSetHeader(name, value);
-  }) as typeof res.setHeader;
-
-  const isMobileRedirect = (loc: string) =>
-    Boolean(req.headers['expo-origin']) ||
-    loc.startsWith('baari://') ||
-    loc.startsWith('exp://') ||
-    !/^https?:\/\//i.test(loc);
-
-  const originalWriteHead = res.writeHead.bind(res) as any;
-  (res as any).writeHead = (statusCode: number, ...rest: any[]) => {
-    let statusMessage: string | undefined;
-    let headers: any;
-    if (typeof rest[0] === 'string') { statusMessage = rest[0]; headers = rest[1]; }
-    else { headers = rest[0]; }
-
-    let location: string | undefined;
-    const readHeaders = (h: any) => {
-      if (!h) return;
-      if (Array.isArray(h)) {
-        if (h.length && Array.isArray(h[0])) {
-          for (const [k, v] of h) {
-            if (String(k).toLowerCase() === 'location') location = String(v);
-            if (String(k).toLowerCase() === 'set-cookie') captureFrom(v);
-          }
-        } else {
-          for (let i = 0; i + 1 < h.length; i += 2) {
-            if (String(h[i]).toLowerCase() === 'location') location = String(h[i + 1]);
-            if (String(h[i]).toLowerCase() === 'set-cookie') captureFrom(h[i + 1]);
-          }
-        }
-      } else {
-        for (const k of Object.keys(h)) {
-          if (k.toLowerCase() === 'location') location = String(h[k]);
-          if (k.toLowerCase() === 'set-cookie') captureFrom(h[k]);
-        }
-      }
-    };
-    readHeaders(headers);
-    if (!location) { const l = res.getHeader('location'); if (l) location = String(l); }
-    captureFrom(res.getHeader('set-cookie'));
-
-    const isRedirect = statusCode >= 300 && statusCode < 400 && !!location;
-
-    if (isRedirect && location) {
-      if (location.includes('error=')) {
-        logger.error({ msg: 'OAuth callback redirected with error', location, query: req.query });
-      } else if (isMobileRedirect(location)) {
-        logger.info({ msg: 'Passing through mobile OAuth redirect', location });
-      } else if (capturedCookieValue) {
-        const cookieValue = capturedCookieValue;
-        const rawToken = rawTokenFromCookieValue(cookieValue);
-        const loc = location;
-        (async () => {
-          try {
-            const sess = await pool.query(`SELECT user_id FROM "session" WHERE token = $1 LIMIT 1`, [rawToken]);
-            if (!sess.rowCount) throw new Error('session row not found for callback token');
-            const code = crypto.randomBytes(32).toString('hex');
-            await pool.query(
-              `INSERT INTO one_time_auth_codes (code, user_id, session_token, expires_at) VALUES ($1, $2, $3, $4)`,
-              [code, sess.rows[0].user_id, decodeURIComponent(cookieValue), new Date(Date.now() + 60_000)]
-            );
-            const origin = new URL(loc).origin;
-            const completionUrl = `${origin}/auth/complete?code=${code}`;
-            logger.info({ msg: 'One-time auth code created for OAuth callback', completionUrl: `${origin}/auth/complete` });
-            res.removeHeader('Set-Cookie');
-            res.removeHeader('set-cookie');
-            originalSetHeader('Location', completionUrl);
-            originalWriteHead(302, { Location: completionUrl, 'Cache-Control': 'no-store' });
-            res.end();
-          } catch (err: any) {
-            logger.error({ msg: 'One-time code handoff failed; using original redirect', error: err?.message });
-            originalWriteHead(statusCode, ...(statusMessage ? [statusMessage] : []), headers);
-            res.end();
-          }
-        })();
-        return res;
-      }
-    }
-
-    return statusMessage !== undefined
-      ? originalWriteHead(statusCode, statusMessage, headers)
-      : originalWriteHead(statusCode, headers);
-  };
-
-  next();
-});
+// Intercept OAuth callback redirects to solve WebKit/Safari cross-site cookie restrictions
+app.use('/api/auth/callback/*', oauthCallbackInterceptor);
 
 app.post('/api/auth/complete-login', async (req, res): Promise<void> => {
   const { code } = req.body || {};
@@ -323,23 +166,42 @@ app.post('/api/auth/complete-login', async (req, res): Promise<void> => {
     return;
   }
   try {
-    const codeRes = await pool.query(
-      `DELETE FROM one_time_auth_codes WHERE code = $1 AND expires_at > NOW() RETURNING *`,
-      [code]
-    );
-    if (!codeRes.rowCount) {
+    const now = new Date();
+    const deletedCodes = await db
+      .delete(oneTimeAuthCodes)
+      .where(and(eq(oneTimeAuthCodes.code, code), gt(oneTimeAuthCodes.expiresAt, now)))
+      .returning();
+
+    if (!deletedCodes.length) {
       res.status(400).json({ error: 'Invalid, used, or expired authentication code' });
       return;
     }
-    const { user_id, session_token: signedToken } = codeRes.rows[0];
+
+    const { userId, sessionToken: signedToken } = deletedCodes[0];
     const rawToken = rawTokenFromCookieValue(signedToken);
 
-    const userRes = await pool.query(`SELECT id, name, email, image FROM "user" WHERE id = $1`, [user_id]);
-    const sessRes = await pool.query(
-      `SELECT id, expires_at, token FROM "session" WHERE token = $1 AND expires_at > NOW()`,
-      [rawToken]
-    );
-    if (!userRes.rowCount || !sessRes.rowCount) {
+    const userRows = await db
+      .select({
+        id: user.id,
+        name: user.name,
+        email: user.email,
+        image: user.image,
+      })
+      .from(user)
+      .where(eq(user.id, userId))
+      .limit(1);
+
+    const sessRows = await db
+      .select({
+        id: session.id,
+        expiresAt: session.expiresAt,
+        token: session.token,
+      })
+      .from(session)
+      .where(and(eq(session.token, rawToken), gt(session.expiresAt, now)))
+      .limit(1);
+
+    if (!userRows.length || !sessRows.length) {
       res.status(401).json({ error: 'Associated user or session not found' });
       return;
     }
@@ -356,8 +218,8 @@ app.post('/api/auth/complete-login', async (req, res): Promise<void> => {
     res.json({
       success: true,
       token: decodeURIComponent(signedToken), // signed value: works as Bearer for Better Auth AND requireAuth
-      user: userRes.rows[0],
-      session: sessRes.rows[0],
+      user: userRows[0],
+      session: sessRows[0],
     });
   } catch (err: any) {
     logger.error({ msg: 'complete-login endpoint exception', error: err?.message });

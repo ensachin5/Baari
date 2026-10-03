@@ -2,6 +2,8 @@ import { Router, Response } from 'express';
 import { db } from '../db/index.js';
 import { messages, user, flatMembers, messageReads } from '../db/schema.js';
 import { requireAuth, AuthenticatedRequest } from '../middleware/auth-guard.js';
+import { validate } from '../middleware/validate.js';
+import { sendMessageSchema } from '../schemas/chat.js';
 import { eq, and, desc, lt, lte, inArray } from 'drizzle-orm';
 import { getIO } from '../sockets/index.js';
 import { broadcastMessageEdited, broadcastMessageDeleted } from '../sockets/handlers.js';
@@ -112,93 +114,98 @@ messagesRouter.get('/', requireAuth, async (req: AuthenticatedRequest, res: Resp
 });
 
 // POST /api/messages — Send message via REST
-messagesRouter.post('/', requireAuth, async (req: AuthenticatedRequest, res: Response): Promise<void> => {
-  const { flatId, content } = req.body;
-  const senderId = req.user!.id;
+messagesRouter.post(
+  '/',
+  requireAuth,
+  validate(sendMessageSchema),
+  async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+    const { flatId, content } = req.body;
+    const senderId = req.user!.id;
 
-  if (!flatId || !content?.trim()) {
-    res.status(400).json({ error: 'flatId and content are required' });
-    return;
-  }
+    if (!flatId || !content?.trim()) {
+      res.status(400).json({ error: 'flatId and content are required' });
+      return;
+    }
 
-  // Verify membership
-  const [membership] = await db
-    .select()
-    .from(flatMembers)
-    .where(and(eq(flatMembers.flatId, flatId), eq(flatMembers.userId, senderId)));
-
-  if (!membership) {
-    res.status(403).json({ error: 'You are not a member of this flat' });
-    return;
-  }
-
-  // Insert message
-  const [newMessage] = await db
-    .insert(messages)
-    .values({
-      flatId,
-      senderId,
-      content: content.trim(),
-    })
-    .returning();
-
-  // Sender info
-  const [sender] = await db
-    .select({
-      id: user.id,
-      name: user.name,
-      image: user.image,
-    })
-    .from(user)
-    .where(eq(user.id, senderId));
-
-  const messagePayload = {
-    ...newMessage,
-    sender: sender || { id: senderId, name: req.user!.name, image: req.user!.image },
-    reads: [],
-  };
-
-  // Broadcast via Socket.io
-  try {
-    const io = getIO();
-    io.to(flatId).emit('new_message', { message: messagePayload });
-  } catch (_) {}
-
-  // Send push notification to other flat members
-  try {
-    const allMembers = await db
-      .select({ userId: flatMembers.userId })
+    // Verify membership
+    const [membership] = await db
+      .select()
       .from(flatMembers)
-      .where(eq(flatMembers.flatId, flatId));
+      .where(and(eq(flatMembers.flatId, flatId), eq(flatMembers.userId, senderId)));
 
-    const otherUserIds = allMembers
-      .map((m) => m.userId)
-      .filter((uid) => uid !== senderId);
+    if (!membership) {
+      res.status(403).json({ error: 'You are not a member of this flat' });
+      return;
+    }
 
-    logger.info(
-      {
+    // Insert message
+    const [newMessage] = await db
+      .insert(messages)
+      .values({
         flatId,
         senderId,
-        senderName: req.user!.name,
-        recipientUserIds: otherUserIds,
-      },
-      '[Push Trigger 1: Chat Message] Code path reached for REST POST /api/messages'
-    );
+        content: content.trim(),
+      })
+      .returning();
 
-    if (otherUserIds.length > 0) {
-      const truncated = content.length > 50 ? `${content.substring(0, 47)}...` : content;
-      sendPushNotification(otherUserIds, {
-        title: req.user!.name || 'Flatmate',
-        body: truncated,
-        data: { type: 'chat', flatId },
-      });
+    // Sender info
+    const [sender] = await db
+      .select({
+        id: user.id,
+        name: user.name,
+        image: user.image,
+      })
+      .from(user)
+      .where(eq(user.id, senderId));
+
+    const messagePayload = {
+      ...newMessage,
+      sender: sender || { id: senderId, name: req.user!.name, image: req.user!.image },
+      reads: [],
+    };
+
+    // Broadcast via Socket.io
+    try {
+      const io = getIO();
+      io.to(flatId).emit('new_message', { message: messagePayload });
+    } catch (_) {}
+
+    // Send push notification to other flat members
+    try {
+      const allMembers = await db
+        .select({ userId: flatMembers.userId })
+        .from(flatMembers)
+        .where(eq(flatMembers.flatId, flatId));
+
+      const otherUserIds = allMembers
+        .map((m) => m.userId)
+        .filter((uid) => uid !== senderId);
+
+      logger.info(
+        {
+          flatId,
+          senderId,
+          senderName: req.user!.name,
+          recipientUserIds: otherUserIds,
+        },
+        '[Push Trigger 1: Chat Message] Code path reached for REST POST /api/messages'
+      );
+
+      if (otherUserIds.length > 0) {
+        const truncated = content.length > 50 ? `${content.substring(0, 47)}...` : content;
+        sendPushNotification(otherUserIds, {
+          title: req.user!.name || 'Flatmate',
+          body: truncated,
+          data: { type: 'chat', flatId },
+        });
+      }
+    } catch (pushErr: any) {
+      logger.warn({ pushErr: pushErr?.message, flatId }, '[Push Trigger 1: Chat Message] Failed to dispatch push notification');
     }
-  } catch (pushErr: any) {
-    logger.warn({ pushErr: pushErr?.message, flatId }, '[Push Trigger 1: Chat Message] Failed to dispatch push notification');
-  }
 
-  res.status(201).json({ message: messagePayload });
-});
+    res.status(201).json({ message: messagePayload });
+  }
+);
 
 // PATCH /api/messages/:id — Edit message (sender only)
 messagesRouter.patch('/:id', requireAuth, async (req: AuthenticatedRequest, res: Response): Promise<void> => {
@@ -371,15 +378,12 @@ messagesRouter.post('/read-up-to', requireAuth, async (req: AuthenticatedRequest
       )
     );
 
-  // Insert message_reads records (ignore duplicates)
-  for (const msg of eligibleMessages) {
+  // Batch insert message_reads records in a single query (resolving N+1 pattern)
+  if (eligibleMessages.length > 0) {
     try {
       await db
         .insert(messageReads)
-        .values({
-          messageId: msg.id,
-          userId,
-        })
+        .values(eligibleMessages.map((msg) => ({ messageId: msg.id, userId })))
         .onConflictDoNothing();
     } catch (_) {}
   }

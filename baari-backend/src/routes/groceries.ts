@@ -2,6 +2,8 @@ import { Router, Response } from 'express';
 import { db } from '../db/index.js';
 import { groceryItems, flatMembers, user } from '../db/schema.js';
 import { requireAuth, AuthenticatedRequest } from '../middleware/auth-guard.js';
+import { validate } from '../middleware/validate.js';
+import { createGroceryItemSchema } from '../schemas/groceries.js';
 import { eq, and, desc } from 'drizzle-orm';
 import { alias } from 'drizzle-orm/pg-core';
 import { getIO } from '../sockets/index.js';
@@ -65,9 +67,13 @@ groceriesRouter.get('/', requireAuth, async (req: AuthenticatedRequest, res: Res
 });
 
 // POST /api/grocery-items
-groceriesRouter.post('/', requireAuth, async (req: AuthenticatedRequest, res: Response): Promise<void> => {
-  const userId = req.user!.id;
-  const { flatId, itemName } = req.body || {};
+groceriesRouter.post(
+  '/',
+  requireAuth,
+  validate(createGroceryItemSchema),
+  async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+    const userId = req.user!.id;
+    const { flatId, itemName } = req.body || {};
 
   if (!flatId || !itemName?.trim()) {
     res.status(400).json({ error: 'flatId and itemName are required' });

@@ -2,6 +2,8 @@ import { Router, Response } from 'express';
 import { db } from '../db/index.js';
 import { announcements, flatMembers, user } from '../db/schema.js';
 import { requireAuth, AuthenticatedRequest } from '../middleware/auth-guard.js';
+import { validate } from '../middleware/validate.js';
+import { createAnnouncementSchema } from '../schemas/announcements.js';
 import { eq, and, desc } from 'drizzle-orm';
 import { getIO } from '../sockets/index.js';
 import { broadcastAnnouncementUpdated } from '../sockets/handlers.js';
@@ -50,9 +52,13 @@ announcementsRouter.get('/', requireAuth, async (req: AuthenticatedRequest, res:
 });
 
 // POST /api/announcements
-announcementsRouter.post('/', requireAuth, async (req: AuthenticatedRequest, res: Response): Promise<void> => {
-  const userId = req.user!.id;
-  const { flatId, title, body, pinned = true } = req.body || {};
+announcementsRouter.post(
+  '/',
+  requireAuth,
+  validate(createAnnouncementSchema),
+  async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+    const userId = req.user!.id;
+    const { flatId, title, body, pinned = true } = req.body || {};
 
   if (!flatId || !title?.trim() || !body?.trim()) {
     res.status(400).json({ error: 'flatId, title, and body are required' });
