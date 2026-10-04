@@ -12,7 +12,7 @@ import { logger } from '../middleware/error-handler.js';
 
 export const messagesRouter = Router();
 
-import { isFlatMember, UUID_REGEX } from '../utils/index.js';
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 // GET /api/messages?flatId=&cursor=
 messagesRouter.get('/', requireAuth, async (req: AuthenticatedRequest, res: Response): Promise<void> => {
@@ -27,7 +27,12 @@ messagesRouter.get('/', requireAuth, async (req: AuthenticatedRequest, res: Resp
   }
 
   // 1. Verify requesting user is a member of the flat
-  if (!(await isFlatMember(flatId, userId))) {
+  const [membership] = await db
+    .select()
+    .from(flatMembers)
+    .where(and(eq(flatMembers.flatId, flatId), eq(flatMembers.userId, userId)));
+
+  if (!membership) {
     res.status(403).json({ error: 'Forbidden. You are not a member of this flat.' });
     return;
   }

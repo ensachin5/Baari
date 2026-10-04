@@ -16,8 +16,8 @@ import { oauthCallbackInterceptor, rawTokenFromCookieValue } from './middleware/
 
 // Route imports
 import { flatsRouter } from './routes/flats.js';
-import { tasksRouter } from './routes/tasks/index.js';
-import { expensesRouter } from './routes/expenses/index.js';
+import { tasksRouter } from './routes/tasks.js';
+import { expensesRouter } from './routes/expenses.js';
 import { activityRouter } from './routes/activity.js';
 import { profileRouter } from './routes/profile.js';
 import { messagesRouter } from './routes/messages.js';

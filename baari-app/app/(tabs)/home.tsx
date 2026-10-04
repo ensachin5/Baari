@@ -1,27 +1,42 @@
 import React, { useState, useRef, useEffect, useMemo, useCallback } from 'react';
 import {
   View,
+  Text,
   StyleSheet,
+  TouchableOpacity,
+  ScrollView,
+  RefreshControl,
   FlatList,
+  KeyboardAvoidingView,
   Keyboard,
   Platform,
+  ActivityIndicator,
 } from 'react-native';
 import { PagerViewWrapper } from '../../components/ui/PagerViewWrapper';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { Colors, Typography, Spacing, BorderRadius } from '../../lib/theme';
 import { api } from '../../lib/api';
 import { useSession } from '../../store/session';
 import { useKaam } from '../../hooks/useKaam';
 import { useChat } from '../../hooks/useChat';
 import { useExpenses } from '../../hooks/useExpenses';
-import { KaamTask } from '../../components/kaam/KaamCard';
+import { KaamCard, KaamTask } from '../../components/kaam/KaamCard';
 import { CreateKaamModal } from '../../components/kaam/CreateKaamModal';
 import { KaamDetailModal } from '../../components/kaam/KaamDetailModal';
 import { SkipTurnModal } from '../../components/kaam/SkipTurnModal';
+import { MessageBubble, ChatMessage } from '../../components/chat/MessageBubble';
+import { ChatInput } from '../../components/chat/ChatInput';
+import { SegmentedControl } from '../../components/ui/SegmentedControl';
+import { Card } from '../../components/ui/Card';
+import { CardSkeleton } from '../../components/ui/Skeleton';
 import { triggerHaptic } from '../../lib/haptics';
-
-import { HomeHeader } from '../../components/home/HomeHeader';
-import { KaamSection } from '../../components/home/KaamSection';
-import { ChatSection } from '../../components/home/ChatSection';
+import { AnnouncementBanner } from '../../components/announcement/AnnouncementBanner';
+import {
+  Plus,
+  MessageCircle,
+  CheckSquare2,
+  ClipboardCheck,
+} from 'lucide-react-native';
 
 function formatDateDivider(isoString: string): string {
   try {
@@ -61,6 +76,7 @@ export default function HomeScreen() {
   });
 
   const chatFlatListRef = useRef<FlatList>(null);
+
   const [keyboardHeight, setKeyboardHeight] = useState(0);
 
   useEffect(() => {
@@ -80,11 +96,12 @@ export default function HomeScreen() {
     };
   }, []);
 
-  const handleSwitchPage = useCallback((pageIndex: number) => {
+  const handleSwitchPage = (pageIndex: number) => {
     setActivePage(pageIndex);
     pagerRef.current?.setPage(pageIndex);
-  }, []);
+  };
 
+  // Ensure activeFlat is fresh and contains accurate database name and memberCount
   useEffect(() => {
     api
       .get<{ flat: any }>('/api/flats/me')
@@ -133,10 +150,12 @@ export default function HomeScreen() {
   const memberCount = members.length > 0 ? members.length : (activeFlat?.memberCount || 1);
   const memberCountText = `${memberCount} ${memberCount === 1 ? 'member' : 'members'}`;
 
+  // Inverted message order: newest first in array so it renders anchored to the bottom
   const reversedMessages = useMemo(() => {
     return [...messages].reverse();
   }, [messages]);
 
+  // Mark latest message read when viewing chat page
   useEffect(() => {
     if (messages.length > 0 && activePage === 1) {
       const lastMsg = messages[messages.length - 1];
@@ -146,58 +165,96 @@ export default function HomeScreen() {
     }
   }, [messages.length, activePage, markReadUpTo]);
 
-  const filteredTasks = useMemo(() => {
-    return tasks.filter((t) => {
-      if (filter === 'today') {
-        return t.recurrence === 'daily' || t.recurrence === 'once';
-      }
-      if (filter === 'recurring') {
-        return t.recurrence === 'daily' || t.recurrence === 'weekly';
-      }
-      return true;
-    });
-  }, [tasks, filter]);
+  // Filter tasks
+  const filteredTasks = tasks.filter((t) => {
+    if (filter === 'today') {
+      return t.recurrence === 'daily' || t.recurrence === 'once';
+    }
+    if (filter === 'recurring') {
+      return t.recurrence === 'daily' || t.recurrence === 'weekly';
+    }
+    return true; // upcoming
+  });
 
-  const todayStr = useMemo(() => {
+  const getTodayString = () => {
     const d = new Date();
     const year = d.getFullYear();
     const month = String(d.getMonth() + 1).padStart(2, '0');
     const day = String(d.getDate()).padStart(2, '0');
     return `${year}-${month}-${day}`;
-  }, []);
+  };
+  const todayStr = getTodayString();
 
-  const todayTasks = useMemo(() => {
-    return tasks.filter((t) => t.recurrence === 'daily' || t.recurrence === 'once');
-  }, [tasks]);
-
-  const todayCompleted = useMemo(() => {
-    return todayTasks.filter((t) => {
-      const occ = t.currentOccurrence;
-      if (!occ) return false;
-      const occDateStr = String(occ.occurrenceDate).substring(0, 10);
-      return occ.status === 'done' || occDateStr > todayStr;
-    }).length;
-  }, [todayTasks, todayStr]);
-
-  const handleCompleteTask = useCallback((occId: string) => {
-    triggerHaptic('success');
-    completeTask(occId);
-  }, [completeTask]);
-
-  const handleSkipTurn = useCallback((occId: string, taskTitle: string) => {
-    setSkipModalState({ visible: true, occId, taskTitle });
-  }, []);
+  const todayTasks = tasks.filter((t) => t.recurrence === 'daily' || t.recurrence === 'once');
+  const todayCompleted = todayTasks.filter((t) => {
+    const occ = t.currentOccurrence;
+    if (!occ) return false;
+    const occDateStr = String(occ.occurrenceDate).substring(0, 10);
+    return occ.status === 'done' || occDateStr > todayStr;
+  }).length;
 
   return (
     <View style={styles.safeArea}>
-      {/* Top Header */}
-      <HomeHeader
-        topInset={topInset}
-        activeFlat={activeFlat}
-        memberCountText={memberCountText}
-        activePage={activePage}
-        onSwitchPage={handleSwitchPage}
-      />
+      {/* Top Bar with Flat Title & Page Indicator */}
+      <View style={[styles.topHeader, { paddingTop: topInset + 6 }]}>
+        <View style={styles.headerTitleContainer}>
+          <Text style={styles.topFlatLabel}>Baari</Text>
+          {activeFlat?.name ? (
+            <View style={styles.flatTitleRow}>
+              <Text style={[Typography.H1, styles.flatNameText]} numberOfLines={1}>
+                {activeFlat.name}
+              </Text>
+              <Text style={[Typography.Caption, styles.memberCountText]}>
+                · {memberCountText}
+              </Text>
+            </View>
+          ) : (
+            <View style={styles.headerSkeleton} />
+          )}
+        </View>
+
+        {/* 2-Page Indicator Switcher */}
+        <View style={styles.indicatorContainer}>
+            <TouchableOpacity
+              activeOpacity={0.8}
+              onPress={() => handleSwitchPage(0)}
+              style={[styles.indicatorDotBtn, activePage === 0 && styles.indicatorActive]}
+            >
+              <CheckSquare2
+                size={13}
+                color={activePage === 0 ? Colors.white : Colors.mutedNavy}
+                strokeWidth={2.2}
+              />
+              <Text
+                style={[
+                  styles.indicatorText,
+                  activePage === 0 && styles.indicatorTextActive,
+                ]}
+              >
+                Kaam
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              activeOpacity={0.8}
+              onPress={() => handleSwitchPage(1)}
+              style={[styles.indicatorDotBtn, activePage === 1 && styles.indicatorActive]}
+            >
+              <MessageCircle
+                size={13}
+                color={activePage === 1 ? Colors.white : Colors.mutedNavy}
+                strokeWidth={2.2}
+              />
+              <Text
+                style={[
+                  styles.indicatorText,
+                  activePage === 1 && styles.indicatorTextActive,
+                ]}
+              >
+                Chat
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </View>
 
       {/* 2-Page Horizontal PagerView */}
       <PagerViewWrapper
@@ -207,78 +264,252 @@ export default function HomeScreen() {
         onPageSelected={(e: any) => setActivePage(e.nativeEvent.position)}
       >
         {/* PAGE 0: KAAM LIST */}
-        <KaamSection
-          key="0"
-          flatId={activeFlat?.id}
-          filter={filter}
-          onFilterChange={setFilter}
-          todayTasksCount={todayTasks.length}
-          todayCompletedCount={todayCompleted}
-          kaamLoading={kaamLoading}
-          kaamRefreshing={kaamRefreshing}
-          onKaamRefresh={onKaamRefresh}
-          tasks={tasks}
-          filteredTasks={filteredTasks}
-          completingId={completingId}
-          onSelectTask={setSelectedTaskDetail}
-          onCompleteTask={handleCompleteTask}
-          onDeleteTask={deleteTask}
-          onSkipTurn={handleSkipTurn}
-          onOpenCreateModal={() => setIsCreateModalOpen(true)}
-        />
+        <View key="0" style={styles.page}>
+          <ScrollView
+            contentContainerStyle={styles.kaamScrollContent}
+            showsVerticalScrollIndicator={false}
+            refreshControl={
+              <RefreshControl
+                refreshing={kaamRefreshing}
+                onRefresh={onKaamRefresh}
+                tintColor={Colors.navy}
+              />
+            }
+          >
+            {/* Pinned Announcements Banner */}
+            <AnnouncementBanner flatId={activeFlat?.id} />
+
+            {/* Filter Tabs */}
+            <SegmentedControl
+              options={[
+                { label: 'Today', value: 'today' },
+                { label: 'Upcoming', value: 'upcoming' },
+                { label: 'Recurring', value: 'recurring' },
+              ]}
+              selected={filter}
+              onSelect={(val) => setFilter(val as any)}
+              style={styles.filterControl}
+            />
+
+            {/* Today's Summary Card */}
+            {filter === 'today' && (
+              <Card style={styles.summaryCard} variant="muted">
+                <View style={styles.summaryRow}>
+                  <View>
+                    <Text style={Typography.H2}>Today's Kaam</Text>
+                    <Text style={[Typography.BodySmall, styles.summarySubtitle]}>
+                      {todayCompleted} of {todayTasks.length} tasks completed
+                    </Text>
+                  </View>
+                  <View style={styles.summaryBadge}>
+                    <Text style={styles.summaryBadgeText}>
+                      {todayTasks.length > 0
+                        ? `${Math.round((todayCompleted / todayTasks.length) * 100)}%`
+                        : '100%'}
+                    </Text>
+                  </View>
+                </View>
+              </Card>
+            )}
+
+            {/* Kaam Cards */}
+            {kaamLoading && tasks.length === 0 ? (
+              <CardSkeleton count={3} />
+            ) : filteredTasks.length > 0 ? (
+              filteredTasks.map((task) => (
+                <KaamCard
+                  key={task.id}
+                  task={task}
+                  onPress={(t) => {
+                    console.log('[HomeScreen] KaamCard pressed, setting selectedTaskDetail:', t.id, t.title);
+                    setSelectedTaskDetail(t);
+                  }}
+                  onComplete={(occId) => {
+                    triggerHaptic('success');
+                    completeTask(occId);
+                  }}
+                  onDelete={deleteTask}
+                  onSkipTurn={(occId, taskTitle) =>
+                    setSkipModalState({ visible: true, occId, taskTitle })
+                  }
+                  loading={completingId === task.currentOccurrence?.id}
+                />
+              ))
+            ) : (
+              <View style={styles.emptyState}>
+                <ClipboardCheck size={40} color={Colors.sky} strokeWidth={1.8} />
+                <Text style={[Typography.H2, styles.emptyTitle]}>
+                  No Kaam due in this view!
+                </Text>
+                <Text style={[Typography.BodySmall, styles.emptyText]}>
+                  Tap the + button below to create a new shared household task.
+                </Text>
+              </View>
+            )}
+          </ScrollView>
+
+          {/* Floating Action Button for Create Task */}
+          <TouchableOpacity
+            activeOpacity={0.85}
+            onPress={() => setIsCreateModalOpen(true)}
+            style={styles.fab}
+          >
+            <Plus size={24} color={Colors.white} />
+            <Text style={styles.fabText}>Create Kaam</Text>
+          </TouchableOpacity>
+        </View>
 
         {/* PAGE 1: REALTIME GROUP CHAT */}
-        <ChatSection
+        <View
           key="1"
-          keyboardHeight={keyboardHeight}
-          chatLoading={chatLoading}
-          messages={messages}
-          reversedMessages={reversedMessages}
-          chatFlatListRef={chatFlatListRef}
-          hasMore={hasMore}
-          loadingMore={loadingMore}
-          loadMore={loadMore}
-          currentUser={currentUser}
-          retryMessage={retryMessage}
-          editMessage={editMessage}
-          deleteMessage={deleteMessage}
-          sendMessage={sendMessage}
-          emitTyping={emitTyping}
-          typingUsers={typingUsers}
-          formatDateDivider={formatDateDivider}
-        />
+          style={[
+            styles.page,
+            { paddingBottom: Platform.OS === 'android' ? keyboardHeight : 0 },
+          ]}
+        >
+          <KeyboardAvoidingView
+            style={styles.page}
+            behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+            keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
+          >
+            <View style={styles.chatHeader}>
+              <Text style={Typography.H2}>Flat Group Chat</Text>
+              <Text style={[Typography.Caption, styles.chatSubtext]}>
+                Realtime chat with flatmates
+              </Text>
+            </View>
+
+            {chatLoading && messages.length === 0 ? (
+              <View style={styles.chatLoadingContainer}>
+                <ActivityIndicator size="large" color={Colors.navy} />
+              </View>
+            ) : (
+              <FlatList
+                ref={chatFlatListRef}
+                data={reversedMessages}
+                keyExtractor={(item) => item.id}
+                inverted={true}
+                style={styles.chatFlatList}
+                contentContainerStyle={styles.chatListContent}
+                showsVerticalScrollIndicator={false}
+                keyboardShouldPersistTaps="handled"
+                keyboardDismissMode="on-drag"
+                removeClippedSubviews={Platform.OS !== 'web'}
+                initialNumToRender={20}
+                maxToRenderPerBatch={15}
+                windowSize={9}
+                onEndReachedThreshold={0.4}
+                onEndReached={() => {
+                  if (hasMore && !loadingMore) {
+                    loadMore();
+                  }
+                }}
+                ListFooterComponent={
+                  loadingMore ? (
+                    <View style={styles.loadMoreIndicator}>
+                      <ActivityIndicator size="small" color={Colors.navy} />
+                    </View>
+                  ) : null
+                }
+                renderItem={({ item, index }) => {
+                  // In inverted FlatList:
+                  // item is reversedMessages[index]
+                  // older message is reversedMessages[index + 1] (visually above)
+                  const nextOlderMsg = index < reversedMessages.length - 1 ? reversedMessages[index + 1] : null;
+                  const isDifferentSender = !nextOlderMsg || nextOlderMsg.senderId !== item.senderId;
+                  const currentDate = formatDateDivider(item.createdAt);
+                  const olderDate = nextOlderMsg ? formatDateDivider(nextOlderMsg.createdAt) : null;
+                  const showDateDivider = currentDate && currentDate !== olderDate;
+
+                  return (
+                    <View
+                      key={item.id}
+                      style={{
+                        marginTop: showDateDivider ? 0 : isDifferentSender ? Spacing.sm : 2,
+                      }}
+                    >
+                      {showDateDivider && (
+                        <View style={styles.dateDivider}>
+                          <Text style={styles.dateDividerText}>{currentDate}</Text>
+                        </View>
+                      )}
+                      <MessageBubble
+                        message={item}
+                        isCurrentUser={item.senderId === currentUser?.id}
+                        showSenderHeader={isDifferentSender}
+                        onRetry={retryMessage}
+                        onEdit={editMessage}
+                        onDelete={deleteMessage}
+                      />
+                    </View>
+                  );
+                }}
+                ListEmptyComponent={
+                  <View style={styles.emptyChat}>
+                    <MessageCircle size={44} color={Colors.sky} strokeWidth={1.75} />
+                    <Text style={[Typography.H2, styles.emptyChatTitle]}>
+                      No messages yet
+                    </Text>
+                    <Text style={[Typography.BodySmall, styles.emptyChatText]}>
+                      Say hi to your flatmates to kick off the conversation!
+                    </Text>
+                  </View>
+                }
+              />
+            )}
+
+            {/* Typing Indicator Bar */}
+            {typingUsers.length > 0 && (
+              <View style={styles.typingBar}>
+                <Text style={styles.typingText}>
+                  {typingUsers.length === 1
+                    ? `${typingUsers[0].userName} is typing...`
+                    : typingUsers.length === 2
+                    ? `${typingUsers[0].userName} and ${typingUsers[1].userName} are typing...`
+                    : `${typingUsers.length} people are typing...`}
+                </Text>
+              </View>
+            )}
+
+            <ChatInput
+              onSend={(content) => {
+                triggerHaptic('light');
+                sendMessage(content);
+              }}
+              onTyping={emitTyping}
+            />
+          </KeyboardAvoidingView>
+        </View>
       </PagerViewWrapper>
 
-      {/* Create Kaam Modal */}
+      {/* Create Kaam Sheet */}
       <CreateKaamModal
         visible={isCreateModalOpen}
         onClose={() => setIsCreateModalOpen(false)}
         onSubmit={createTask}
-        members={members.map((m: any) => ({
-          userId: m.userId,
-          name: m.name,
-          image: m.image,
-          role: (m.role as 'admin' | 'member') || 'member',
-        }))}
+        members={members as any}
         flatId={activeFlat?.id}
       />
 
-      {/* Kaam Detail Modal */}
+      {/* Skip Turn Sheet */}
+      <SkipTurnModal
+        visible={skipModalState.visible}
+        taskTitle={skipModalState.taskTitle}
+        occurrenceId={skipModalState.occId}
+        onClose={() => setSkipModalState((s) => ({ ...s, visible: false }))}
+        onSuccess={() => onKaamRefresh()}
+      />
+
+      {/* Kaam Detail & History Modal */}
       <KaamDetailModal
         visible={!!selectedTaskDetail}
         taskId={selectedTaskDetail?.id || null}
         initialTask={selectedTaskDetail}
         onClose={() => setSelectedTaskDetail(null)}
-        onComplete={completeTask}
-      />
-
-      {/* Skip Turn Confirmation Modal */}
-      <SkipTurnModal
-        visible={skipModalState.visible}
-        onClose={() => setSkipModalState({ visible: false, occId: '', taskTitle: '' })}
-        occurrenceId={skipModalState.occId}
-        taskTitle={skipModalState.taskTitle}
-        onSuccess={() => onKaamRefresh()}
+        onComplete={(occId) => {
+          completeTask(occId);
+          onKaamRefresh();
+        }}
       />
     </View>
   );
@@ -287,9 +518,220 @@ export default function HomeScreen() {
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: '#F8FAFC',
+    backgroundColor: Colors.white,
+  },
+  topHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: Spacing.xl,
+    paddingVertical: Spacing.md,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.border,
+    backgroundColor: Colors.white,
+  },
+  headerTitleContainer: {
+    flex: 1,
+    marginRight: Spacing.sm,
+  },
+  topFlatLabel: {
+    ...Typography.Caption,
+    color: Colors.mutedNavy,
+    fontSize: 10,
+    fontFamily: 'Inter_700Bold',
+    letterSpacing: 1.2,
+    textTransform: 'uppercase',
+    marginBottom: 2,
+  },
+  flatTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    gap: 6,
+  },
+  flatNameText: {
+    flexShrink: 1,
+  },
+  memberCountText: {
+    color: Colors.grayBlack,
+    fontSize: 12,
+    fontFamily: 'Inter_500Medium',
+  },
+  headerSkeleton: {
+    width: 110,
+    height: 22,
+    backgroundColor: Colors.offWhite,
+    borderRadius: BorderRadius.sm,
+    marginTop: 4,
+  },
+  indicatorContainer: {
+    flexDirection: 'row',
+    backgroundColor: Colors.offWhite,
+    borderRadius: BorderRadius.full,
+    padding: 3,
+    gap: 4,
+    borderWidth: 1,
+    borderColor: Colors.border,
+  },
+  indicatorDotBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    paddingVertical: 5,
+    paddingHorizontal: 10,
+    borderRadius: BorderRadius.full,
+  },
+  indicatorActive: {
+    backgroundColor: Colors.navy,
+  },
+  indicatorText: {
+    ...Typography.Caption,
+    fontFamily: 'Inter_600SemiBold',
+    fontSize: 12,
+    color: Colors.mutedNavy,
+  },
+  indicatorTextActive: {
+    color: Colors.white,
   },
   pagerView: {
     flex: 1,
+  },
+  page: {
+    flex: 1,
+  },
+  kaamScrollContent: {
+    paddingHorizontal: Spacing.xl,
+    paddingTop: Spacing.md,
+    paddingBottom: 90,
+  },
+  filterControl: {
+    marginBottom: Spacing.md,
+  },
+  summaryCard: {
+    marginBottom: Spacing.md,
+    backgroundColor: Colors.paleSky,
+    borderColor: Colors.paleSky,
+  },
+  summaryRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  summarySubtitle: {
+    marginTop: 2,
+    color: Colors.deepNavy,
+  },
+  summaryBadge: {
+    backgroundColor: Colors.deepNavy,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.xs,
+    borderRadius: BorderRadius.full,
+  },
+  summaryBadgeText: {
+    ...Typography.Caption,
+    color: Colors.white,
+    fontWeight: '700',
+  },
+  emptyState: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: Spacing.xxxl,
+  },
+  emptyTitle: {
+    marginTop: Spacing.md,
+    marginBottom: Spacing.xs,
+  },
+  emptyText: {
+    textAlign: 'center',
+    maxWidth: 260,
+  },
+  fab: {
+    position: 'absolute',
+    bottom: Spacing.lg,
+    right: Spacing.xl,
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: Colors.navy,
+    paddingVertical: Spacing.md,
+    paddingHorizontal: Spacing.lg,
+    borderRadius: BorderRadius.full,
+    gap: Spacing.xs,
+    shadowColor: Colors.deepNavy,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.25,
+    shadowRadius: 8,
+    elevation: 5,
+  },
+  fabText: {
+    ...Typography.BodyMedium,
+    color: Colors.white,
+    fontWeight: '700',
+  },
+  chatHeader: {
+    paddingHorizontal: Spacing.xl,
+    paddingVertical: Spacing.sm,
+    backgroundColor: Colors.offWhite,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.border,
+  },
+  chatSubtext: {
+    color: Colors.grayBlack,
+    marginTop: 2,
+  },
+  chatLoadingContainer: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  chatFlatList: {
+    flex: 1,
+  },
+  loadMoreIndicator: {
+    paddingVertical: Spacing.sm,
+    alignItems: 'center',
+  },
+  chatListContent: {
+    paddingVertical: Spacing.sm,
+  },
+  dateDivider: {
+    alignSelf: 'center',
+    backgroundColor: Colors.offWhite,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: 3,
+    borderRadius: BorderRadius.full,
+    marginVertical: Spacing.sm,
+    borderWidth: 1,
+    borderColor: Colors.border,
+  },
+  dateDividerText: {
+    ...Typography.Caption,
+    color: Colors.grayBlack,
+    fontSize: 11,
+    fontWeight: '600',
+  },
+  emptyChat: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: Spacing.xxxl,
+    paddingHorizontal: Spacing.xl,
+  },
+  emptyChatTitle: {
+    marginTop: Spacing.md,
+    marginBottom: Spacing.xs,
+  },
+  emptyChatText: {
+    textAlign: 'center',
+    color: Colors.grayBlack,
+    maxWidth: 240,
+  },
+  typingBar: {
+    paddingHorizontal: Spacing.xl,
+    paddingVertical: 4,
+    backgroundColor: Colors.white,
+  },
+  typingText: {
+    ...Typography.Caption,
+    color: Colors.mutedNavy,
+    fontStyle: 'italic',
   },
 });
