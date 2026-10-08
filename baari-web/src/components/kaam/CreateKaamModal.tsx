@@ -5,6 +5,7 @@ import { Modal } from "../ui/Modal";
 import { Button } from "../ui/Button";
 import { Avatar } from "../ui/Avatar";
 import { useQuickPicks, QuickPickPreset } from "@/hooks/useQuickPicks";
+import { KaamTask } from "./KaamCard";
 import {
   Check,
   Plus,
@@ -30,7 +31,15 @@ import {
   ChevronDown,
   AlertCircle,
   Shuffle,
+  Sparkles,
 } from "lucide-react";
+
+const CATEGORY_OPTIONS: { label: string; value: "water" | "garbage" | "chore" | "custom" }[] = [
+  { label: "✨ Custom", value: "custom" },
+  { label: "🧹 Chore", value: "chore" },
+  { label: "💧 Water", value: "water" },
+  { label: "🗑️ Trash", value: "garbage" },
+];
 
 export interface FlatMember {
   userId: string;
@@ -67,6 +76,7 @@ interface CreateKaamModalProps {
   members: FlatMember[];
   flatId?: string | null;
   loading?: boolean;
+  initialTask?: KaamTask | null;
 }
 
 const WEEKDAYS: { key: string; label: string }[] = [
@@ -108,6 +118,7 @@ export const CreateKaamModal: React.FC<CreateKaamModalProps> = ({
   members,
   flatId,
   loading = false,
+  initialTask = null,
 }) => {
   const { presets } = useQuickPicks(flatId);
 
@@ -134,8 +145,82 @@ export const CreateKaamModal: React.FC<CreateKaamModalProps> = ({
   const [error, setError] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // Reusable function to reset all form state to defaults for consecutive creations
+  // Helper to partition assignees into initial groups
+  const createInitialGroups = (assignees: string[], size: number) => {
+    if (assignees.length === 0) return [];
+    if (assignees.length === 1 || size >= assignees.length) {
+      return [{ id: `grp-0`, userIds: [...assignees] }];
+    }
+    const effectiveSize = Math.max(1, size);
+    const groups: Array<{ id: string; userIds: string[] }> = [];
+    let grpIdx = 0;
+    for (let i = 0; i < assignees.length; i += effectiveSize) {
+      const chunk = assignees.slice(i, i + effectiveSize);
+      groups.push({ id: `grp-${grpIdx++}`, userIds: chunk });
+    }
+    return groups;
+  };
+
+  // Reusable function to reset all form state or hydrate from initialTask
   const resetFormState = React.useCallback(() => {
+    if (initialTask) {
+      const matchedPreset = presets.find(
+        (p) => p.title.toLowerCase() === initialTask.title.toLowerCase()
+      );
+      setSelectedQuickPickId(matchedPreset ? matchedPreset.id : "other");
+      setTitle(initialTask.title);
+      setCategory(initialTask.category);
+      setRecurrence(initialTask.recurrence);
+      const isCustomRot = initialTask.assignmentMode === "custom_rotation";
+      setAssignmentMode(isCustomRot ? "custom_rotation" : "auto_rotate");
+
+      const pool =
+        initialTask.customRotationPool && initialTask.customRotationPool.length > 0
+          ? initialTask.customRotationPool
+          : initialTask.currentOccurrence?.members.map((m) => m.userId) || [];
+      setSelectedAssignees(isCustomRot ? pool : []);
+
+      const gSize =
+        initialTask.customRotationGroupSize || initialTask.peopleRequired || 1;
+      setGroupSize(gSize);
+
+      if (isCustomRot) {
+        if (
+          initialTask.customRotationGroups &&
+          initialTask.customRotationGroups.length > 0
+        ) {
+          setCustomGroups(
+            initialTask.customRotationGroups.map((g, idx) => ({
+              id: `grp-${idx}`,
+              userIds: [...g.userIds],
+            }))
+          );
+        } else {
+          setCustomGroups(createInitialGroups(pool, gSize));
+        }
+      } else {
+        setCustomGroups([]);
+      }
+
+      if (initialTask.currentOccurrence?.occurrenceDate) {
+        const occDate = new Date(initialTask.currentOccurrence.occurrenceDate);
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        occDate.setHours(0, 0, 0, 0);
+        const diffDays = Math.max(
+          0,
+          Math.round((occDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24))
+        );
+        setDueOffsetDays(diffDays <= 3 ? diffDays : 0);
+      } else {
+        setDueOffsetDays(0);
+      }
+
+      setError("");
+      setIsSubmitting(false);
+      return;
+    }
+
     if (presets.length > 0) {
       setSelectedQuickPickId(presets[0].id);
       setTitle(presets[0].title);
@@ -156,23 +241,7 @@ export const CreateKaamModal: React.FC<CreateKaamModalProps> = ({
     setDueOffsetDays(0);
     setError("");
     setIsSubmitting(false);
-  }, [presets]);
-
-  // Helper to partition assignees into initial groups
-  const createInitialGroups = (assignees: string[], size: number) => {
-    if (assignees.length === 0) return [];
-    if (assignees.length === 1 || size >= assignees.length) {
-      return [{ id: `grp-0`, userIds: [...assignees] }];
-    }
-    const effectiveSize = Math.max(1, size);
-    const groups: Array<{ id: string; userIds: string[] }> = [];
-    let grpIdx = 0;
-    for (let i = 0; i < assignees.length; i += effectiveSize) {
-      const chunk = assignees.slice(i, i + effectiveSize);
-      groups.push({ id: `grp-${grpIdx++}`, userIds: chunk });
-    }
-    return groups;
-  };
+  }, [presets, initialTask]);
 
   // Reset form state whenever modal is opened
   useEffect(() => {
@@ -197,6 +266,18 @@ export const CreateKaamModal: React.FC<CreateKaamModalProps> = ({
     setError("");
   };
 
+  const handleSelectOther = () => {
+    setSelectedQuickPickId("other");
+    const isPresetTitle = presets.some(
+      (p) => p.title.toLowerCase() === title.trim().toLowerCase()
+    );
+    if (isPresetTitle) {
+      setTitle("");
+    }
+    setCategory("custom");
+    setError("");
+  };
+
   const handleTitleChange = (text: string) => {
     setTitle(text);
     setError("");
@@ -207,7 +288,7 @@ export const CreateKaamModal: React.FC<CreateKaamModalProps> = ({
       setSelectedQuickPickId(matched.id);
       setCategory(matched.category);
     } else {
-      setSelectedQuickPickId(null);
+      setSelectedQuickPickId("other");
     }
   };
 
@@ -457,7 +538,7 @@ export const CreateKaamModal: React.FC<CreateKaamModalProps> = ({
   };
 
   return (
-    <Modal visible={visible} onClose={onClose} title="Create Kaam">
+    <Modal visible={visible} onClose={onClose} title={initialTask ? "Edit Kaam" : "Create Kaam"}>
       {error && (
         <div className="bg-[#FEF2F2] rounded-[6px] px-3 py-2 mb-4 border border-[#FECACA]">
           <p className="text-[13px] leading-[18px] font-medium text-[#DC2626] text-center">
@@ -498,21 +579,73 @@ export const CreateKaamModal: React.FC<CreateKaamModalProps> = ({
               </button>
             );
           })}
+
+          {/* Other / Custom Option */}
+          <button
+            type="button"
+            onClick={handleSelectOther}
+            className={`flex items-center gap-1.5 px-3 py-2 rounded-[10px] border whitespace-nowrap text-[13px] leading-[18px] font-medium transition-all cursor-pointer ${
+              selectedQuickPickId === "other"
+                ? "bg-navy border-navy text-white shadow-xs"
+                : "bg-offWhite border-border text-navy hover:bg-border/60"
+            }`}
+          >
+            <Sparkles
+              size={15}
+              className={selectedQuickPickId === "other" ? "text-white" : "text-navy"}
+            />
+            <span>Other</span>
+          </button>
         </div>
       </div>
 
       {/* 2. CUSTOM TITLE INPUT */}
       <div className="mb-4">
-        <label className="block text-[12px] font-semibold text-deepNavy uppercase tracking-wider mb-1">
-          KAAM TITLE
-        </label>
+        <div className="flex items-center justify-between mb-1">
+          <label className="block text-[12px] font-semibold text-deepNavy uppercase tracking-wider">
+            KAAM TITLE
+          </label>
+          {selectedQuickPickId === "other" && (
+            <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-[#FEF3C7] text-[#92400E]">
+              Custom Kaam
+            </span>
+          )}
+        </div>
         <input
           type="text"
-          placeholder="e.g., Mop balcony, Clean ceiling fan..."
+          placeholder="e.g., Mop balcony, Clean ceiling fan, Pay WiFi..."
           value={title}
           onChange={(e) => handleTitleChange(e.target.value)}
           className="w-full h-12 px-3 rounded-[10px] border-[1.5px] border-border bg-white text-black text-[16px] placeholder:text-grayBlack focus:outline-none focus:border-navy"
         />
+
+        {/* Category Picker when Other is selected */}
+        {selectedQuickPickId === "other" && (
+          <div className="mt-2.5">
+            <span className="block text-[10px] font-semibold text-mutedNavy uppercase tracking-wider mb-1.5">
+              Category
+            </span>
+            <div className="flex items-center gap-1.5 flex-wrap">
+              {CATEGORY_OPTIONS.map((cat) => {
+                const isCatActive = category === cat.value;
+                return (
+                  <button
+                    key={cat.value}
+                    type="button"
+                    onClick={() => setCategory(cat.value)}
+                    className={`px-3 py-1 rounded-full text-[11px] font-medium border transition-all cursor-pointer ${
+                      isCatActive
+                        ? "bg-navy border-navy text-white font-semibold"
+                        : "bg-offWhite border-border text-deepNavy hover:bg-border/60"
+                    }`}
+                  >
+                    {cat.label}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
       </div>
 
       {/* 3. ASSIGN TO (2 MODES: AUTO-ROTATE & CUSTOM ROTATION) */}
@@ -1190,7 +1323,7 @@ export const CreateKaamModal: React.FC<CreateKaamModalProps> = ({
 
       {/* SUBMIT BUTTON */}
       <Button
-        title="Create Kaam"
+        title={initialTask ? "Save Changes" : "Create Kaam"}
         onClick={handleSave}
         loading={loading || isSubmitting}
         className="w-full"

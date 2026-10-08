@@ -127,9 +127,12 @@ export default function HomeScreen() {
     completingId,
     completeTask,
     createTask,
+    updateTask,
     deleteTask,
     onRefresh: onKaamRefresh,
   } = useKaam();
+
+  const [editingTask, setEditingTask] = useState<KaamTask | null>(null);
 
   const {
     messages,
@@ -215,46 +218,32 @@ export default function HomeScreen() {
 
         {/* 2-Page Indicator Switcher */}
         <View style={styles.indicatorContainer}>
-            <TouchableOpacity
-              activeOpacity={0.8}
-              onPress={() => handleSwitchPage(0)}
-              style={[styles.indicatorDotBtn, activePage === 0 && styles.indicatorActive]}
-            >
-              <CheckSquare2
-                size={13}
-                color={activePage === 0 ? Colors.white : Colors.mutedNavy}
-                strokeWidth={2.2}
-              />
-              <Text
-                style={[
-                  styles.indicatorText,
-                  activePage === 0 && styles.indicatorTextActive,
-                ]}
-              >
-                Kaam
-              </Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              activeOpacity={0.8}
-              onPress={() => handleSwitchPage(1)}
-              style={[styles.indicatorDotBtn, activePage === 1 && styles.indicatorActive]}
-            >
-              <MessageCircle
-                size={13}
-                color={activePage === 1 ? Colors.white : Colors.mutedNavy}
-                strokeWidth={2.2}
-              />
-              <Text
-                style={[
-                  styles.indicatorText,
-                  activePage === 1 && styles.indicatorTextActive,
-                ]}
-              >
-                Chat
-              </Text>
-            </TouchableOpacity>
-          </View>
+          <TouchableOpacity
+            activeOpacity={0.8}
+            onPress={() => handleSwitchPage(0)}
+            style={[styles.indicatorDotBtn, activePage === 0 && styles.indicatorActive]}
+            accessibilityLabel="Kaam"
+          >
+            <CheckSquare2
+              size={15}
+              color={activePage === 0 ? Colors.white : Colors.mutedNavy}
+              strokeWidth={2.2}
+            />
+          </TouchableOpacity>
+          <TouchableOpacity
+            activeOpacity={0.8}
+            onPress={() => handleSwitchPage(1)}
+            style={[styles.indicatorDotBtn, activePage === 1 && styles.indicatorActive]}
+            accessibilityLabel="Chat"
+          >
+            <MessageCircle
+              size={15}
+              color={activePage === 1 ? Colors.white : Colors.mutedNavy}
+              strokeWidth={2.2}
+            />
+          </TouchableOpacity>
         </View>
+      </View>
 
       {/* 2-Page Horizontal PagerView */}
       <PagerViewWrapper
@@ -328,6 +317,7 @@ export default function HomeScreen() {
                     triggerHaptic('success');
                     completeTask(occId);
                   }}
+                  onEdit={(t) => setEditingTask(t)}
                   onDelete={deleteTask}
                   onSkipTurn={(occId, taskTitle) =>
                     setSkipModalState({ visible: true, occId, taskTitle })
@@ -482,11 +472,23 @@ export default function HomeScreen() {
         </View>
       </PagerViewWrapper>
 
-      {/* Create Kaam Sheet */}
+      {/* Create / Edit Kaam Sheet */}
       <CreateKaamModal
-        visible={isCreateModalOpen}
-        onClose={() => setIsCreateModalOpen(false)}
-        onSubmit={createTask}
+        visible={isCreateModalOpen || !!editingTask}
+        initialTask={editingTask}
+        onClose={() => {
+          setIsCreateModalOpen(false);
+          setEditingTask(null);
+        }}
+        onSubmit={async (data) => {
+          if (editingTask) {
+            await updateTask(editingTask.id, data);
+            setEditingTask(null);
+          } else {
+            await createTask(data);
+            setIsCreateModalOpen(false);
+          }
+        }}
         members={members as any}
         flatId={activeFlat?.id}
       />
@@ -573,24 +575,14 @@ const styles = StyleSheet.create({
     borderColor: Colors.border,
   },
   indicatorDotBtn: {
-    flexDirection: 'row',
     alignItems: 'center',
-    gap: 5,
-    paddingVertical: 5,
-    paddingHorizontal: 10,
+    justifyContent: 'center',
+    width: 30,
+    height: 30,
     borderRadius: BorderRadius.full,
   },
   indicatorActive: {
     backgroundColor: Colors.navy,
-  },
-  indicatorText: {
-    ...Typography.Caption,
-    fontFamily: 'Inter_600SemiBold',
-    fontSize: 12,
-    color: Colors.mutedNavy,
-  },
-  indicatorTextActive: {
-    color: Colors.white,
   },
   pagerView: {
     flex: 1,

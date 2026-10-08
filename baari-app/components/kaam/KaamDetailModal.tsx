@@ -95,15 +95,17 @@ export const KaamDetailModal: React.FC<KaamDetailModalProps> = ({
       }
       setOccurrences(res?.occurrences || []);
       setNextCursor(res?.nextCursor || null);
-    } catch (error) {
-      console.error('[KaamDetailModal] Error fetching task history:', error);
+    } catch (error: any) {
+      console.warn('[KaamDetailModal] History fetch notice, fallback to initialTask:', error?.message || error);
+      if (initialTask) {
+        setTaskData(initialTask as any);
+      }
     } finally {
       setLoading(false);
     }
-  }, [activeTaskId]);
+  }, [activeTaskId, initialTask]);
 
   useEffect(() => {
-    console.log('[KaamDetailModal] visible:', visible, 'activeTaskId:', activeTaskId);
     if (visible && activeTaskId) {
       if (initialTask) {
         setTaskData(initialTask as any);
@@ -124,8 +126,8 @@ export const KaamDetailModal: React.FC<KaamDetailModalProps> = ({
       );
       setOccurrences((prev) => [...prev, ...(res?.occurrences || [])]);
       setNextCursor(res?.nextCursor || null);
-    } catch (error) {
-      console.error('[KaamDetailModal] Error loading more task history:', error);
+    } catch (error: any) {
+      console.warn('[KaamDetailModal] Error loading more task history:', error?.message || error);
     } finally {
       setLoadingMore(false);
     }

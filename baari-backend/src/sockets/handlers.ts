@@ -211,6 +211,18 @@ export const broadcastTaskDeleted = (
   io.to(flatId).emit('task_deleted', data);
 };
 
+export const broadcastTaskUpdated = (
+  io: SocketIOServer,
+  flatId: string,
+  data: {
+    task: any;
+  }
+) => {
+  const roomSize = io.sockets.adapter.rooms.get(flatId)?.size || 0;
+  logger.info({ flatId, roomSocketCount: roomSize, taskId: data.task?.id }, 'Broadcasting task_updated');
+  io.to(flatId).emit('task_updated', data);
+};
+
 export const broadcastActivityEvent = (
   io: SocketIOServer,
   flatId: string,

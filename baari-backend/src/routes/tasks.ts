@@ -11,10 +11,10 @@ import {
 } from '../db/schema.js';
 import { requireAuth, AuthenticatedRequest } from '../middleware/auth-guard.js';
 import { validate } from '../middleware/validate.js';
-import { createTaskSchema, completeOccurrenceSchema } from '../schemas/tasks.js';
+import { createTaskSchema, completeOccurrenceSchema, updateTaskSchema } from '../schemas/tasks.js';
 import { eq, and, or, lt, desc, inArray, asc, gte } from 'drizzle-orm';
 import { getIO } from '../sockets/index.js';
-import { broadcastTaskCompleted, broadcastActivityEvent, broadcastTaskDeleted } from '../sockets/handlers.js';
+import { broadcastTaskCompleted, broadcastActivityEvent, broadcastTaskDeleted, broadcastTaskUpdated } from '../sockets/handlers.js';
 import { sendPushNotification, sendPushToUser } from '../services/push.js';
 import { calculateUserStreak } from '../services/streaks.js';
 import { logger } from '../middleware/error-handler.js';
@@ -409,27 +409,7 @@ tasksRouter.get('/:id/history', requireAuth, async (req: AuthenticatedRequest, r
     return;
   }
 
-  // 3. Visibility rule: For custom_rotation tasks, only users in the rotation pool can view history
-  if (task.assignmentMode === 'custom_rotation') {
-    const allowedPool = new Set<string>();
-    if (Array.isArray(task.customRotationPool)) {
-      task.customRotationPool.forEach((uid) => allowedPool.add(uid));
-    }
-    if (Array.isArray(task.customRotationGroups)) {
-      task.customRotationGroups.forEach((g) => {
-        if (Array.isArray(g.userIds)) {
-          g.userIds.forEach((uid) => allowedPool.add(uid));
-        }
-      });
-    }
-
-    if (allowedPool.size > 0 && !allowedPool.has(userId) && task.createdBy !== userId) {
-      res.status(403).json({ error: 'Forbidden. You are not part of this task\'s rotation pool.' });
-      return;
-    }
-  }
-
-  // 4. Build cursor conditions for occurrences
+  // 3. Build cursor conditions for occurrences
   const conditions = [eq(taskOccurrences.taskId, taskId)];
   if (cursor) {
     if (UUID_REGEX.test(cursor)) {
@@ -1358,7 +1338,7 @@ tasksRouter.delete(
       return;
     }
 
-    // 2. Fetch user's role in the flat
+    // 2. Fetch user's membership in the flat
     const [membership] = await db
       .select({ role: flatMembers.role })
       .from(flatMembers)
@@ -1366,14 +1346,6 @@ tasksRouter.delete(
 
     if (!membership) {
       res.status(403).json({ error: 'You are not a member of this flat' });
-      return;
-    }
-
-    const isCreator = task.createdBy === userId;
-    const isAdmin = membership.role === 'admin';
-
-    if (!isCreator && !isAdmin) {
-      res.status(403).json({ error: 'Only the task creator or a flat admin can delete this Kaam' });
       return;
     }
 
@@ -1409,6 +1381,118 @@ tasksRouter.delete(
     } catch (_) {}
 
     res.json({ success: true, message: 'Kaam deleted successfully' });
+  }
+);
+
+// PATCH /api/tasks/:id - Update task definition and pending occurrence
+tasksRouter.patch(
+  '/:id',
+  requireAuth,
+  validate(updateTaskSchema),
+  async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+    const taskId = String(req.params.id);
+    const userId = req.user!.id;
+    const {
+      title,
+      category,
+      description,
+      peopleRequired,
+      recurrence,
+      customRecurrenceConfig,
+      assignmentMode,
+      customRotationPool,
+      customRotationGroupSize,
+      customRotationGroups,
+      assigneeIds,
+      occurrenceDate,
+    } = req.body;
+
+    // 1. Fetch task
+    const [existingTask] = await db
+      .select()
+      .from(tasks)
+      .where(eq(tasks.id, taskId));
+
+    if (!existingTask) {
+      res.status(404).json({ error: 'Task not found' });
+      return;
+    }
+
+    // 2. Fetch user's membership in the flat
+    const [membership] = await db
+      .select({ role: flatMembers.role })
+      .from(flatMembers)
+      .where(and(eq(flatMembers.flatId, existingTask.flatId), eq(flatMembers.userId, userId)));
+
+    if (!membership) {
+      res.status(403).json({ error: 'You are not a member of this flat' });
+      return;
+    }
+
+    // 3. Update task record
+    const updateData: any = {};
+    if (title !== undefined) updateData.title = title.trim();
+    if (category !== undefined) updateData.category = category;
+    if (description !== undefined) updateData.description = description ? description.trim() : null;
+    if (peopleRequired !== undefined) updateData.peopleRequired = peopleRequired;
+    if (recurrence !== undefined) updateData.recurrence = recurrence;
+    if (customRecurrenceConfig !== undefined) updateData.customRecurrenceConfig = customRecurrenceConfig;
+    if (assignmentMode !== undefined) updateData.assignmentMode = assignmentMode;
+    if (customRotationPool !== undefined) updateData.customRotationPool = customRotationPool;
+    if (customRotationGroupSize !== undefined) updateData.customRotationGroupSize = customRotationGroupSize;
+    if (customRotationGroups !== undefined) updateData.customRotationGroups = customRotationGroups;
+
+    const [updatedTask] = await db
+      .update(tasks)
+      .set(updateData)
+      .where(eq(tasks.id, taskId))
+      .returning();
+
+    // 4. Update current pending occurrence (if any exists and status is pending or in_progress)
+    const [currentPendingOcc] = await db
+      .select()
+      .from(taskOccurrences)
+      .where(
+        and(
+          eq(taskOccurrences.taskId, taskId),
+          or(eq(taskOccurrences.status, 'pending'), eq(taskOccurrences.status, 'in_progress'))
+        )
+      )
+      .orderBy(desc(taskOccurrences.occurrenceDate));
+
+    if (currentPendingOcc) {
+      if (occurrenceDate) {
+        await db
+          .update(taskOccurrences)
+          .set({ occurrenceDate })
+          .where(eq(taskOccurrences.id, currentPendingOcc.id));
+      }
+
+      if (assigneeIds && Array.isArray(assigneeIds) && assigneeIds.length > 0) {
+        // Replace assignees for the pending occurrence
+        await db
+          .delete(taskOccurrenceMembers)
+          .where(eq(taskOccurrenceMembers.occurrenceId, currentPendingOcc.id));
+
+        await db.insert(taskOccurrenceMembers).values(
+          assigneeIds.map((memberId: string) => ({
+            occurrenceId: currentPendingOcc.id,
+            userId: memberId,
+            status: 'assigned' as const,
+          }))
+        );
+      }
+    }
+
+    // 5. Broadcast realtime events
+    try {
+      const io = getIO();
+      broadcastTaskUpdated(io, existingTask.flatId, {
+        task: updatedTask,
+      });
+    } catch (_) {}
+
+    res.json({ success: true, task: updatedTask });
   }
 );
 

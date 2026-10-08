@@ -35,3 +35,18 @@ export const createTaskSchema = z.object({
 export const completeOccurrenceSchema = z.object({
   occurrenceId: z.string().uuid('Invalid occurrence ID'),
 });
+
+export const updateTaskSchema = z.object({
+  title: z.string().min(2, 'Title is required').max(100).optional(),
+  category: z.enum(['water', 'garbage', 'chore', 'custom']).optional(),
+  description: z.string().max(500).optional().nullable(),
+  peopleRequired: z.number().int().min(1).optional(),
+  recurrence: z.enum(['once', 'daily', 'weekly', 'custom']).optional(),
+  customRecurrenceConfig: customRecurrenceConfigSchema.optional().nullable(),
+  assignmentMode: z.enum(['auto_rotate', 'custom_rotation']).optional(),
+  customRotationPool: z.array(z.string().uuid()).optional().nullable(),
+  customRotationGroupSize: z.number().int().min(1).optional(),
+  customRotationGroups: z.array(customRotationGroupSchema).optional().nullable(),
+  assigneeIds: z.array(z.string().uuid()).min(1).optional(),
+  occurrenceDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Date must be YYYY-MM-DD').optional(),
+});

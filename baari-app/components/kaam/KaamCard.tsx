@@ -4,7 +4,7 @@ import { Card } from '../ui/Card';
 import { Badge } from '../ui/Badge';
 import { AssigneeStack, AssigneeInfo } from './AssigneeStack';
 import { Colors, Typography, Spacing, BorderRadius } from '../../lib/theme';
-import { CheckCircle2, Clock, Users, Repeat, SkipForward, Trash2, Bell, Check } from 'lucide-react-native';
+import { CheckCircle2, Clock, Users, Repeat, SkipForward, Trash2, Bell, Check, Pencil } from 'lucide-react-native';
 import { useSession } from '../../store/session';
 import { api } from '../../lib/api';
 import { triggerHaptic } from '../../lib/haptics';
@@ -48,6 +48,7 @@ interface KaamCardProps {
   onComplete: (occurrenceId: string) => void;
   onPress?: (task: KaamTask) => void;
   onSkipTurn?: (occurrenceId: string, taskTitle: string) => void;
+  onEdit?: (task: KaamTask) => void;
   onDelete?: (taskId: string) => void;
   loading?: boolean;
 }
@@ -57,6 +58,7 @@ export const KaamCard: React.FC<KaamCardProps> = memo(({
   onComplete,
   onPress,
   onSkipTurn,
+  onEdit,
   onDelete,
   loading = false,
 }) => {
@@ -226,7 +228,17 @@ export const KaamCard: React.FC<KaamCardProps> = memo(({
               status={currentOcc?.status === 'in_progress' ? 'in_progress' : 'pending'}
             />
           )}
-          {canDelete && onDelete && (
+          {onEdit && (
+            <TouchableOpacity
+              activeOpacity={0.7}
+              onPress={() => onEdit(task)}
+              style={styles.deleteBtn}
+              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+            >
+              <Pencil size={13} color="#94A3B8" />
+            </TouchableOpacity>
+          )}
+          {onDelete && (
             <TouchableOpacity
               activeOpacity={0.7}
               onPress={handleDeletePress}

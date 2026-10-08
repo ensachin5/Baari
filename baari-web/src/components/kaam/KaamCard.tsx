@@ -13,6 +13,7 @@ import {
   Bell,
   Check,
   Clock,
+  Pencil,
 } from "lucide-react";
 import { useSession } from "@/store/session";
 import { api } from "@/lib/api";
@@ -56,6 +57,7 @@ interface KaamCardProps {
   onComplete: (occurrenceId: string) => void;
   onPress?: (task: KaamTask) => void;
   onSkipTurn?: (occurrenceId: string, taskTitle: string) => void;
+  onEdit?: (task: KaamTask) => void;
   onDelete?: (taskId: string) => void;
   loading?: boolean;
 }
@@ -68,6 +70,7 @@ export const KaamCard: React.FC<KaamCardProps> = memo(({
   onComplete,
   onPress,
   onSkipTurn,
+  onEdit,
   onDelete,
   loading = false,
 }) => {
@@ -246,7 +249,20 @@ export const KaamCard: React.FC<KaamCardProps> = memo(({
               }
             />
           )}
-          {canDelete && onDelete && (
+          {onEdit && (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                onEdit(task);
+              }}
+              className="p-[3px] rounded-[6px] bg-offWhite text-[#94A3B8] hover:text-navy transition-colors cursor-pointer"
+              title="Edit task"
+            >
+              <Pencil size={13} />
+            </button>
+          )}
+          {onDelete && (
             <button
               type="button"
               onClick={handleDeletePress}

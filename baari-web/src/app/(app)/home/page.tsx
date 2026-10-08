@@ -72,9 +72,12 @@ export default function HomePage() {
     completingId,
     completeTask,
     createTask,
+    updateTask,
     deleteTask,
     onRefresh: onKaamRefresh,
   } = useKaam();
+
+  const [editingTask, setEditingTask] = useState<KaamTask | null>(null);
 
   const {
     messages,
@@ -276,35 +279,37 @@ export default function HomePage() {
           <button
             type="button"
             onClick={() => setActiveTab(0)}
-            className={`flex items-center gap-1.5 py-[5px] px-[10px] rounded-full text-[12px] leading-[16px] font-semibold transition-all cursor-pointer ${
+            className={`flex items-center justify-center w-8 h-8 rounded-full transition-all cursor-pointer ${
               activeTab === 0
                 ? "bg-navy text-white shadow-xs"
-                : "text-mutedNavy hover:text-navy"
+                : "text-mutedNavy hover:text-navy hover:bg-black/5"
             }`}
+            title="Kaam"
+            aria-label="Kaam"
           >
             <CheckSquare2
-              size={13}
+              size={16}
               className={activeTab === 0 ? "text-white" : "text-mutedNavy"}
               strokeWidth={2.2}
             />
-            <span>Kaam</span>
           </button>
 
           <button
             type="button"
             onClick={() => setActiveTab(1)}
-            className={`flex items-center gap-1.5 py-[5px] px-[10px] rounded-full text-[12px] leading-[16px] font-semibold transition-all cursor-pointer ${
+            className={`flex items-center justify-center w-8 h-8 rounded-full transition-all cursor-pointer ${
               activeTab === 1
                 ? "bg-navy text-white shadow-xs"
-                : "text-mutedNavy hover:text-navy"
+                : "text-mutedNavy hover:text-navy hover:bg-black/5"
             }`}
+            title="Chat"
+            aria-label="Chat"
           >
             <MessageCircle
-              size={13}
+              size={16}
               className={activeTab === 1 ? "text-white" : "text-mutedNavy"}
               strokeWidth={2.2}
             />
-            <span>Chat</span>
           </button>
         </div>
       </div>
@@ -366,6 +371,7 @@ export default function HomePage() {
                     setSelectedTaskDetail(t);
                   }}
                   onComplete={completeTask}
+                  onEdit={(t) => setEditingTask(t)}
                   onDelete={deleteTask}
                   loading={completingId === task.currentOccurrence?.id}
                 />
@@ -514,11 +520,23 @@ export default function HomePage() {
         </div>
       )}
 
-      {/* Create Kaam Sheet / Dialog */}
+      {/* Create / Edit Kaam Sheet / Dialog */}
       <CreateKaamModal
-        visible={isCreateModalOpen}
-        onClose={() => setIsCreateModalOpen(false)}
-        onSubmit={createTask}
+        visible={isCreateModalOpen || !!editingTask}
+        initialTask={editingTask}
+        onClose={() => {
+          setIsCreateModalOpen(false);
+          setEditingTask(null);
+        }}
+        onSubmit={async (data) => {
+          if (editingTask) {
+            await updateTask(editingTask.id, data);
+            setEditingTask(null);
+          } else {
+            await createTask(data);
+            setIsCreateModalOpen(false);
+          }
+        }}
         members={members}
         flatId={activeFlat?.id}
       />

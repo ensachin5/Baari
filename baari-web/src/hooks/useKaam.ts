@@ -76,14 +76,20 @@ export const useKaam = () => {
       setTasks((prev) => prev.filter((t) => t.id !== data.taskId));
     };
 
+    const handleTaskUpdated = () => {
+      fetchTasks();
+    };
+
     socket.on("task_completed", handleTaskCompleted);
     socket.on("task_deleted", handleTaskDeleted);
+    socket.on("task_updated", handleTaskUpdated);
 
     return () => {
       socket.off("task_completed", handleTaskCompleted);
       socket.off("task_deleted", handleTaskDeleted);
+      socket.off("task_updated", handleTaskUpdated);
     };
-  }, []);
+  }, [fetchTasks]);
 
   const completeTask = async (occurrenceId: string) => {
     if (!currentUser?.id) return;
@@ -175,6 +181,36 @@ export const useKaam = () => {
     }
   };
 
+  const updateTask = async (
+    taskId: string,
+    payload: {
+      title?: string;
+      category?: "water" | "garbage" | "chore" | "custom";
+      description?: string;
+      peopleRequired?: number;
+      recurrence?: "once" | "daily" | "weekly" | "custom";
+      customRecurrenceConfig?:
+        | { type: "specific_days"; days: string[] }
+        | { type: "interval"; everyNDays: number }
+        | null;
+      assignmentMode?: "auto_rotate" | "custom_rotation";
+      customRotationPool?: string[] | null;
+      customRotationGroupSize?: number;
+      customRotationGroups?: Array<{ groupOrder: number; userIds: string[] }> | null;
+      assigneeIds?: string[];
+      occurrenceDate?: string;
+    }
+  ) => {
+    try {
+      const res = await api.patch(`/api/tasks/${taskId}`, payload);
+      await fetchTasks();
+      return res;
+    } catch (error: any) {
+      console.error("Error updating task:", error);
+      throw error;
+    }
+  };
+
   const deleteTask = async (taskId: string) => {
     const previousTasks = [...tasks];
     // Optimistically remove from state
@@ -201,6 +237,7 @@ export const useKaam = () => {
     completingId,
     completeTask,
     createTask,
+    updateTask,
     deleteTask,
     onRefresh,
   };
