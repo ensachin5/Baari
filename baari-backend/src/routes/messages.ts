@@ -81,16 +81,16 @@ messagesRouter.get('/', requireAuth, async (req: AuthenticatedRequest, res: Resp
   // Fetch read receipts for these messages
   const reads = messageIds.length > 0
     ? await db
-        .select({
-          messageId: messageReads.messageId,
-          userId: messageReads.userId,
-          readAt: messageReads.readAt,
-          userName: user.name,
-          userImage: user.image,
-        })
-        .from(messageReads)
-        .innerJoin(user, eq(messageReads.userId, user.id))
-        .where(inArray(messageReads.messageId, messageIds))
+      .select({
+        messageId: messageReads.messageId,
+        userId: messageReads.userId,
+        readAt: messageReads.readAt,
+        userName: user.name,
+        userImage: user.image,
+      })
+      .from(messageReads)
+      .innerJoin(user, eq(messageReads.userId, user.id))
+      .where(inArray(messageReads.messageId, messageIds))
     : [];
 
   const readsMap = new Map<string, typeof reads>();
@@ -168,7 +168,7 @@ messagesRouter.post(
     try {
       const io = getIO();
       io.to(flatId).emit('new_message', { message: messagePayload });
-    } catch (_) {}
+    } catch (_) { }
 
     // Send push notification to other flat members
     try {
@@ -282,7 +282,7 @@ messagesRouter.patch('/:id', requireAuth, async (req: AuthenticatedRequest, res:
       content: updatedMessage.content,
       editedAt: updatedMessage.editedAt!,
     });
-  } catch (_) {}
+  } catch (_) { }
 
   res.json({ message: messagePayload });
 });
@@ -333,7 +333,7 @@ messagesRouter.delete('/:id', requireAuth, async (req: AuthenticatedRequest, res
       messageId: deletedMessage.id,
       deletedAt: deletedMessage.deletedAt!,
     });
-  } catch (_) {}
+  } catch (_) { }
 
   res.json({
     success: true,
@@ -385,7 +385,7 @@ messagesRouter.post('/read-up-to', requireAuth, async (req: AuthenticatedRequest
         .insert(messageReads)
         .values(eligibleMessages.map((msg) => ({ messageId: msg.id, userId })))
         .onConflictDoNothing();
-    } catch (_) {}
+    } catch (_) { }
   }
 
   // Broadcast message_read event via socket
@@ -397,7 +397,7 @@ messagesRouter.post('/read-up-to', requireAuth, async (req: AuthenticatedRequest
       userName: req.user!.name,
       userImage: req.user!.image,
     });
-  } catch (_) {}
+  } catch (_) { }
 
   res.json({ message: 'Marked messages as read up to target message' });
 });
