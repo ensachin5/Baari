@@ -15,6 +15,8 @@ import {
   ArrowRight,
   History,
   Check,
+  Pencil,
+  Trash2,
 } from "lucide-react";
 import { KaamTask } from "./KaamCard";
 
@@ -48,6 +50,8 @@ interface KaamDetailModalProps {
   initialTask?: KaamTask | null;
   onClose: () => void;
   onComplete?: (occurrenceId: string) => void;
+  onEdit?: (task: KaamTask) => void;
+  onDelete?: (taskId: string) => void;
 }
 
 export const KaamDetailModal: React.FC<KaamDetailModalProps> = ({
@@ -55,6 +59,8 @@ export const KaamDetailModal: React.FC<KaamDetailModalProps> = ({
   taskId,
   initialTask,
   onClose,
+  onEdit,
+  onDelete,
 }) => {
   const [taskData, setTaskData] = useState<TaskHistoryResponse["task"] | null>(
     (initialTask as any) || null
@@ -210,6 +216,45 @@ export const KaamDetailModal: React.FC<KaamDetailModalProps> = ({
               {currentTask.description}
             </p>
           ) : null}
+        </div>
+
+        {/* Action Buttons: Edit & Delete */}
+        <div className="flex items-center gap-2">
+          {onEdit && (
+            <button
+              type="button"
+              onClick={() => {
+                const target = (taskData || initialTask) as KaamTask;
+                if (target) {
+                  onClose();
+                  onEdit(target);
+                }
+              }}
+              className="flex-1 flex items-center justify-center gap-1.5 py-2 px-3 rounded-lg bg-paleSky text-deepNavy text-[12px] font-semibold hover:bg-sky/30 transition-colors cursor-pointer border border-sky"
+            >
+              <Pencil size={14} className="text-deepNavy" />
+              <span>Edit Kaam</span>
+            </button>
+          )}
+
+          {onDelete && (
+            <button
+              type="button"
+              onClick={() => {
+                const idToDelete = activeTaskId;
+                if (idToDelete) {
+                  if (window.confirm(`Delete "${currentTask.title}"? This cannot be undone.`)) {
+                    onClose();
+                    onDelete(idToDelete);
+                  }
+                }
+              }}
+              className="flex-1 flex items-center justify-center gap-1.5 py-2 px-3 rounded-lg bg-[#FEF2F2] text-[#DC2626] text-[12px] font-semibold hover:bg-[#FEE2E2] transition-colors cursor-pointer border border-[#FECACA]"
+            >
+              <Trash2 size={14} className="text-[#DC2626]" />
+              <span>Delete Kaam</span>
+            </button>
+          )}
         </div>
 
         {/* Next in Rotation Box */}

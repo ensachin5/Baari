@@ -232,20 +232,20 @@ export const KaamCard: React.FC<KaamCardProps> = memo(({
             <TouchableOpacity
               activeOpacity={0.7}
               onPress={() => onEdit(task)}
-              style={styles.deleteBtn}
+              style={styles.headerActionBtn}
               hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
             >
-              <Pencil size={13} color="#94A3B8" />
+              <Pencil size={12} color={Colors.navy} strokeWidth={2.2} />
             </TouchableOpacity>
           )}
           {onDelete && (
             <TouchableOpacity
               activeOpacity={0.7}
               onPress={handleDeletePress}
-              style={styles.deleteBtn}
+              style={styles.headerActionBtn}
               hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
             >
-              <Trash2 size={13} color="#94A3B8" />
+              <Trash2 size={12} color="#DC2626" strokeWidth={2.2} />
             </TouchableOpacity>
           )}
         </View>
@@ -306,7 +306,7 @@ export const KaamCard: React.FC<KaamCardProps> = memo(({
         </View>
 
         {/* Action Buttons */}
-        {currentOcc && myAssignment && !isFullyDone && (
+        {currentOcc && myAssignment && !isFullyDone ? (
           <View style={styles.actionButtonsRow}>
             {onSkipTurn && !isMyPartDone && !isFuture && (
               <TouchableOpacity
@@ -358,6 +358,29 @@ export const KaamCard: React.FC<KaamCardProps> = memo(({
               </Text>
             </TouchableOpacity>
           </View>
+        ) : (
+          <View style={styles.actionButtonsRow}>
+            {onEdit && (
+              <TouchableOpacity
+                activeOpacity={0.7}
+                onPress={() => onEdit(task)}
+                style={styles.footerEditBtn}
+              >
+                <Pencil size={12} color={Colors.deepNavy} strokeWidth={2.2} />
+                <Text style={styles.footerEditBtnText}>Edit</Text>
+              </TouchableOpacity>
+            )}
+            {onDelete && (
+              <TouchableOpacity
+                activeOpacity={0.7}
+                onPress={handleDeletePress}
+                style={styles.footerDeleteBtn}
+              >
+                <Trash2 size={12} color="#DC2626" strokeWidth={2.2} />
+                <Text style={styles.footerDeleteBtnText}>Delete</Text>
+              </TouchableOpacity>
+            )}
+          </View>
         )}
       </View>
     </Card>
@@ -378,18 +401,22 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     marginBottom: Spacing.sm,
     gap: 6,
-    flexWrap: 'wrap',
   },
   headerRightGroup: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
-    flexWrap: 'wrap',
+    gap: 4,
+    flexShrink: 0,
   },
-  deleteBtn: {
-    padding: 3,
+  headerActionBtn: {
+    width: 24,
+    height: 24,
     borderRadius: BorderRadius.sm,
-    backgroundColor: Colors.offWhite,
+    backgroundColor: '#F1F5F9',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   badgeGroup: {
     flexDirection: 'row',
@@ -397,7 +424,6 @@ const styles = StyleSheet.create({
     gap: 4,
     flexWrap: 'wrap',
     flex: 1,
-    flexShrink: 1,
     marginRight: 2,
   },
   recurrenceBadge: {
@@ -487,6 +513,40 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontFamily: 'Inter_600SemiBold',
     color: Colors.mutedNavy,
+  },
+  footerEditBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: 6,
+    borderRadius: BorderRadius.md,
+    backgroundColor: Colors.paleSky,
+    borderWidth: 1,
+    borderColor: Colors.sky,
+  },
+  footerEditBtnText: {
+    ...Typography.Caption,
+    fontSize: 11,
+    fontFamily: 'Inter_600SemiBold',
+    color: Colors.deepNavy,
+  },
+  footerDeleteBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: 6,
+    borderRadius: BorderRadius.md,
+    backgroundColor: '#FEF2F2',
+    borderWidth: 1,
+    borderColor: '#FECACA',
+  },
+  footerDeleteBtnText: {
+    ...Typography.Caption,
+    fontSize: 11,
+    fontFamily: 'Inter_600SemiBold',
+    color: '#DC2626',
   },
   actionButton: {
     flexDirection: 'row',

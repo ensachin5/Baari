@@ -6,6 +6,7 @@ import {
   ScrollView,
   TouchableOpacity,
   ActivityIndicator,
+  Alert,
 } from 'react-native';
 import { Modal } from '../ui/Modal';
 import { Avatar } from '../ui/Avatar';
@@ -22,6 +23,8 @@ import {
   ArrowRight,
   History,
   Check,
+  Pencil,
+  Trash2,
 } from 'lucide-react-native';
 import { KaamTask } from './KaamCard';
 
@@ -55,6 +58,8 @@ interface KaamDetailModalProps {
   initialTask?: KaamTask | null;
   onClose: () => void;
   onComplete?: (occurrenceId: string) => void;
+  onEdit?: (task: KaamTask) => void;
+  onDelete?: (taskId: string) => void;
 }
 
 export const KaamDetailModal: React.FC<KaamDetailModalProps> = ({
@@ -62,6 +67,8 @@ export const KaamDetailModal: React.FC<KaamDetailModalProps> = ({
   taskId,
   initialTask,
   onClose,
+  onEdit,
+  onDelete,
 }) => {
   const getTodayString = () => {
     const d = new Date();
@@ -218,6 +225,56 @@ export const KaamDetailModal: React.FC<KaamDetailModalProps> = ({
             {currentTask.description}
           </Text>
         ) : null}
+
+        {/* Quick Actions: Edit & Delete */}
+        <View style={styles.detailActionRow}>
+          {onEdit && (
+            <TouchableOpacity
+              activeOpacity={0.8}
+              onPress={() => {
+                const target = (taskData || initialTask) as KaamTask;
+                if (target) {
+                  onClose();
+                  onEdit(target);
+                }
+              }}
+              style={styles.detailEditBtn}
+            >
+              <Pencil size={14} color={Colors.deepNavy} strokeWidth={2.2} />
+              <Text style={styles.detailEditBtnText}>Edit Kaam</Text>
+            </TouchableOpacity>
+          )}
+
+          {onDelete && (
+            <TouchableOpacity
+              activeOpacity={0.8}
+              onPress={() => {
+                const idToDelete = activeTaskId;
+                if (idToDelete) {
+                  Alert.alert(
+                    'Delete Kaam',
+                    `Delete "${currentTask.title}"? This cannot be undone.`,
+                    [
+                      { text: 'Cancel', style: 'cancel' },
+                      {
+                        text: 'Delete',
+                        style: 'destructive',
+                        onPress: () => {
+                          onClose();
+                          onDelete(idToDelete);
+                        },
+                      },
+                    ]
+                  );
+                }
+              }}
+              style={styles.detailDeleteBtn}
+            >
+              <Trash2 size={14} color="#DC2626" strokeWidth={2.2} />
+              <Text style={styles.detailDeleteBtnText}>Delete Kaam</Text>
+            </TouchableOpacity>
+          )}
+        </View>
 
         {/* Next in Rotation Box */}
         {currentTask.recurrence !== 'once' && currentTask.nextAssignee && (
@@ -440,8 +497,52 @@ const styles = StyleSheet.create({
   },
   description: {
     color: Colors.grayBlack,
-    marginBottom: Spacing.md,
+    marginBottom: Spacing.sm,
     lineHeight: 22,
+  },
+  detailActionRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.sm,
+    marginBottom: Spacing.md,
+  },
+  detailEditBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    paddingVertical: 9,
+    paddingHorizontal: Spacing.md,
+    borderRadius: BorderRadius.md,
+    backgroundColor: Colors.paleSky,
+    borderWidth: 1,
+    borderColor: Colors.sky,
+  },
+  detailEditBtnText: {
+    ...Typography.Caption,
+    fontSize: 12,
+    fontFamily: 'Inter_600SemiBold',
+    color: Colors.deepNavy,
+  },
+  detailDeleteBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    paddingVertical: 9,
+    paddingHorizontal: Spacing.md,
+    borderRadius: BorderRadius.md,
+    backgroundColor: '#FEF2F2',
+    borderWidth: 1,
+    borderColor: '#FECACA',
+  },
+  detailDeleteBtnText: {
+    ...Typography.Caption,
+    fontSize: 12,
+    fontFamily: 'Inter_600SemiBold',
+    color: '#DC2626',
   },
   nextAssigneeCard: {
     backgroundColor: '#F0FDF4',

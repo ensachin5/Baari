@@ -551,6 +551,8 @@ export default function HomePage() {
           completeTask(occId);
           onKaamRefresh();
         }}
+        onEdit={(t) => setEditingTask(t)}
+        onDelete={deleteTask}
       />
     </div>
   );

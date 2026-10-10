@@ -1,11 +1,13 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   TextInput,
   TouchableOpacity,
   StyleSheet,
   Platform,
+  Keyboard,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Colors, Typography, BorderRadius, Spacing } from '../../lib/theme';
 import { Send } from 'lucide-react-native';
 
@@ -17,6 +19,21 @@ interface ChatInputProps {
 
 export const ChatInput: React.FC<ChatInputProps> = ({ onSend, onTyping, disabled = false }) => {
   const [text, setText] = useState('');
+  const insets = useSafeAreaInsets();
+  const [isKeyboardVisible, setIsKeyboardVisible] = useState(false);
+
+  useEffect(() => {
+    const showEvent = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';
+    const hideEvent = Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide';
+
+    const showSub = Keyboard.addListener(showEvent, () => setIsKeyboardVisible(true));
+    const hideSub = Keyboard.addListener(hideEvent, () => setIsKeyboardVisible(false));
+
+    return () => {
+      showSub.remove();
+      hideSub.remove();
+    };
+  }, []);
 
   const handleChangeText = (val: string) => {
     setText(val);
@@ -32,8 +49,12 @@ export const ChatInput: React.FC<ChatInputProps> = ({ onSend, onTyping, disabled
     setText('');
   };
 
+  const bottomPadding = isKeyboardVisible
+    ? Spacing.md
+    : Math.max(Spacing.sm, Platform.OS === 'ios' ? insets.bottom : Spacing.sm);
+
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { paddingBottom: bottomPadding }]}>
       <View style={styles.inputWrapper}>
         <TextInput
           style={styles.textInput}
@@ -70,22 +91,20 @@ export const ChatInput: React.FC<ChatInputProps> = ({ onSend, onTyping, disabled
 const styles = StyleSheet.create({
   container: {
     paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.sm,
+    paddingTop: Spacing.sm,
     backgroundColor: Colors.white,
     borderTopWidth: 1,
     borderTopColor: Colors.border,
-    overflow: 'hidden',
   },
   inputWrapper: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: Colors.offWhite,
-    borderRadius: BorderRadius.xl,
+    borderRadius: BorderRadius.full,
     paddingHorizontal: Spacing.md,
-    paddingVertical: Platform.OS === 'ios' ? Spacing.xs : 2,
+    paddingVertical: Platform.OS === 'ios' ? Spacing.xs : 4,
     borderWidth: 1,
     borderColor: Colors.border,
-    overflow: 'hidden',
     minHeight: 44,
   },
   textInput: {
@@ -93,8 +112,8 @@ const styles = StyleSheet.create({
     ...Typography.Body,
     color: Colors.black,
     maxHeight: 100,
-    paddingTop: Platform.OS === 'ios' ? 8 : 4,
-    paddingBottom: Platform.OS === 'ios' ? 8 : 4,
+    paddingTop: Platform.OS === 'ios' ? 8 : 6,
+    paddingBottom: Platform.OS === 'ios' ? 8 : 6,
   },
   sendButton: {
     width: 36,
