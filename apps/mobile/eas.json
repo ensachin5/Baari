@@ -12,7 +12,7 @@
         "buildType": "apk"
       },
       "env": {
-        "EXPO_PUBLIC_API_URL": "https://baari-wkqq.onrender.com"
+        "EXPO_PUBLIC_API_URL": "https://baari-app.vercel.app"
       }
     },
     "preview": {
@@ -22,14 +22,14 @@
         "buildType": "apk"
       },
       "env": {
-        "EXPO_PUBLIC_API_URL": "https://baari-wkqq.onrender.com"
+        "EXPO_PUBLIC_API_URL": "https://baari-app.vercel.app"
       }
     },
     "production": {
       "autoIncrement": true,
       "channel": "production",
       "env": {
-        "EXPO_PUBLIC_API_URL": "https://baari-wkqq.onrender.com"
+        "EXPO_PUBLIC_API_URL": "https://baari-app.vercel.app"
       }
     }
   },
