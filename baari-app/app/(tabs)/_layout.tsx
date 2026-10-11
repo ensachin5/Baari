@@ -63,6 +63,7 @@ export default function TabsLayout() {
               size={22}
               color={color}
               strokeWidth={focused ? 2.3 : 1.8}
+              filled={focused}
             />
           ),
         }}
@@ -76,6 +77,7 @@ export default function TabsLayout() {
               size={22}
               color={color}
               strokeWidth={focused ? 2.3 : 1.8}
+              fill={focused ? color : 'none'}
             />
           ),
         }}
@@ -89,6 +91,7 @@ export default function TabsLayout() {
               size={22}
               color={color}
               strokeWidth={focused ? 2.3 : 1.8}
+              fill={focused ? color : 'none'}
             />
           ),
         }}
@@ -102,6 +105,7 @@ export default function TabsLayout() {
               size={22}
               color={color}
               strokeWidth={focused ? 2.3 : 1.8}
+              fill={focused ? color : 'none'}
             />
           ),
         }}

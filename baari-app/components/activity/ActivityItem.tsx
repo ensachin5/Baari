@@ -157,6 +157,9 @@ export const ActivityItem: React.FC<ActivityItemProps> = memo(({ activity, onPre
           <Text style={styles.actorName}>{activity.actorName} </Text>
           <Text style={styles.actionText}>{actionText}</Text>
         </Text>
+        {activity.createdAt ? (
+          <Text style={styles.timeText}>{formatTime(activity.createdAt)}</Text>
+        ) : null}
       </View>
     </TouchableOpacity>
   );
@@ -166,7 +169,8 @@ const styles = StyleSheet.create({
   container: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: Spacing.md,
+    paddingVertical: 14,
+    paddingHorizontal: Spacing.xs,
     borderBottomWidth: 1,
     borderBottomColor: Colors.border,
   },

@@ -101,6 +101,8 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
   listContent: {
+    paddingHorizontal: Spacing.xl,
+    paddingTop: Spacing.md,
     flexGrow: 1,
   },
   emptyContainer: {

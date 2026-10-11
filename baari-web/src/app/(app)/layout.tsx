@@ -13,7 +13,7 @@ import { OfflineBanner } from "@/components/ui/OfflineBanner";
 import { HomeIcon } from "@/components/ui/HomeIcon";
 import {
   Wallet,
-  Activity,
+  Zap,
   User,
   Copy,
   Check,
@@ -176,19 +176,22 @@ export default function AppLayout({
       href: "/home",
       icon: (active: boolean) => (
         <HomeIcon
-          size={18}
-          strokeWidth={active ? 2.5 : 1.8}
+          size={19}
+          strokeWidth={active ? 2.3 : 1.8}
           className={active ? "text-navy" : "text-mutedNavy"}
+          filled={active}
+          color={active ? "#0A2540" : "currentColor"}
         />
       ),
     },
     {
-      name: "Expense",
+      name: "Expenses",
       href: "/expense",
       icon: (active: boolean) => (
         <Wallet
-          size={18}
-          className={active ? "text-navy stroke-[2.5]" : "text-mutedNavy stroke-[1.8]"}
+          size={19}
+          className={active ? "text-navy stroke-[2.3]" : "text-mutedNavy stroke-[1.8]"}
+          fill={active ? "currentColor" : "none"}
         />
       ),
     },
@@ -196,9 +199,10 @@ export default function AppLayout({
       name: "Activity",
       href: "/activity",
       icon: (active: boolean) => (
-        <Activity
-          size={18}
-          className={active ? "text-navy stroke-[2.5]" : "text-mutedNavy stroke-[1.8]"}
+        <Zap
+          size={19}
+          className={active ? "text-navy stroke-[2.3]" : "text-mutedNavy stroke-[1.8]"}
+          fill={active ? "currentColor" : "none"}
         />
       ),
     },
@@ -207,8 +211,9 @@ export default function AppLayout({
       href: "/profile",
       icon: (active: boolean) => (
         <User
-          size={18}
-          className={active ? "text-navy stroke-[2.5]" : "text-mutedNavy stroke-[1.8]"}
+          size={19}
+          className={active ? "text-navy stroke-[2.3]" : "text-mutedNavy stroke-[1.8]"}
+          fill={active ? "currentColor" : "none"}
         />
       ),
     },
