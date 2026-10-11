@@ -22,6 +22,8 @@ dist/
 **/.expo/
 .next/
 **/.next/
+.turbo/
+**/.turbo/
 
 # OS and Temporary files
 .DS_Store

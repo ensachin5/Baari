@@ -1,0 +1,42 @@
+{
+  "name": "@baari/web",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "next dev -p 3000",
+    "build": "next build",
+    "start": "next start -p 3000",
+    "lint": "eslint",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@baari/db": "*",
+    "@baari/shared": "*",
+    "@better-auth/expo": "^1.1.21",
+    "@serwist/next": "^9.5.12",
+    "@tanstack/react-query": "^5.102.8",
+    "@tanstack/react-virtual": "^3.14.13",
+    "better-auth": "^1.7.2",
+    "drizzle-orm": "^0.39.3",
+    "lucide-react": "^1.40.0",
+    "next": "16.3.4",
+    "pg": "^8.13.3",
+    "react": "19.2.8",
+    "react-dom": "19.2.8",
+    "serwist": "^9.5.12",
+    "socket.io-client": "^4.8.3",
+    "zod": "^3.24.2",
+    "zustand": "^5.0.15"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "^4",
+    "@types/node": "^20",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "eslint": "^9",
+    "eslint-config-next": "16.3.4",
+    "tailwindcss": "^4",
+    "typescript": "^5"
+  }
+}

@@ -1,21 +1,30 @@
 {
-  "name": "baari-workspace",
+  "name": "baari",
   "version": "1.0.0",
   "private": true,
+  "packageManager": "npm@11.11.0",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
   "scripts": {
-    "dev:backend": "npm --prefix baari-backend run dev",
-    "dev:web": "npm --prefix baari-web run dev",
-    "dev:app": "npm --prefix baari-app start",
-    "build:backend": "npm --prefix baari-backend run build",
-    "build:web": "npm --prefix baari-web run build",
-    "build:app": "npm --prefix baari-app run typecheck",
-    "build:all": "npm run build:backend && npm run build:web && npm run build:app",
-    "lint:web": "npm --prefix baari-web run lint",
-    "typecheck:backend": "npm --prefix baari-backend run build",
-    "typecheck:app": "npm --prefix baari-app run typecheck",
-    "db:generate": "npm --prefix baari-backend run db:generate",
-    "db:migrate": "npm --prefix baari-backend run db:migrate",
-    "db:push": "npm --prefix baari-backend run db:push",
-    "db:studio": "npm --prefix baari-backend run db:studio"
+    "dev": "turbo dev",
+    "dev:web": "npm --prefix apps/web run dev",
+    "dev:mobile": "npm --prefix apps/mobile start",
+    "build": "turbo build",
+    "build:web": "npm --prefix apps/web run build",
+    "build:mobile": "npm --prefix apps/mobile run typecheck",
+    "typecheck": "turbo typecheck",
+    "lint": "turbo lint",
+    "db:generate": "npm --prefix packages/db run db:generate",
+    "db:migrate": "npm --prefix packages/db run db:migrate",
+    "db:push": "npm --prefix packages/db run db:push",
+    "db:studio": "npm --prefix packages/db run db:studio"
+  },
+  "dependencies": {
+    "drizzle-orm": "^0.39.3"
+  },
+  "devDependencies": {
+    "turbo": "^2.4.4"
   }
 }
