@@ -41,6 +41,7 @@ export async function GET(req: Request) {
   return NextResponse.json({
     user: currentUser,
     flat: membership[0] || null,
+    activeFlat: membership[0] || null,
   });
 }
 
