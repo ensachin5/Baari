@@ -22,6 +22,12 @@
     "db:studio": "npm --prefix packages/db run db:studio"
   },
   "dependencies": {
-    "drizzle-orm": "^0.39.3"
+    "drizzle-orm": "^0.39.3",
+    "react": "19.2.8",
+    "react-dom": "19.2.8"
+  },
+  "overrides": {
+    "react": "19.2.8",
+    "react-dom": "19.2.8"
   }
 }
