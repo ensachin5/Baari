@@ -1,10 +1,8 @@
 # Environment & Local Configuration (root and all subdirectories)
 .env
-.env.*
+.env*
 **/.env
-**/.env.*
-!.env.example
-!**/.env.example
+**/.env*
 
 # Customization & Documentation ignored from Git
 .agents/
