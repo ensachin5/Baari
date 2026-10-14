@@ -13,6 +13,7 @@
     "web": "npm --prefix apps/web run dev",
     "mobile": "npm --prefix apps/mobile start",
     "start": "npm --prefix apps/mobile start",
+    "build": "npm --prefix apps/web run build",
     "build:web": "npm --prefix apps/web run build",
     "typecheck": "npm run typecheck --workspaces",
     "db:generate": "npm --prefix packages/db run db:generate",
