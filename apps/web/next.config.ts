@@ -1,3 +1,5 @@
+process.env.SERWIST_SUPPRESS_TURBOPACK_WARNING = "1";
+
 import type { NextConfig } from "next";
 import withSerwistInit from "@serwist/next";
 
