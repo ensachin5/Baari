@@ -4,7 +4,7 @@ import * as SecureStore from 'expo-secure-store';
 import { useSession } from '../store/session';
 
 export function resolveBaseUrl(): string {
-  const envUrl = process.env.EXPO_PUBLIC_API_URL || 'https://baari-wkqq.onrender.com';
+  const envUrl = process.env.EXPO_PUBLIC_API_URL || 'https://baari-app.vercel.app';
 
   // If pointing to a remote server (e.g. Render / production), use as-is
   if (!envUrl.includes('localhost') && !envUrl.includes('127.0.0.1')) {

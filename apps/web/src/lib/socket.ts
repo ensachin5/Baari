@@ -8,7 +8,7 @@ let isWarmingUp = false;
 const SOCKET_URL =
   typeof window !== "undefined"
     ? window.location.origin
-    : (process.env.NEXT_PUBLIC_API_URL || "https://baari-wkqq.onrender.com").replace(/\/+$/, "");
+    : (process.env.NEXT_PUBLIC_API_URL || "https://baari-app.vercel.app").replace(/\/+$/, "");
 
 // Pre-warm backend HTTP server before initiating WebSocket handshake
 async function warmUpBackend(): Promise<void> {

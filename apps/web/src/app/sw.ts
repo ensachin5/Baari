@@ -35,7 +35,6 @@ const serwist = new Serwist({
     {
       matcher: ({ url }) =>
         url.pathname.startsWith('/api/') ||
-        url.hostname.includes('onrender.com') ||
         url.pathname.includes('socket.io') ||
         url.pathname.includes('/auth/'),
       handler: new NetworkOnly(),
