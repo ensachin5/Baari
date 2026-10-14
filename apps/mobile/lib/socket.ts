@@ -119,6 +119,9 @@ export const getSocket = (): Socket => {
 };
 
 export const connectSocket = async () => {
+  if (!process.env.EXPO_PUBLIC_SOCKET_URL) {
+    return;
+  }
   const token = await resolveSocketToken();
   const s = getSocket();
   if (token) {
@@ -143,6 +146,7 @@ export const disconnectSocket = () => {
 };
 
 export const joinFlatRoom = (flatId: string) => {
+  if (!process.env.EXPO_PUBLIC_SOCKET_URL) return;
   const s = getSocket();
   if (flatId) {
     if (s.connected) {

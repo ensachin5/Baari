@@ -16,22 +16,23 @@ declare global {
   var __baari_db_pool: pg.Pool | undefined;
 }
 
-// Preserve pool across serverless / Next.js Fast Refresh hot-reloads
+// Preserve pool across serverless lambdas / Next.js Fast Refresh hot-reloads
 export const pool =
   globalThis.__baari_db_pool ??
   new Pool({
     connectionString,
     ssl: isLocal ? false : { rejectUnauthorized: false },
-    max: process.env.NODE_ENV === 'production' ? 10 : 5,
+    max: 5,
     idleTimeoutMillis: 30000,
-    connectionTimeoutMillis: 10000,
+    connectionTimeoutMillis: 30000,
+    keepAlive: true,
+    keepAliveInitialDelayMillis: 10000,
   });
 
-if (process.env.NODE_ENV !== 'production') {
-  globalThis.__baari_db_pool = pool;
-}
+globalThis.__baari_db_pool = pool;
 
 pool.on('error', (err: any) => {
+  // Common when Supabase pooler closes an idle client connection
   console.warn('[Postgres Pool Error]', err?.message || err);
 });
 

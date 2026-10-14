@@ -5,10 +5,7 @@ import { useSession } from "@/store/session";
 let socket: Socket | null = null;
 let isWarmingUp = false;
 
-const SOCKET_URL =
-  typeof window !== "undefined"
-    ? window.location.origin
-    : (process.env.NEXT_PUBLIC_API_URL || "https://baari-app.vercel.app").replace(/\/+$/, "");
+const SOCKET_URL = process.env.NEXT_PUBLIC_SOCKET_URL || "";
 
 // Pre-warm backend HTTP server before initiating WebSocket handshake
 async function warmUpBackend(): Promise<void> {
@@ -98,6 +95,9 @@ export const getSocket = (): Socket => {
 };
 
 export const connectSocket = async () => {
+  if (!SOCKET_URL) {
+    return;
+  }
   const token = useSession.getState().token;
   const s = getSocket();
   if (token) {
@@ -123,6 +123,7 @@ export const disconnectSocket = () => {
 };
 
 export const joinFlatRoom = (flatId: string) => {
+  if (!SOCKET_URL) return;
   const s = getSocket();
   if (flatId) {
     if (s.connected) {
