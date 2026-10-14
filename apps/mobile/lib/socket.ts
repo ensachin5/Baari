@@ -57,17 +57,56 @@ async function warmUpBackend(): Promise<void> {
 
 let lastConnectErrorLog = 0;
 
+function createStubSocket(): Socket {
+  const listeners: Record<string, Set<Function>> = {};
+  const stub: any = {
+    connected: false,
+    id: undefined,
+    auth: {},
+    connect: () => stub,
+    disconnect: () => stub,
+    on: (event: string, fn: Function) => {
+      if (!listeners[event]) listeners[event] = new Set();
+      listeners[event].add(fn);
+      return stub;
+    },
+    off: (event: string, fn: Function) => {
+      listeners[event]?.delete(fn);
+      return stub;
+    },
+    emit: (event: string, ...args: any[]) => {
+      const lastArg = args[args.length - 1];
+      if (typeof lastArg === 'function') {
+        lastArg({ error: 'No WebSocket server configured' });
+      }
+      return stub;
+    },
+    io: {
+      on: () => stub.io,
+      off: () => stub.io,
+    },
+  };
+  return stub as Socket;
+}
+
 export const getSocket = (): Socket => {
+  if (!process.env.EXPO_PUBLIC_SOCKET_URL) {
+    if (!socket) {
+      socket = createStubSocket();
+    }
+    return socket;
+  }
+
   if (!socket) {
-    socket = io(API_BASE_URL, {
+    socket = io(process.env.EXPO_PUBLIC_SOCKET_URL, {
       autoConnect: false,
       reconnection: true,
       reconnectionAttempts: Infinity,
       reconnectionDelay: 2000,
-      reconnectionDelayMax: 30000, // Capped exponential backoff up to 30s max
+      reconnectionDelayMax: 30000,
       randomizationFactor: 0.5,
-      timeout: 45000, // 45s timeout to handle Render cold starts
-      transports: ['polling', 'websocket'], // Start with HTTP polling for reliable handshake, then upgrade to WebSocket
+      timeout: 45000,
+      transports: ['polling', 'websocket'],
       upgrade: true,
       auth: (cb) => {
         resolveSocketToken().then((tok) => {

@@ -79,6 +79,12 @@ export const useChat = () => {
 
   useEffect(() => {
     fetchMessages();
+    const interval = setInterval(() => {
+      if (typeof document !== "undefined" && !document.hidden) {
+        fetchMessages();
+      }
+    }, 4000);
+    return () => clearInterval(interval);
   }, [fetchMessages]);
 
   // Ref to hold currentUser to avoid re-binding socket listeners when currentUser object updates

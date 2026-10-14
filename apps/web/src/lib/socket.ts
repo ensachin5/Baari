@@ -30,17 +30,56 @@ async function warmUpBackend(): Promise<void> {
 
 let lastConnectErrorLog = 0;
 
+function createStubSocket(): Socket {
+  const listeners: Record<string, Set<Function>> = {};
+  const stub: any = {
+    connected: false,
+    id: undefined,
+    auth: {},
+    connect: () => stub,
+    disconnect: () => stub,
+    on: (event: string, fn: Function) => {
+      if (!listeners[event]) listeners[event] = new Set();
+      listeners[event].add(fn);
+      return stub;
+    },
+    off: (event: string, fn: Function) => {
+      listeners[event]?.delete(fn);
+      return stub;
+    },
+    emit: (event: string, ...args: any[]) => {
+      const lastArg = args[args.length - 1];
+      if (typeof lastArg === "function") {
+        lastArg({ error: "No WebSocket server configured" });
+      }
+      return stub;
+    },
+    io: {
+      on: () => stub.io,
+      off: () => stub.io,
+    },
+  };
+  return stub as Socket;
+}
+
 export const getSocket = (): Socket => {
+  if (!SOCKET_URL) {
+    if (!socket) {
+      socket = createStubSocket();
+    }
+    return socket;
+  }
+
   if (!socket) {
     socket = io(SOCKET_URL, {
       autoConnect: false,
       reconnection: true,
       reconnectionAttempts: Infinity,
       reconnectionDelay: 2000,
-      reconnectionDelayMax: 30000, // Capped exponential backoff to 30s max
+      reconnectionDelayMax: 30000,
       randomizationFactor: 0.5,
-      timeout: 45000, // 45s timeout to handle Render cold starts
-      transports: ["polling", "websocket"], // Start with HTTP polling for reliable handshake, then upgrade to WebSocket
+      timeout: 45000,
+      transports: ["polling", "websocket"],
       withCredentials: true,
       upgrade: true,
       auth: (cb) => {
@@ -54,7 +93,6 @@ export const getSocket = (): Socket => {
       useSession.getState().setSocketConnected(true);
       const activeFlat = useSession.getState().activeFlat;
       if (activeFlat?.id) {
-        console.log('[Socket] [join_flat] Auto-joining flat room on connect. flatId:', activeFlat.id, 'socketId:', socket?.id);
         socket?.emit("join_flat", { flatId: activeFlat.id });
       }
     });
@@ -64,7 +102,6 @@ export const getSocket = (): Socket => {
       useSession.getState().setSocketConnected(true);
       const activeFlat = useSession.getState().activeFlat;
       if (activeFlat?.id) {
-        console.log('[Socket] [join_flat] Re-joining flat room on reconnect. flatId:', activeFlat.id, 'socketId:', socket?.id);
         socket?.emit("join_flat", { flatId: activeFlat.id });
       }
     });
@@ -76,7 +113,6 @@ export const getSocket = (): Socket => {
 
     socket.on("connect_error", (error) => {
       const now = Date.now();
-      // Throttle connection error logging to at most once every 10 seconds to avoid console flood
       if (now - lastConnectErrorLog > 10000) {
         lastConnectErrorLog = now;
         console.warn('[Socket] Connection attempt failed (will auto-retry):', error.message);
