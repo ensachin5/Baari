@@ -62,10 +62,23 @@ export default function SignInPage() {
       setGoogleLoading(true);
       setError("");
       const callbackURL = `${window.location.origin}/`;
-      await signIn.social({
+      const res = await signIn.social({
         provider: "google",
         callbackURL,
       });
+      if (res?.error) {
+        if (
+          res.error.message?.includes("Provider not found") ||
+          (res.error as any).status === 404
+        ) {
+          setError(
+            "Google Client ID and Secret have not been added to apps/web/.env.local yet. Please paste GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET from Google Cloud Console into apps/web/.env.local and restart the server."
+          );
+        } else {
+          setError(res.error.message || "Google sign-in failed. Please try again.");
+        }
+        setGoogleLoading(false);
+      }
     } catch (err: any) {
       setError(err?.message || "Google sign-in failed. Please try again.");
       setGoogleLoading(false);

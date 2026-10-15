@@ -53,14 +53,10 @@ export const auth = betterAuth({
     bearer(),
   ],
   socialProviders: {
-    ...(googleClientId && googleClientSecret
-      ? {
-          google: {
-            clientId: googleClientId,
-            clientSecret: googleClientSecret,
-          },
-        }
-      : {}),
+    google: {
+      clientId: googleClientId || 'missing-client-id',
+      clientSecret: googleClientSecret || 'missing-client-secret',
+    },
   },
   trustedOrigins: [
     'http://localhost:3000',

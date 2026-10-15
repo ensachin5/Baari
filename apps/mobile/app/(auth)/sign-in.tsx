@@ -26,11 +26,16 @@ export default function SignInScreen() {
       setGoogleLoading(true);
       setError('');
       const callbackURL = Linking.createURL('/');
-      await authClient.signIn.social({
+      const res = await authClient.signIn.social({
         provider: 'google',
         callbackURL,
       });
-      await handlePostAuth();
+      if (res?.error) {
+        setError(res.error.message || 'Google sign-in failed');
+        setGoogleLoading(false);
+        return;
+      }
+      await handlePostAuth(res?.data);
     } catch (err: any) {
       setError(err?.message || 'Google sign-in failed');
     } finally {
