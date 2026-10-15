@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { useSession } from "@/store/session";
 import { signOut, fetchUserProfile } from "@/lib/auth-client";
 import { api } from "@/lib/api";
@@ -23,6 +24,7 @@ import {
   Camera,
   Flame,
   Bell,
+  FileText,
   LogOut as LeaveIcon,
   Trash2,
   CheckCircle2,
@@ -477,6 +479,38 @@ export default function ProfilePage() {
                 </div>
               </button>
             )}
+          </Card>
+        </div>
+
+        {/* About & Legal */}
+        <div>
+          <h2 className="text-[18px] leading-[24px] font-semibold text-black mb-2">
+            About & Legal
+          </h2>
+          <Card variant="outlined" className="p-3 divide-y divide-border">
+            <Link
+              href="/privacy"
+              className="w-full flex items-center justify-between py-2.5 text-left hover:opacity-80 transition-opacity"
+            >
+              <div className="flex items-center gap-2.5">
+                <ShieldCheck size={20} className="text-navy" />
+                <span className="text-[14px] font-medium text-black">
+                  Privacy Policy
+                </span>
+              </div>
+            </Link>
+
+            <Link
+              href="/terms"
+              className="w-full flex items-center justify-between py-2.5 text-left hover:opacity-80 transition-opacity"
+            >
+              <div className="flex items-center gap-2.5">
+                <FileText size={20} className="text-navy" />
+                <span className="text-[14px] font-medium text-black">
+                  Terms & Conditions
+                </span>
+              </div>
+            </Link>
           </Card>
         </div>
 

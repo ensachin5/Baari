@@ -8,6 +8,7 @@ import { useSession } from "@/store/session";
 import { Button } from "@/components/ui/Button";
 import { GoogleIcon } from "@/components/icons/GoogleIcon";
 import Image from "next/image";
+import Link from "next/link";
 
 export default function SignInPage() {
   const router = useRouter();
@@ -129,6 +130,17 @@ export default function SignInPage() {
         <p className="text-xs text-center text-grayBlack mt-6 leading-relaxed max-w-[280px]">
           Sign in or get started instantly with your Google account.
         </p>
+
+        {/* Legal Links for Compliance & OAuth Verification */}
+        <div className="flex items-center justify-center gap-3 text-xs text-grayBlack mt-8">
+          <Link href="/privacy" className="hover:text-navy hover:underline">
+            Privacy Policy
+          </Link>
+          <span>·</span>
+          <Link href="/terms" className="hover:text-navy hover:underline">
+            Terms & Conditions
+          </Link>
+        </div>
       </div>
     </div>
   );

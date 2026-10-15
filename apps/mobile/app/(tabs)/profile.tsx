@@ -12,6 +12,7 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
+import * as Linking from 'expo-linking';
 import * as Clipboard from 'expo-clipboard';
 import * as ImagePicker from 'expo-image-picker';
 import { Colors, Typography, Spacing, BorderRadius } from '../../lib/theme';
@@ -35,6 +36,7 @@ import {
   Camera,
   Flame,
   Bell,
+  FileText,
   LogOut as LeaveIcon,
   Trash2,
   CheckCircle2,
@@ -439,6 +441,36 @@ export default function ProfileScreen() {
                 </View>
               </TouchableOpacity>
             )}
+          </Card>
+        </View>
+
+        {/* About & Legal */}
+        <View style={styles.section}>
+          <Text style={[Typography.H2, styles.sectionTitle]}>About & Legal</Text>
+          <Card variant="outlined" style={styles.settingsCard}>
+            <TouchableOpacity
+              activeOpacity={0.7}
+              onPress={() => Linking.openURL('https://baari-app.vercel.app/privacy')}
+              style={styles.settingRow}
+            >
+              <View style={styles.settingLeft}>
+                <ShieldCheck size={20} color={Colors.navy} />
+                <Text style={Typography.BodySmallMedium}>Privacy Policy</Text>
+              </View>
+            </TouchableOpacity>
+
+            <View style={styles.settingDivider} />
+
+            <TouchableOpacity
+              activeOpacity={0.7}
+              onPress={() => Linking.openURL('https://baari-app.vercel.app/terms')}
+              style={styles.settingRow}
+            >
+              <View style={styles.settingLeft}>
+                <FileText size={20} color={Colors.navy} />
+                <Text style={Typography.BodySmallMedium}>Terms & Conditions</Text>
+              </View>
+            </TouchableOpacity>
           </Card>
         </View>
 
