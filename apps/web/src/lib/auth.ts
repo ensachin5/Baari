@@ -34,6 +34,12 @@ export const auth = betterAuth({
     autoSignIn: true,
     requireEmailVerification: false,
   },
+  account: {
+    accountLinking: {
+      enabled: true,
+      trustedProviders: ['google'],
+    },
+  },
   advanced: {
     database: {
       generateId: 'uuid',
@@ -62,6 +68,7 @@ export const auth = betterAuth({
     'http://localhost:3000',
     'http://localhost:8081',
     'exp://localhost:8081',
+    'baari://',
     'https://baari-app.vercel.app',
     process.env.NEXT_PUBLIC_APP_URL,
     process.env.BETTER_AUTH_URL,

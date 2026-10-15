@@ -45,6 +45,21 @@ export default function RootIndexPage() {
     }
   }, [hydrate]);
 
+  // 1b. Sync Better Auth session into Zustand store when session is detected
+  useEffect(() => {
+    if (session?.user) {
+      setUser({
+        id: session.user.id,
+        name: session.user.name,
+        email: session.user.email,
+        image: session.user.image ?? null,
+      });
+    }
+    if (session?.session?.token) {
+      setToken(session.session.token);
+    }
+  }, [session, setUser, setToken]);
+
   // 2. Slow server hint after 3.5 seconds of waiting
   useEffect(() => {
     if (status === "waking" || status === "initializing") {

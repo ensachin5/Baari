@@ -155,8 +155,6 @@ export default function SignInPage() {
     }
   };
 
-  // TEMP: Google sign-in disabled while fixing WebKit cookie issue — re-enable by uncommenting
-  /*
   const [googleLoading, setGoogleLoading] = useState(false);
   const handleGoogleSignIn = async () => {
     try {
@@ -172,7 +170,6 @@ export default function SignInPage() {
       setGoogleLoading(false);
     }
   };
-  */
 
   return (
     <div className="min-h-screen bg-white flex flex-col justify-center px-5 max-w-md mx-auto w-full py-8">
@@ -236,8 +233,15 @@ export default function SignInPage() {
             className="w-full mt-2"
           />
 
-          {/* TEMP: Google sign-in disabled while fixing WebKit cookie issue — re-enable by uncommenting */}
-          {/*
+          <div className="relative my-4">
+            <div className="absolute inset-0 flex items-center">
+              <div className="w-full border-t border-border" />
+            </div>
+            <div className="relative flex justify-center text-xs uppercase">
+              <span className="bg-white px-2 text-grayBlack">Or</span>
+            </div>
+          </div>
+
           <Button
             title="Continue with Google"
             variant="outline"
@@ -245,9 +249,8 @@ export default function SignInPage() {
             icon={<GoogleIcon size={20} />}
             onClick={handleGoogleSignIn}
             loading={googleLoading || sessionLoading}
-            className="w-full mt-3"
+            className="w-full"
           />
-          */}
 
           <div className="mt-6 text-center">
             <button
@@ -305,8 +308,15 @@ export default function SignInPage() {
             className="w-full mt-2"
           />
 
-          {/* TEMP: Google sign-in disabled while fixing WebKit cookie issue — re-enable by uncommenting */}
-          {/*
+          <div className="relative my-4">
+            <div className="absolute inset-0 flex items-center">
+              <div className="w-full border-t border-border" />
+            </div>
+            <div className="relative flex justify-center text-xs uppercase">
+              <span className="bg-white px-2 text-grayBlack">Or</span>
+            </div>
+          </div>
+
           <Button
             title="Continue with Google"
             variant="outline"
@@ -314,9 +324,8 @@ export default function SignInPage() {
             icon={<GoogleIcon size={20} />}
             onClick={handleGoogleSignIn}
             loading={googleLoading || sessionLoading}
-            className="w-full mt-3"
+            className="w-full"
           />
-          */}
 
           <div className="mt-6 text-center">
             <button

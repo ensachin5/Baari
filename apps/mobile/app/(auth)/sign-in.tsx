@@ -11,8 +11,10 @@ import {
 import { Image } from 'expo-image';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
+import * as Linking from 'expo-linking';
 import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
+import { GoogleIcon } from '../../components/icons/GoogleIcon';
 import { Colors, Typography, Spacing, BorderRadius } from '../../lib/theme';
 import { authClient, syncSessionToStore, fetchUserProfile } from '../../lib/auth-client';
 import { api } from '../../lib/api';
@@ -33,8 +35,6 @@ export default function SignInScreen() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
-  // TEMP: Google sign-in disabled while fixing WebKit cookie issue — re-enable by uncommenting
-  /*
   const [googleLoading, setGoogleLoading] = useState(false);
   const handleGoogleSignIn = async () => {
     try {
@@ -47,12 +47,11 @@ export default function SignInScreen() {
       });
       await handlePostAuth();
     } catch (err: any) {
-      setError(err.message || 'Google sign-in failed');
+      setError(err?.message || 'Google sign-in failed');
     } finally {
       setGoogleLoading(false);
     }
   };
-  */
 
   const handlePostAuth = async (data?: any) => {
     await syncSessionToStore(data);
@@ -194,8 +193,12 @@ export default function SignInScreen() {
                 style={styles.actionButton}
               />
 
-              {/* TEMP: Google sign-in disabled while fixing WebKit cookie issue — re-enable by uncommenting */}
-              {/*
+              <View style={styles.dividerContainer}>
+                <View style={styles.dividerLine} />
+                <Text style={styles.dividerText}>Or</Text>
+                <View style={styles.dividerLine} />
+              </View>
+
               <Button
                 title="Continue with Google"
                 variant="outline"
@@ -205,7 +208,6 @@ export default function SignInScreen() {
                 loading={googleLoading}
                 style={styles.googleButton}
               />
-              */}
 
               <TouchableOpacity
                 onPress={() => {
@@ -260,8 +262,12 @@ export default function SignInScreen() {
                 style={styles.actionButton}
               />
 
-              {/* TEMP: Google sign-in disabled while fixing WebKit cookie issue — re-enable by uncommenting */}
-              {/*
+              <View style={styles.dividerContainer}>
+                <View style={styles.dividerLine} />
+                <Text style={styles.dividerText}>Or</Text>
+                <View style={styles.dividerLine} />
+              </View>
+
               <Button
                 title="Continue with Google"
                 variant="outline"
@@ -271,7 +277,6 @@ export default function SignInScreen() {
                 loading={googleLoading}
                 style={styles.googleButton}
               />
-              */}
 
               <TouchableOpacity
                 onPress={() => {
@@ -349,7 +354,23 @@ const styles = StyleSheet.create({
   },
   googleButton: {
     width: '100%',
-    marginTop: Spacing.md,
+  },
+  dividerContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginVertical: Spacing.md,
+  },
+  dividerLine: {
+    flex: 1,
+    height: 1,
+    backgroundColor: Colors.border,
+  },
+  dividerText: {
+    ...Typography.BodySmall,
+    color: Colors.grayBlack,
+    paddingHorizontal: Spacing.sm,
+    textTransform: 'uppercase',
+    fontSize: 11,
   },
   switchModeButton: {
     marginTop: Spacing.lg,
