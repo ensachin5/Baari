@@ -213,12 +213,11 @@ export default function RootIndexPage() {
           `[WakeUp] Active flat resolved: "${res.flat.name}" (id: ${res.flat.id}). Redirecting to /home...`
         );
         setActiveFlat(res.flat);
-        router.replace("/home");
       } else {
-        console.log("[WakeUp] No active flat found. Redirecting to /choose...");
+        console.log("[WakeUp] No active flat found. Redirecting directly to dashboard /home...");
         setActiveFlat(null);
-        router.replace("/choose");
       }
+      router.replace("/home");
     } catch (apiErr: any) {
       console.warn(
         `[WakeUp] Failed to resolve flat via /api/flats/me: [${apiErr?.status}] ${apiErr?.message}`
@@ -232,11 +231,10 @@ export default function RootIndexPage() {
             const retryRes = await api.get<{ flat: any }>("/api/flats/me");
             if (retryRes?.flat) {
               setActiveFlat(retryRes.flat);
-              router.replace("/home");
             } else {
               setActiveFlat(null);
-              router.replace("/choose");
             }
+            router.replace("/home");
             return;
           } catch (_) {}
         }
@@ -244,9 +242,9 @@ export default function RootIndexPage() {
         useSession.getState().logout().catch(() => {});
         router.replace("/sign-in");
       } else if (apiErr?.status === 404) {
-        console.log("[WakeUp] 404 Not Found — Redirecting to /choose...");
+        console.log("[WakeUp] 404 Not Found — Redirecting to /home...");
         setActiveFlat(null);
-        router.replace("/choose");
+        router.replace("/home");
       } else {
         setStatus("error");
         setErrorMessage(

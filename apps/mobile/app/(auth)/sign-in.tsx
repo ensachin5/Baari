@@ -3,9 +3,6 @@ import {
   View,
   Text,
   StyleSheet,
-  TouchableOpacity,
-  KeyboardAvoidingView,
-  Platform,
   ScrollView,
 } from 'react-native';
 import { Image } from 'expo-image';
@@ -13,29 +10,17 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import * as Linking from 'expo-linking';
 import { Button } from '../../components/ui/Button';
-import { Input } from '../../components/ui/Input';
 import { GoogleIcon } from '../../components/icons/GoogleIcon';
 import { Colors, Typography, Spacing, BorderRadius } from '../../lib/theme';
 import { authClient, syncSessionToStore, fetchUserProfile } from '../../lib/auth-client';
 import { api } from '../../lib/api';
 import { useSession } from '../../store/session';
 
-type AuthMode = 'sign-in' | 'sign-up';
-
 export default function SignInScreen() {
   const router = useRouter();
-  const [mode, setMode] = useState<AuthMode>('sign-in');
-
-  // Form states
-  const [name, setName] = useState('');
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-
-  // Loading & error states
-  const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-
   const [googleLoading, setGoogleLoading] = useState(false);
+
   const handleGoogleSignIn = async () => {
     try {
       setGoogleLoading(true);
@@ -62,237 +47,62 @@ export default function SignInScreen() {
       const res = await api.get<{ flat: any }>('/api/flats/me');
       if (res?.flat) {
         useSession.getState().setActiveFlat(res.flat);
-        fetchUserProfile().catch(() => { });
-        router.replace('/(tabs)/home');
       } else {
         useSession.getState().setActiveFlat(null);
-        router.replace('/(onboarding)/choose');
       }
+      fetchUserProfile().catch(() => {});
+      router.replace('/(tabs)/home');
     } catch (err: any) {
-      if (err?.status === 401) return;
       try {
         const { activeFlat } = await fetchUserProfile();
-        if (activeFlat) {
-          router.replace('/(tabs)/home');
-        } else {
-          router.replace('/(onboarding)/choose');
-        }
+        useSession.getState().setActiveFlat(activeFlat || null);
+        router.replace('/(tabs)/home');
       } catch {
-        router.replace('/(onboarding)/choose');
+        router.replace('/(tabs)/home');
       }
-    }
-  };
-
-  const handleSignUp = async () => {
-    if (!name.trim() || !email.trim() || !password) {
-      setError('Please fill in all fields');
-      return;
-    }
-    setLoading(true);
-    setError('');
-    try {
-      const res = await authClient.signUp.email({
-        name: name.trim(),
-        email: email.trim().toLowerCase(),
-        password,
-      });
-      if (res.error) {
-        setError(res.error.message || 'Failed to sign up');
-        setLoading(false);
-        return;
-      }
-      // autoSignIn is true — session is created immediately, go straight to onboarding
-      await handlePostAuth(res.data);
-    } catch (err: any) {
-      setError(err?.message || 'Sign up failed');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleSignIn = async () => {
-    if (!email.trim() || !password) {
-      setError('Please enter your email and password');
-      return;
-    }
-    setLoading(true);
-    setError('');
-    try {
-      const res = await authClient.signIn.email({
-        email: email.trim().toLowerCase(),
-        password,
-      });
-      if (res.error) {
-        setError(res.error.message || 'Invalid email or password');
-        setLoading(false);
-        return;
-      }
-      await handlePostAuth(res.data);
-    } catch (err: any) {
-      setError(err?.message || 'Sign in failed');
-    } finally {
-      setLoading(false);
     }
   };
 
   return (
     <SafeAreaView style={styles.container}>
-      <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        style={{ flex: 1 }}
-      >
-        <ScrollView contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
-          {/* Branding Header */}
-          <View style={styles.brandContainer}>
-            <Image
-              source={require('../../assets/baari-logo.png')}
-              style={styles.logoImage}
-              contentFit="contain"
-            />
-            <Text style={Typography.Display}>Baari</Text>
-            <Text style={[Typography.BodySmall, styles.tagline]}>
-              Coordinate flat chores, expenses & communication in one place
-            </Text>
+      <ScrollView contentContainerStyle={styles.scrollContent}>
+        {/* Branding Header */}
+        <View style={styles.brandContainer}>
+          <Image
+            source={require('../../assets/baari-logo.png')}
+            style={styles.logoImage}
+            contentFit="contain"
+          />
+          <Text style={Typography.Display}>Baari</Text>
+          <Text style={[Typography.BodySmall, styles.tagline]}>
+            Coordinate flat chores, expenses & communication in one place
+          </Text>
+        </View>
+
+        {/* Global Error Banner */}
+        {error ? (
+          <View style={styles.errorContainer}>
+            <Text style={styles.errorText}>{error}</Text>
           </View>
+        ) : null}
 
-          {/* Global Error Banner */}
-          {error ? (
-            <View style={styles.errorContainer}>
-              <Text style={styles.errorText}>{error}</Text>
-            </View>
-          ) : null}
+        {/* Google Authentication Box */}
+        <View style={styles.authContainer}>
+          <Button
+            title="Continue with Google"
+            variant="outline"
+            size="lg"
+            icon={<GoogleIcon size={22} />}
+            onPress={handleGoogleSignIn}
+            loading={googleLoading}
+            style={styles.googleButton}
+          />
 
-          {/* MODE: SIGN IN */}
-          {mode === 'sign-in' && (
-            <View style={styles.formContainer}>
-              <Text style={styles.formTitle}>Welcome back</Text>
-
-              <Input
-                label="Email"
-                placeholder="you@example.com"
-                value={email}
-                onChangeText={setEmail}
-                keyboardType="email-address"
-                autoCapitalize="none"
-              />
-
-              <Input
-                label="Password"
-                placeholder="Enter password"
-                value={password}
-                onChangeText={setPassword}
-                isPassword
-              />
-
-              <Button
-                title="Log in"
-                variant="primary"
-                size="lg"
-                onPress={handleSignIn}
-                loading={loading}
-                style={styles.actionButton}
-              />
-
-              <View style={styles.dividerContainer}>
-                <View style={styles.dividerLine} />
-                <Text style={styles.dividerText}>Or</Text>
-                <View style={styles.dividerLine} />
-              </View>
-
-              <Button
-                title="Continue with Google"
-                variant="outline"
-                size="lg"
-                icon={<GoogleIcon size={20} />}
-                onPress={handleGoogleSignIn}
-                loading={googleLoading}
-                style={styles.googleButton}
-              />
-
-              <TouchableOpacity
-                onPress={() => {
-                  setError('');
-                  setMode('sign-up');
-                }}
-                style={styles.switchModeButton}
-              >
-                <Text style={styles.switchModeText}>
-                  Don't have an account? <Text style={styles.switchModeHighlight}>Create account</Text>
-                </Text>
-              </TouchableOpacity>
-            </View>
-          )}
-
-          {/* MODE: SIGN UP */}
-          {mode === 'sign-up' && (
-            <View style={styles.formContainer}>
-              <Text style={styles.formTitle}>Create an account</Text>
-
-              <Input
-                label="Full Name"
-                placeholder="John Doe"
-                value={name}
-                onChangeText={setName}
-                autoCapitalize="words"
-              />
-
-              <Input
-                label="Email"
-                placeholder="you@example.com"
-                value={email}
-                onChangeText={setEmail}
-                keyboardType="email-address"
-                autoCapitalize="none"
-              />
-
-              <Input
-                label="Password"
-                placeholder="Create a password"
-                value={password}
-                onChangeText={setPassword}
-                isPassword
-              />
-
-              <Button
-                title="Create account"
-                variant="primary"
-                size="lg"
-                onPress={handleSignUp}
-                loading={loading}
-                style={styles.actionButton}
-              />
-
-              <View style={styles.dividerContainer}>
-                <View style={styles.dividerLine} />
-                <Text style={styles.dividerText}>Or</Text>
-                <View style={styles.dividerLine} />
-              </View>
-
-              <Button
-                title="Continue with Google"
-                variant="outline"
-                size="lg"
-                icon={<GoogleIcon size={20} />}
-                onPress={handleGoogleSignIn}
-                loading={googleLoading}
-                style={styles.googleButton}
-              />
-
-              <TouchableOpacity
-                onPress={() => {
-                  setError('');
-                  setMode('sign-in');
-                }}
-                style={styles.switchModeButton}
-              >
-                <Text style={styles.switchModeText}>
-                  Already have an account? <Text style={styles.switchModeHighlight}>Log in</Text>
-                </Text>
-              </TouchableOpacity>
-            </View>
-          )}
-        </ScrollView>
-      </KeyboardAvoidingView>
+          <Text style={styles.subtext}>
+            Sign in or get started instantly with your Google account.
+          </Text>
+        </View>
+      </ScrollView>
     </SafeAreaView>
   );
 }
@@ -306,22 +116,23 @@ const styles = StyleSheet.create({
     flexGrow: 1,
     justifyContent: 'center',
     paddingHorizontal: Spacing.xl,
-    paddingVertical: Spacing.xl,
+    paddingVertical: Spacing.xxl,
   },
   brandContainer: {
     alignItems: 'center',
-    marginBottom: Spacing.xl,
+    marginBottom: Spacing.xxl,
   },
   logoImage: {
-    width: 72,
-    height: 72,
-    marginBottom: Spacing.sm,
+    width: 80,
+    height: 80,
+    marginBottom: Spacing.md,
   },
   tagline: {
     textAlign: 'center',
     marginTop: Spacing.xs,
     maxWidth: 280,
     color: Colors.grayBlack,
+    lineHeight: 20,
   },
   errorContainer: {
     backgroundColor: '#FEF2F2',
@@ -339,50 +150,19 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     lineHeight: 18,
   },
-  formContainer: {
+  authContainer: {
     width: '100%',
-  },
-  formTitle: {
-    ...Typography.H2,
-    color: Colors.navy,
-    textAlign: 'center',
-    marginBottom: Spacing.lg,
-  },
-  actionButton: {
-    width: '100%',
-    marginTop: Spacing.md,
+    alignItems: 'center',
   },
   googleButton: {
     width: '100%',
   },
-  dividerContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginVertical: Spacing.md,
-  },
-  dividerLine: {
-    flex: 1,
-    height: 1,
-    backgroundColor: Colors.border,
-  },
-  dividerText: {
-    ...Typography.BodySmall,
+  subtext: {
+    ...Typography.Caption,
     color: Colors.grayBlack,
-    paddingHorizontal: Spacing.sm,
-    textTransform: 'uppercase',
-    fontSize: 11,
-  },
-  switchModeButton: {
+    textAlign: 'center',
     marginTop: Spacing.lg,
-    alignItems: 'center',
-    paddingVertical: Spacing.xs,
-  },
-  switchModeText: {
-    ...Typography.BodySmall,
-    color: Colors.grayBlack,
-  },
-  switchModeHighlight: {
-    ...Typography.BodySmallMedium,
-    color: Colors.navy,
+    maxWidth: 260,
+    lineHeight: 18,
   },
 });

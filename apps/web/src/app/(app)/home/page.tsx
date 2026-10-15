@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useLayoutEffect, useCallback, useMemo, useRef } from "react";
+import Link from "next/link";
 import { useSession } from "@/store/session";
 import { useKaam } from "@/hooks/useKaam";
 import { useChat } from "@/hooks/useChat";
@@ -313,6 +314,30 @@ export default function HomePage() {
           </button>
         </div>
       </div>
+
+      {/* Welcome Setup Banner (when no flat is active yet) */}
+      {!activeFlat && (
+        <div className="mx-5 mt-3 p-4 rounded-xl bg-paleSky/40 border border-border flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-xs">
+          <div>
+            <p className="text-sm font-semibold text-navy">Welcome to your Baari dashboard!</p>
+            <p className="text-xs text-grayBlack mt-0.5">Set up a living space or join your flatmates using an invite code.</p>
+          </div>
+          <div className="flex gap-2 w-full sm:w-auto">
+            <Link
+              href="/create-flat"
+              className="text-xs font-semibold px-3 py-2 bg-navy text-white rounded-lg hover:bg-mutedNavy transition-colors text-center flex-1 sm:flex-none"
+            >
+              Create Flat
+            </Link>
+            <Link
+              href="/join-flat"
+              className="text-xs font-semibold px-3 py-2 bg-white text-navy border border-border rounded-lg hover:bg-offWhite transition-colors text-center flex-1 sm:flex-none"
+            >
+              Join Flat
+            </Link>
+          </div>
+        </div>
+      )}
 
       {/* VIEW 0: KAAM LIST */}
       {activeTab === 0 && (

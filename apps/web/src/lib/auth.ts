@@ -30,9 +30,7 @@ export const auth = betterAuth({
     updateAge: 60 * 60 * 24,      // 24 hours
   },
   emailAndPassword: {
-    enabled: true,
-    autoSignIn: true,
-    requireEmailVerification: false,
+    enabled: false,
   },
   account: {
     accountLinking: {

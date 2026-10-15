@@ -185,9 +185,9 @@ export default function IndexScreen() {
         setActiveFlat(res.flat);
         router.replace('/(tabs)/home');
       } else {
-        console.log('[WakeUp] No active flat found. Redirecting to /(onboarding)/choose...');
+        console.log('[WakeUp] No active flat found. Redirecting directly to dashboard /(tabs)/home...');
         setActiveFlat(null);
-        router.replace('/(onboarding)/choose');
+        router.replace('/(tabs)/home');
       }
     } catch (apiErr: any) {
       console.error(
@@ -198,9 +198,9 @@ export default function IndexScreen() {
         await logout();
         router.replace('/(auth)/sign-in');
       } else if (apiErr?.status === 404) {
-        console.log('[WakeUp] 404 Not Found — Redirecting to /(onboarding)/choose...');
+        console.log('[WakeUp] 404 Not Found — Redirecting to /(tabs)/home...');
         setActiveFlat(null);
-        router.replace('/(onboarding)/choose');
+        router.replace('/(tabs)/home');
       } else {
         setStatus('error');
         setErrorMessage(

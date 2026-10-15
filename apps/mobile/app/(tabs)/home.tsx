@@ -14,6 +14,7 @@ import {
 } from 'react-native';
 import { PagerViewWrapper } from '../../components/ui/PagerViewWrapper';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useRouter } from 'expo-router';
 import { Colors, Typography, Spacing, BorderRadius } from '../../lib/theme';
 import { api } from '../../lib/api';
 import { useSession } from '../../store/session';
@@ -54,6 +55,7 @@ function formatDateDivider(isoString: string): string {
 }
 
 export default function HomeScreen() {
+  const router = useRouter();
   const activeFlat = useSession((state) => state.activeFlat);
   const setActiveFlat = useSession((state) => state.setActiveFlat);
   const currentUser = useSession((state) => state.user);
@@ -193,7 +195,11 @@ export default function HomeScreen() {
               </Text>
             </View>
           ) : (
-            <View style={styles.headerSkeleton} />
+            <View style={styles.flatTitleRow}>
+              <Text style={[Typography.H1, styles.flatNameText]} numberOfLines={1}>
+                My Flat
+              </Text>
+            </View>
           )}
         </View>
 
@@ -246,6 +252,34 @@ export default function HomeScreen() {
               />
             }
           >
+            {/* Setup Banner (when user hasn't joined a flat yet) */}
+            {!activeFlat && (
+              <View style={styles.setupBanner}>
+                <View style={{ flex: 1, marginRight: Spacing.sm }}>
+                  <Text style={[Typography.BodySmallMedium, { color: Colors.navy }]}>
+                    Welcome to your dashboard!
+                  </Text>
+                  <Text style={[Typography.Caption, { color: Colors.grayBlack, marginTop: 2 }]}>
+                    Set up a place or join your flatmates.
+                  </Text>
+                </View>
+                <View style={{ flexDirection: 'row', gap: Spacing.xs }}>
+                  <TouchableOpacity
+                    onPress={() => router.push('/(onboarding)/create-flat')}
+                    style={styles.setupBtnPrimary}
+                  >
+                    <Text style={styles.setupBtnPrimaryText}>Create</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    onPress={() => router.push('/(onboarding)/join-flat')}
+                    style={styles.setupBtnOutline}
+                  >
+                    <Text style={styles.setupBtnOutlineText}>Join</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            )}
+
             {/* Pinned Announcements Banner */}
             <AnnouncementBanner flatId={activeFlat?.id} />
 
@@ -702,5 +736,40 @@ const styles = StyleSheet.create({
     ...Typography.Caption,
     color: Colors.mutedNavy,
     fontStyle: 'italic',
+  },
+  setupBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: Colors.paleSky,
+    borderRadius: BorderRadius.md,
+    padding: Spacing.md,
+    marginBottom: Spacing.md,
+    borderWidth: 1,
+    borderColor: Colors.border,
+  },
+  setupBtnPrimary: {
+    backgroundColor: Colors.navy,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.xs + 2,
+    borderRadius: BorderRadius.sm,
+  },
+  setupBtnPrimaryText: {
+    ...Typography.Caption,
+    fontFamily: 'Inter_600SemiBold',
+    color: Colors.white,
+  },
+  setupBtnOutline: {
+    backgroundColor: Colors.white,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.xs + 2,
+    borderRadius: BorderRadius.sm,
+    borderWidth: 1,
+    borderColor: Colors.border,
+  },
+  setupBtnOutlineText: {
+    ...Typography.Caption,
+    fontFamily: 'Inter_600SemiBold',
+    color: Colors.navy,
   },
 });
