@@ -41,6 +41,7 @@ import {
   Trash2,
   CheckCircle2,
   HandCoins,
+  ChevronRight,
 } from 'lucide-react-native';
 
 interface MemberItem {
@@ -450,26 +451,28 @@ export default function ProfileScreen() {
           <Card variant="outlined" style={styles.settingsCard}>
             <TouchableOpacity
               activeOpacity={0.7}
-              onPress={() => Linking.openURL('https://baari-app.vercel.app/privacy')}
+              onPress={() => router.push('/privacy')}
               style={styles.settingRow}
             >
               <View style={styles.settingLeft}>
                 <ShieldCheck size={20} color={Colors.navy} />
                 <Text style={Typography.BodySmallMedium}>Privacy Policy</Text>
               </View>
+              <ChevronRight size={16} color={Colors.mutedNavy} />
             </TouchableOpacity>
 
             <View style={styles.settingDivider} />
 
             <TouchableOpacity
               activeOpacity={0.7}
-              onPress={() => Linking.openURL('https://baari-app.vercel.app/terms')}
+              onPress={() => router.push('/terms')}
               style={styles.settingRow}
             >
               <View style={styles.settingLeft}>
                 <FileText size={20} color={Colors.navy} />
                 <Text style={Typography.BodySmallMedium}>Terms & Conditions</Text>
               </View>
+              <ChevronRight size={16} color={Colors.mutedNavy} />
             </TouchableOpacity>
           </Card>
         </View>

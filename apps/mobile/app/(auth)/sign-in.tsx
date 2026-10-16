@@ -106,6 +106,25 @@ export default function SignInScreen() {
           <Text style={styles.subtext}>
             Sign in or get started instantly with your Google account.
           </Text>
+
+          {/* Legal Links Footer */}
+          <Text style={styles.legalNotice}>
+            By signing in, you agree to our{' '}
+            <Text
+              style={styles.legalLink}
+              onPress={() => router.push('/terms')}
+            >
+              Terms & Conditions
+            </Text>{' '}
+            and{' '}
+            <Text
+              style={styles.legalLink}
+              onPress={() => router.push('/privacy')}
+            >
+              Privacy Policy
+            </Text>
+            .
+          </Text>
         </View>
       </ScrollView>
     </SafeAreaView>
@@ -169,5 +188,19 @@ const styles = StyleSheet.create({
     marginTop: Spacing.lg,
     maxWidth: 260,
     lineHeight: 18,
+  },
+  legalNotice: {
+    ...Typography.Caption,
+    fontSize: 11,
+    color: Colors.grayBlack,
+    textAlign: 'center',
+    marginTop: Spacing.xl,
+    maxWidth: 280,
+    lineHeight: 16,
+  },
+  legalLink: {
+    color: Colors.navy,
+    fontFamily: 'Inter_600SemiBold',
+    textDecorationLine: 'underline',
   },
 });
