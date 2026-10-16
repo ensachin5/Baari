@@ -10,6 +10,7 @@ import { KaamTask } from "@/components/kaam/KaamCard";
  * Mirrors baari-app/hooks/useKaam.ts exactly.
  */
 export const useKaam = () => {
+  const token = useSession((state) => state.token);
   const activeFlat = useSession((state) => state.activeFlat);
   const currentUser = useSession((state) => state.user);
   const [tasks, setTasks] = useState<KaamTask[]>([]);
@@ -18,8 +19,9 @@ export const useKaam = () => {
   const [completingId, setCompletingId] = useState<string | null>(null);
 
   const fetchTasks = useCallback(async () => {
-    if (!activeFlat?.id) {
-      console.log("[useKaam] fetchTasks skipped: no activeFlat.id");
+    if (!token || !currentUser || !activeFlat?.id) {
+      setLoading(false);
+      setRefreshing(false);
       return;
     }
     try {
@@ -29,20 +31,23 @@ export const useKaam = () => {
       });
       console.log("[useKaam] GET /api/tasks response: received", data.tasks?.length || 0, "tasks");
       setTasks(data.tasks || []);
-    } catch (error) {
+    } catch (error: any) {
+      if (error?.status === 401) return;
       console.error("[useKaam] Error fetching Kaam tasks:", error);
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [activeFlat?.id]);
+  }, [activeFlat?.id, token, currentUser]);
 
   useEffect(() => {
+    if (!token || !currentUser || !activeFlat?.id) return;
     fetchTasks();
-  }, [fetchTasks]);
+  }, [fetchTasks, token, currentUser, activeFlat?.id]);
 
   // Socket.io Realtime Listener
   useEffect(() => {
+    if (!token || !currentUser || !activeFlat?.id) return;
     const socket = getSocket();
 
     const handleTaskCompleted = (data: {
@@ -89,7 +94,7 @@ export const useKaam = () => {
       socket.off("task_deleted", handleTaskDeleted);
       socket.off("task_updated", handleTaskUpdated);
     };
-  }, [fetchTasks]);
+  }, [fetchTasks, token, currentUser, activeFlat?.id]);
 
   const completeTask = async (occurrenceId: string) => {
     if (!currentUser?.id) return;

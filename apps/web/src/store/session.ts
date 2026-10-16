@@ -93,9 +93,12 @@ export const useSession = create<SessionState>((set) => ({
           localStorage.getItem("better-auth.session_token") ||
           localStorage.getItem("bearer_token");
 
+        const user = storedToken && storedUser ? JSON.parse(storedUser) : null;
+        const activeFlat = storedToken && storedFlat ? JSON.parse(storedFlat) : null;
+
         set({
-          user: storedUser ? JSON.parse(storedUser) : null,
-          activeFlat: storedFlat ? JSON.parse(storedFlat) : null,
+          user,
+          activeFlat,
           token: storedToken || null,
           isHydrated: true,
         });

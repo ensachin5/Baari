@@ -56,6 +56,7 @@ function formatDateDivider(isoString: string): string {
 
 export default function HomeScreen() {
   const router = useRouter();
+  const token = useSession((state) => state.token);
   const activeFlat = useSession((state) => state.activeFlat);
   const setActiveFlat = useSession((state) => state.setActiveFlat);
   const currentUser = useSession((state) => state.user);
@@ -86,6 +87,7 @@ export default function HomeScreen() {
 
   // Ensure activeFlat is fresh and contains accurate database name and memberCount
   useEffect(() => {
+    if (!token || !currentUser) return;
     api
       .get<{ flat: any }>('/api/flats/me')
       .then((res) => {
@@ -100,7 +102,7 @@ export default function HomeScreen() {
         }
       })
       .catch(() => {});
-  }, [setActiveFlat]);
+  }, [token, currentUser, setActiveFlat]);
 
   // Custom Hooks
   const {

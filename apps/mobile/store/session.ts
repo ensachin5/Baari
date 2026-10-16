@@ -154,6 +154,12 @@ export const useSession = create<SessionState>((set, get) => ({
         } catch (_) {}
       }
 
+      // If no valid session token exists, ensure user and activeFlat are cleared
+      if (!token) {
+        user = null;
+        activeFlat = null;
+      }
+
       set({
         token,
         user,
@@ -161,7 +167,7 @@ export const useSession = create<SessionState>((set, get) => ({
         isHydrated: true,
       });
     } catch {
-      set({ isHydrated: true });
+      set({ user: null, activeFlat: null, token: null, isHydrated: true });
     }
   },
 

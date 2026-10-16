@@ -10,6 +10,7 @@ export interface TypingUser {
 }
 
 export const useChat = () => {
+  const token = useSession((state) => state.token);
   const activeFlat = useSession((state) => state.activeFlat);
   const currentUser = useSession((state) => state.user);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -49,9 +50,29 @@ export const useChat = () => {
     []
   );
 
+  // Ref to hold currentUser to avoid re-binding socket listeners when currentUser object updates
+  const currentUserRef = useRef(currentUser);
+  useEffect(() => {
+    currentUserRef.current = currentUser;
+  }, [currentUser]);
+
+  // Mark read up to message
+  const markReadUpTo = useCallback(
+    async (messageId: string) => {
+      if (!token || !currentUser || !activeFlat?.id || !messageId || messageId.startsWith('temp')) return;
+      try {
+        await api.post('/api/messages/read-up-to', { messageId });
+      } catch (_) {}
+    },
+    [activeFlat?.id, token, currentUser]
+  );
+
   // Fetch initial message history
   const fetchMessages = useCallback(async () => {
-    if (!activeFlat?.id) return;
+    if (!token || !currentUser || !activeFlat?.id) {
+      setLoading(false);
+      return;
+    }
     try {
       setLoading(true);
       const data = await api.get<{ messages: ChatMessage[]; nextCursor: string | null }>('/api/messages', {
@@ -68,41 +89,26 @@ export const useChat = () => {
           markReadUpTo(latest.id);
         }
       }
-    } catch (error) {
+    } catch (error: any) {
+      if (error?.status === 401) return;
       console.error('[useChat] Error fetching message history:', error);
     } finally {
       setLoading(false);
     }
-  }, [activeFlat?.id]);
+  }, [activeFlat?.id, token, currentUser?.id, markReadUpTo]);
 
   useEffect(() => {
+    if (!token || !currentUser || !activeFlat?.id) return;
     fetchMessages();
     const interval = setInterval(() => {
       fetchMessages();
     }, 4000);
     return () => clearInterval(interval);
-  }, [fetchMessages]);
-
-  // Ref to hold currentUser to avoid re-binding socket listeners when currentUser object updates
-  const currentUserRef = useRef(currentUser);
-  useEffect(() => {
-    currentUserRef.current = currentUser;
-  }, [currentUser]);
-
-  // Mark read up to message
-  const markReadUpTo = useCallback(
-    async (messageId: string) => {
-      if (!activeFlat?.id || !messageId || messageId.startsWith('temp')) return;
-      try {
-        await api.post('/api/messages/read-up-to', { messageId });
-      } catch (_) {}
-    },
-    [activeFlat?.id]
-  );
+  }, [fetchMessages, token, currentUser, activeFlat?.id]);
 
   // Socket.io Realtime Listeners for new_message, user_typing, message_read
   useEffect(() => {
-    if (!activeFlat?.id) return;
+    if (!token || !currentUser || !activeFlat?.id) return;
 
     const flatId = activeFlat.id;
     const socket = getSocket();
@@ -263,11 +269,11 @@ export const useChat = () => {
       socket.off('user_typing', handleUserTyping);
       socket.off('message_read', handleMessageRead);
     };
-  }, [activeFlat?.id, markReadUpTo, processConfirmedMessage]);
+  }, [activeFlat?.id, token, currentUser, markReadUpTo, processConfirmedMessage]);
 
   // Load older messages (pagination)
   const loadMore = useCallback(async () => {
-    if (!activeFlat?.id || !nextCursor || loadingMore) return;
+    if (!token || !currentUser || !activeFlat?.id || !nextCursor || loadingMore) return;
     try {
       setLoadingMore(true);
       const data = await api.get<{ messages: ChatMessage[]; nextCursor: string | null }>('/api/messages', {
@@ -277,12 +283,13 @@ export const useChat = () => {
       const olderMessages = (data.messages || []).map((m) => ({ ...m, status: 'sent' as const })).reverse();
       setMessages((prev) => [...olderMessages, ...prev]);
       setNextCursor(data.nextCursor);
-    } catch (error) {
+    } catch (error: any) {
+      if (error?.status === 401) return;
       console.error('[useChat] Error loading more messages:', error);
     } finally {
       setLoadingMore(false);
     }
-  }, [activeFlat?.id, nextCursor, loadingMore]);
+  }, [activeFlat?.id, nextCursor, loadingMore, token, currentUser]);
 
   // Emit typing indicator
   const emitTyping = useCallback(
@@ -322,7 +329,8 @@ export const useChat = () => {
 
       try {
         await api.patch(`/api/messages/${messageId}`, { content: trimmed });
-      } catch (err) {
+      } catch (err: any) {
+        if (err?.status === 401) return;
         console.error('[useChat] Failed to edit message:', err);
       }
     },
@@ -349,7 +357,8 @@ export const useChat = () => {
 
       try {
         await api.delete(`/api/messages/${messageId}`);
-      } catch (err) {
+      } catch (err: any) {
+        if (err?.status === 401) return;
         console.error('[useChat] Failed to delete message:', err);
       }
     },
@@ -359,7 +368,7 @@ export const useChat = () => {
   // Optimistic message send with Socket.io (with 5s ack timeout) & REST fallback
   const sendMessage = useCallback(
     async (content: string) => {
-      if (!activeFlat?.id || !currentUser?.id || !content.trim()) return;
+      if (!token || !activeFlat?.id || !currentUser?.id || !content.trim()) return;
 
       emitTyping(false);
       const trimmed = content.trim();
@@ -449,6 +458,7 @@ export const useChat = () => {
             );
           }
         } catch (restErr: any) {
+          if (restErr?.status === 401) return;
           console.error('[useChat] REST send fallback also failed:', restErr?.message || restErr);
           pendingOpsRef.current.delete(tempId);
           setMessages((prev) =>
@@ -457,7 +467,7 @@ export const useChat = () => {
         }
       }
     },
-    [activeFlat?.id, currentUser, emitTyping, processConfirmedMessage]
+    [activeFlat?.id, token, currentUser, emitTyping, processConfirmedMessage]
   );
 
   const retryMessage = useCallback(

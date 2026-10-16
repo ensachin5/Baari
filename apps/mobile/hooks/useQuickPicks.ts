@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { api } from '../lib/api';
+import { useSession } from '../store/session';
 
 export interface QuickPickPreset {
   id: string;
@@ -23,27 +24,34 @@ export const FALLBACK_QUICK_PICKS: QuickPickPreset[] = [
 ];
 
 export function useQuickPicks(flatId?: string | null) {
+  const token = useSession((state) => state.token);
+  const currentUser = useSession((state) => state.user);
   const [presets, setPresets] = useState<QuickPickPreset[]>(FALLBACK_QUICK_PICKS);
   const [loading, setLoading] = useState(false);
 
   const fetchPresets = useCallback(async () => {
-    if (!flatId) return;
+    if (!token || !currentUser || !flatId) {
+      setLoading(false);
+      return;
+    }
     try {
       setLoading(true);
       const res = await api.get<{ presets: QuickPickPreset[] }>(`/api/quick-picks?flatId=${flatId}`);
       if (res.presets && res.presets.length > 0) {
         setPresets(res.presets);
       }
-    } catch (err) {
+    } catch (err: any) {
+      if (err?.status === 401) return;
       console.warn('Failed to fetch quick picks from server, using fallback', err);
     } finally {
       setLoading(false);
     }
-  }, [flatId]);
+  }, [flatId, token, currentUser]);
 
   useEffect(() => {
+    if (!token || !currentUser || !flatId) return;
     fetchPresets();
-  }, [fetchPresets]);
+  }, [fetchPresets, token, currentUser, flatId]);
 
   const addPreset = async (data: {
     label: string;

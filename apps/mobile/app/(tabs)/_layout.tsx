@@ -14,19 +14,17 @@ export default function TabsLayout() {
   const activeFlat = useSession((state) => state.activeFlat);
   const isHydrated = useSession((state) => state.isHydrated);
 
-  useEffect(() => {
-    if (!isHydrated) return;
+  // Reactive guards: prevent rendering tabs and mounting child hooks when unhydrated, signed out, or flatless
+  if (!isHydrated) {
+    return null;
+  }
 
-    if (!token) {
-      router.replace('/(auth)/sign-in');
-    } else if (!activeFlat) {
-      router.replace('/(onboarding)/choose');
-    }
-  }, [isHydrated, token, activeFlat]);
-
-  // Reactive guard: if signed out, immediately return Redirect
-  if (isHydrated && !token) {
+  if (!token) {
     return <Redirect href="/(auth)/sign-in" />;
+  }
+
+  if (!activeFlat) {
+    return <Redirect href="/(onboarding)/choose" />;
   }
 
   const bottomInset = Math.max(insets.bottom, Platform.OS === 'android' ? 14 : 10);

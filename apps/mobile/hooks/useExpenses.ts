@@ -39,6 +39,7 @@ export interface PendingSettlement {
 }
 
 export const useExpenses = () => {
+  const token = useSession((state) => state.token);
   const activeFlat = useSession((state) => state.activeFlat);
   const currentUser = useSession((state) => state.user);
 
@@ -56,7 +57,11 @@ export const useExpenses = () => {
   const [refreshing, setRefreshing] = useState(false);
 
   const fetchExpensesData = useCallback(async (customSearch?: string, customCategory?: string) => {
-    if (!activeFlat?.id) return;
+    if (!token || !currentUser || !activeFlat?.id) {
+      setLoading(false);
+      setRefreshing(false);
+      return;
+    }
     try {
       const activeSearch = customSearch !== undefined ? customSearch : search;
       const activeCat = customCategory !== undefined ? customCategory : category;
@@ -84,17 +89,19 @@ export const useExpenses = () => {
           image: m.image,
         }))
       );
-    } catch (error) {
+    } catch (error: any) {
+      if (error?.status === 401) return;
       console.error('Error fetching expenses:', error);
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [activeFlat?.id, search, category]);
+  }, [activeFlat?.id, token, currentUser, search, category]);
 
   useEffect(() => {
+    if (!token || !currentUser || !activeFlat?.id) return;
     fetchExpensesData();
-  }, [fetchExpensesData]);
+  }, [fetchExpensesData, token, currentUser, activeFlat?.id]);
 
   const addExpense = async (payload: {
     title: string;

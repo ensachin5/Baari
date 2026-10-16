@@ -15,6 +15,7 @@ export interface TypingUser {
  * Mirrors baari-app/hooks/useChat.ts exactly.
  */
 export const useChat = () => {
+  const token = useSession((state) => state.token);
   const activeFlat = useSession((state) => state.activeFlat);
   const currentUser = useSession((state) => state.user);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -54,9 +55,29 @@ export const useChat = () => {
     []
   );
 
+  // Ref to hold currentUser to avoid re-binding socket listeners when currentUser object updates
+  const currentUserRef = useRef(currentUser);
+  useEffect(() => {
+    currentUserRef.current = currentUser;
+  }, [currentUser]);
+
+  // Mark read up to message
+  const markReadUpTo = useCallback(
+    async (messageId: string) => {
+      if (!token || !currentUser || !activeFlat?.id || !messageId || messageId.startsWith("temp")) return;
+      try {
+        await api.post("/api/messages/read-up-to", { messageId });
+      } catch (_) {}
+    },
+    [activeFlat?.id, token, currentUser]
+  );
+
   // Fetch initial message history
   const fetchMessages = useCallback(async () => {
-    if (!activeFlat?.id) return;
+    if (!token || !currentUser || !activeFlat?.id) {
+      setLoading(false);
+      return;
+    }
     try {
       setLoading(true);
       const data = await api.get<{
@@ -70,14 +91,16 @@ export const useChat = () => {
         .reverse();
       setMessages(fetched);
       setNextCursor(data.nextCursor);
-    } catch (error) {
+    } catch (error: any) {
+      if (error?.status === 401) return;
       console.error("[useChat] Error fetching message history:", error);
     } finally {
       setLoading(false);
     }
-  }, [activeFlat?.id]);
+  }, [activeFlat?.id, token, currentUser]);
 
   useEffect(() => {
+    if (!token || !currentUser || !activeFlat?.id) return;
     fetchMessages();
     const interval = setInterval(() => {
       if (typeof document !== "undefined" && !document.hidden) {
@@ -85,28 +108,11 @@ export const useChat = () => {
       }
     }, 4000);
     return () => clearInterval(interval);
-  }, [fetchMessages]);
-
-  // Ref to hold currentUser to avoid re-binding socket listeners when currentUser object updates
-  const currentUserRef = useRef(currentUser);
-  useEffect(() => {
-    currentUserRef.current = currentUser;
-  }, [currentUser]);
-
-  // Mark read up to message
-  const markReadUpTo = useCallback(
-    async (messageId: string) => {
-      if (!activeFlat?.id || !messageId || messageId.startsWith("temp")) return;
-      try {
-        await api.post("/api/messages/read-up-to", { messageId });
-      } catch (_) {}
-    },
-    [activeFlat?.id]
-  );
+  }, [fetchMessages, token, currentUser, activeFlat?.id]);
 
   // Socket.io Realtime Listeners for new_message, user_typing, message_read
   useEffect(() => {
-    if (!activeFlat?.id) return;
+    if (!token || !currentUser || !activeFlat?.id) return;
 
     const flatId = activeFlat.id;
     const socket = getSocket();
@@ -284,11 +290,11 @@ export const useChat = () => {
       socket.off("user_typing", handleUserTyping);
       socket.off("message_read", handleMessageRead);
     };
-  }, [activeFlat?.id, markReadUpTo, processConfirmedMessage]);
+  }, [activeFlat?.id, token, currentUser, markReadUpTo, processConfirmedMessage]);
 
   // Load older messages (pagination)
   const loadMore = useCallback(async () => {
-    if (!activeFlat?.id || !nextCursor || loadingMore) return;
+    if (!token || !currentUser || !activeFlat?.id || !nextCursor || loadingMore) return;
     try {
       setLoadingMore(true);
       const data = await api.get<{
@@ -303,12 +309,13 @@ export const useChat = () => {
         .reverse();
       setMessages((prev) => [...olderMessages, ...prev]);
       setNextCursor(data.nextCursor);
-    } catch (error) {
+    } catch (error: any) {
+      if (error?.status === 401) return;
       console.error("[useChat] Error loading more messages:", error);
     } finally {
       setLoadingMore(false);
     }
-  }, [activeFlat?.id, nextCursor, loadingMore]);
+  }, [activeFlat?.id, nextCursor, loadingMore, token, currentUser]);
 
   // Emit typing indicator
   const emitTyping = useCallback(

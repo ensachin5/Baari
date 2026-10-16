@@ -5,6 +5,8 @@ import { getSocket } from '../lib/socket';
 import { ActivityEntry } from '../components/activity/ActivityItem';
 
 export const useActivity = () => {
+  const token = useSession((state) => state.token);
+  const currentUser = useSession((state) => state.user);
   const activeFlat = useSession((state) => state.activeFlat);
   const [activities, setActivities] = useState<ActivityEntry[]>([]);
   const [loading, setLoading] = useState(true);
@@ -13,7 +15,11 @@ export const useActivity = () => {
   const [hasMore, setHasMore] = useState(false);
 
   const fetchActivities = useCallback(async (isRefresh = false) => {
-    if (!activeFlat?.id) return;
+    if (!token || !currentUser || !activeFlat?.id) {
+      setLoading(false);
+      setRefreshing(false);
+      return;
+    }
     try {
       const data = await api.get<{
         items: ActivityEntry[];
@@ -32,20 +38,23 @@ export const useActivity = () => {
       }
       setCursor(data.nextCursor);
       setHasMore(data.hasMore);
-    } catch (error) {
+    } catch (error: any) {
+      if (error?.status === 401) return;
       console.error('Error fetching activity log:', error);
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [activeFlat?.id, cursor]);
+  }, [activeFlat?.id, token, currentUser, cursor]);
 
   useEffect(() => {
+    if (!token || !currentUser || !activeFlat?.id) return;
     fetchActivities(true);
-  }, [activeFlat?.id]);
+  }, [activeFlat?.id, token, currentUser]);
 
   // Live Socket.io updates for new activities
   useEffect(() => {
+    if (!token || !currentUser || !activeFlat?.id) return;
     const socket = getSocket();
 
     const handleActivityEvent = (data: { entry: ActivityEntry }) => {
@@ -59,7 +68,7 @@ export const useActivity = () => {
     return () => {
       socket.off('activity_event', handleActivityEvent);
     };
-  }, []);
+  }, [token, currentUser, activeFlat?.id]);
 
   const onRefresh = () => {
     setRefreshing(true);
