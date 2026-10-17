@@ -351,6 +351,7 @@ export default function LandingPage() {
                     }
                     alt="Baari App Screenshot"
                     fill
+                    sizes="(max-width: 768px) 300px, 320px"
                     className="object-cover object-top transition-all duration-300"
                     priority
                   />
