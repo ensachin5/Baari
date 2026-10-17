@@ -212,11 +212,6 @@ export default function SignInPage() {
                 Terms & Conditions
               </Link>
             </div>
-            <div className="mt-2">
-              <Link href="/splash" className="text-[12px] font-medium text-[#77839F] hover:text-[#0866F5] transition-colors">
-                Take the app tour →
-              </Link>
-            </div>
           </div>
 
         </div>
