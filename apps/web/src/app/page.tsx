@@ -213,11 +213,12 @@ export default function RootIndexPage() {
           `[WakeUp] Active flat resolved: "${res.flat.name}" (id: ${res.flat.id}). Redirecting to /home...`
         );
         setActiveFlat(res.flat);
+        router.replace("/home");
       } else {
-        console.log("[WakeUp] No active flat found. Redirecting directly to dashboard /home...");
+        console.log("[WakeUp] No active flat found. Redirecting to onboarding /choose...");
         setActiveFlat(null);
+        router.replace("/choose");
       }
-      router.replace("/home");
     } catch (apiErr: any) {
       console.warn(
         `[WakeUp] Failed to resolve flat via /api/flats/me: [${apiErr?.status}] ${apiErr?.message}`
@@ -231,10 +232,11 @@ export default function RootIndexPage() {
             const retryRes = await api.get<{ flat: any }>("/api/flats/me");
             if (retryRes?.flat) {
               setActiveFlat(retryRes.flat);
+              router.replace("/home");
             } else {
               setActiveFlat(null);
+              router.replace("/choose");
             }
-            router.replace("/home");
             return;
           } catch (_) {}
         }
@@ -242,9 +244,9 @@ export default function RootIndexPage() {
         useSession.getState().logout().catch(() => {});
         router.replace("/sign-in");
       } else if (apiErr?.status === 404) {
-        console.log("[WakeUp] 404 Not Found — Redirecting to /home...");
+        console.log("[WakeUp] 404 Not Found — Redirecting to /choose...");
         setActiveFlat(null);
-        router.replace("/home");
+        router.replace("/choose");
       } else {
         setStatus("error");
         setErrorMessage(
@@ -269,6 +271,16 @@ export default function RootIndexPage() {
     ));
 
     if (!currentUser && !hasToken) {
+      const hasOnboarded =
+        typeof window !== "undefined" &&
+        localStorage.getItem("baari_onboarded") === "true";
+
+      if (!hasOnboarded) {
+        console.log("[WakeUp] First-time visitor -> Redirecting to onboarding splash /splash...");
+        router.replace("/splash");
+        return;
+      }
+
       console.log("[WakeUp] No active session or token found. Redirecting to /sign-in...");
       router.replace("/sign-in");
       return;

@@ -3,8 +3,6 @@
 import React, { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useMutation } from "@tanstack/react-query";
-import { Input } from "@/components/ui/Input";
-import { Button } from "@/components/ui/Button";
 import { api } from "@/lib/api";
 import { useSession } from "@/store/session";
 import { ArrowLeft, Building2, Hotel } from "lucide-react";
@@ -98,86 +96,156 @@ export default function CreateFlatPage() {
       : "");
 
   return (
-    <div className="min-h-screen bg-white px-5 pt-12 max-w-lg mx-auto w-full flex flex-col">
-      {/* Back button */}
-      <button
-        type="button"
-        onClick={() => router.back()}
-        className="mb-5 self-start cursor-pointer text-navy hover:opacity-75 transition-opacity"
-        aria-label="Back"
-      >
-        <ArrowLeft size={24} className="text-navy" />
-      </button>
+    <main className="min-h-screen w-full flex items-center justify-center bg-[#F3F8FF] sm:p-6 p-0 relative selection:bg-blue-100 overflow-x-hidden">
+      {/* Ambient soft blue background accents for desktop */}
+      <div className="fixed -top-32 -left-32 w-96 h-96 bg-[#E1EFFF] rounded-full blur-3xl pointer-events-none opacity-60" />
+      <div className="fixed -bottom-32 -right-32 w-96 h-96 bg-[#E8F4FF] rounded-full blur-3xl pointer-events-none opacity-60" />
 
-      {/* Content */}
-      <div className="flex-1">
-        {/* Header */}
-        <div className="mb-5">
-          <h1 className="text-[22px] leading-[28px] font-semibold text-black">
-            Create a Place
-          </h1>
-          <p className="text-[14px] leading-[20px] text-grayBlack mt-1">
-            Choose your space type and give it a recognizable name.
-          </p>
+      {/* Main Screen Container matching Reference */}
+      <div className="relative w-full sm:max-w-[430px] min-h-screen sm:min-h-[720px] sm:my-auto bg-white border-0 sm:border sm:border-[#DCEBFA] sm:rounded-[36px] sm:shadow-[0_20px_50px_rgba(7,26,75,0.08)] flex flex-col justify-between p-6 sm:p-8 overflow-hidden">
+        
+        {/* Crisp Decorative Ambient Cloud Wave in Top-Right matching Reference Image */}
+        <svg
+          viewBox="0 0 240 190"
+          fill="none"
+          xmlns="http://www.w3.org/2000/svg"
+          className="absolute top-0 right-0 w-[200px] h-[160px] sm:w-[240px] sm:h-[190px] pointer-events-none select-none z-0"
+        >
+          <path
+            d="M70 0C50 40 25 65 5 95C-8 115 15 145 55 155C100 166 175 160 240 125V0H70Z"
+            fill="#E4F1FE"
+          />
+        </svg>
+
+        {/* Crisp Decorative Wave in Bottom matching Reference Image */}
+        <svg
+          viewBox="0 0 430 260"
+          fill="none"
+          xmlns="http://www.w3.org/2000/svg"
+          preserveAspectRatio="none"
+          className="absolute bottom-0 left-0 right-0 w-full h-[180px] sm:h-[220px] pointer-events-none select-none z-0"
+        >
+          <path
+            d="M0 160C60 120 140 170 230 140C310 115 370 150 430 130V260H0V160Z"
+            fill="#EDF6FF"
+            fillOpacity="0.8"
+          />
+          <path
+            d="M0 110C55 160 130 230 200 240C290 252 350 200 430 190V260H0V110Z"
+            fill="#E1F0FD"
+          />
+        </svg>
+
+        <div className="relative z-10">
+          {/* Back Button */}
+          <button
+            type="button"
+            onClick={() => router.back()}
+            className="w-10 h-10 -ml-2 rounded-full flex items-center justify-center text-[#071A4B] hover:bg-[#F3F8FF] active:scale-95 transition-all cursor-pointer mb-6"
+            aria-label="Back"
+          >
+            <ArrowLeft size={24} className="text-[#071A4B]" strokeWidth={2.4} />
+          </button>
+
+          {/* Heading & Subtitle */}
+          <div className="mb-8">
+            <h1 className="text-[28px] font-extrabold text-[#071A4B] tracking-tight leading-tight">
+              Create a <span className="text-[#0866F5]">Place</span>
+            </h1>
+            <p className="text-[14px] leading-[22px] text-[#727D98] mt-1.5">
+              Choose your space type and give it a recognizable name.
+            </p>
+          </div>
+
+          {/* Global Error Banner */}
+          {errorMessage && (
+            <div className="bg-[#FEF2F2] border border-[#FECACA] rounded-xl px-4 py-2.5 mb-5 text-[13px] font-medium text-[#DC2626]">
+              {errorMessage}
+            </div>
+          )}
+
+          {/* Form */}
+          <form onSubmit={handleCreate} className="space-y-6">
+            {/* Place Type Selector */}
+            <div>
+              <label className="block text-[13.5px] font-bold text-[#071A4B] mb-2.5">
+                Place Type
+              </label>
+              <div className="grid grid-cols-3 gap-2 bg-[#F6FAFE] p-1.5 rounded-2xl border border-[#DCEBFA]">
+                {PLACE_TYPES.map((item) => {
+                  const Icon = item.icon;
+                  const isSelected = placeType === item.id;
+                  return (
+                    <button
+                      key={item.id}
+                      type="button"
+                      onClick={() => {
+                        setPlaceType(item.id);
+                        if (localError) setLocalError("");
+                      }}
+                      className={`flex items-center justify-center gap-2 py-3 rounded-xl text-[14px] transition-all cursor-pointer ${
+                        isSelected
+                          ? "bg-white text-[#0866F5] font-bold border border-[#0866F5] shadow-xs"
+                          : "text-[#727D98] font-medium hover:text-[#071A4B] border border-transparent"
+                      }`}
+                    >
+                      <Icon
+                        size={18}
+                        className={isSelected ? "text-[#0866F5]" : "text-[#727D98]"}
+                        strokeWidth={isSelected ? 2.4 : 2}
+                      />
+                      <span>{item.label}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Name Input */}
+            <div>
+              <label className="block text-[13.5px] font-bold text-[#071A4B] mb-2.5">
+                {getLabel()}
+              </label>
+              <div className="relative flex items-center h-[54px] rounded-2xl border border-[#DCEBFA] focus-within:border-[#0866F5] focus-within:ring-4 focus-within:ring-blue-100 bg-white transition-all overflow-hidden px-4">
+                <HomeIcon size={20} className="text-[#94A3B8] shrink-0" strokeWidth={2} />
+                <div className="h-5 w-px bg-[#E2E8F0] ml-3 mr-3.5 shrink-0" />
+                <input
+                  type="text"
+                  value={name}
+                  onChange={(e) => {
+                    setName(e.target.value);
+                    if (localError) setLocalError("");
+                  }}
+                  placeholder={getPlaceholder()}
+                  autoFocus
+                  className="w-full h-full bg-transparent text-[15px] font-medium text-[#071A4B] placeholder:text-[#94A3B8] focus:outline-none"
+                />
+              </div>
+            </div>
+
+            {/* Submit Button */}
+            <div className="pt-2">
+              <button
+                type="submit"
+                disabled={createFlatMutation.isPending}
+                className="w-full h-[54px] bg-[#0866F5] hover:bg-[#0875F9] active:scale-[0.98] text-white font-semibold text-[16px] rounded-2xl shadow-[0_8px_20px_rgba(8,102,245,0.32)] flex items-center justify-center gap-2 transition-all cursor-pointer disabled:opacity-75"
+              >
+                {createFlatMutation.isPending ? (
+                  <>
+                    <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                    <span>Creating Place...</span>
+                  </>
+                ) : (
+                  <span>Create & Generate Invite Code</span>
+                )}
+              </button>
+            </div>
+          </form>
         </div>
 
-        {/* Form */}
-        <form onSubmit={handleCreate}>
-          {/* Segmented Place Type Control */}
-          <div className="mb-4">
-            <label className="block text-[14px] font-medium text-black mb-1.5">
-              Place Type
-            </label>
-            <div className="grid grid-cols-3 gap-1 bg-offWhite p-1 rounded-[10px] border border-border">
-              {PLACE_TYPES.map((item) => {
-                const Icon = item.icon;
-                const isSelected = placeType === item.id;
-                return (
-                  <button
-                    key={item.id}
-                    type="button"
-                    onClick={() => setPlaceType(item.id)}
-                    className={`flex items-center justify-center gap-1.5 py-2.5 rounded-md text-[14px] font-medium transition-all ${
-                      isSelected
-                        ? "bg-white text-navy font-semibold shadow-sm border border-navy"
-                        : "text-grayBlack hover:text-black hover:bg-white/50 border border-transparent"
-                    }`}
-                  >
-                    <Icon
-                      size={18}
-                      className={isSelected ? "text-navy" : "text-grayBlack"}
-                      strokeWidth={isSelected ? 2.5 : 2}
-                    />
-                    <span>{item.label}</span>
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-
-          <Input
-            label={getLabel()}
-            placeholder={getPlaceholder()}
-            value={name}
-            onChange={(e) => {
-              setName(e.target.value);
-              if (localError) setLocalError("");
-            }}
-            error={errorMessage}
-            autoFocus
-          />
-
-          {/* Submit button */}
-          <div className="mt-3">
-            <Button
-              type="submit"
-              title="Create & Generate Invite Code"
-              loading={createFlatMutation.isPending}
-              className="w-full"
-            />
-          </div>
-        </form>
+        {/* Bottom spacer to align with reference layout */}
+        <div className="h-4" />
       </div>
-    </div>
+    </main>
   );
 }

@@ -8,6 +8,7 @@ import { useAuthSession, verifyOrRestoreSession } from "@/lib/auth-client";
 import { useSession } from "@/store/session";
 import { useSocket } from "@/lib/socket";
 import { registerWebPushAsync } from "@/lib/web-push";
+import { api } from "@/lib/api";
 import { Avatar } from "@/components/ui/Avatar";
 import { OfflineBanner } from "@/components/ui/OfflineBanner";
 import { HomeIcon } from "@/components/ui/HomeIcon";
@@ -107,25 +108,40 @@ export default function AppLayout({
 
       const hasUser = !!user || !!session?.user;
 
-      if (hasUser) {
-        if (isMounted) setIsInitializing(false);
+      if (!hasUser) {
+        // If user is not yet in state, perform authoritative session verification
+        const isValid = await verifyOrRestoreSession();
+        if (!isValid) {
+          if (isMounted) {
+            setIsInitializing(false);
+            logout().catch(() => {});
+            router.replace("/sign-in");
+          }
+          return;
+        }
+      }
+
+      // Check if user has an active flat; if not, route to onboarding (/choose)
+      let currentFlat = useSession.getState().activeFlat;
+      if (!currentFlat) {
+        try {
+          const res = await api.get<{ flat: any }>("/api/flats/me");
+          if (res?.flat) {
+            currentFlat = res.flat;
+            useSession.getState().setActiveFlat(res.flat);
+          }
+        } catch (_) {}
+      }
+
+      if (!currentFlat) {
+        if (isMounted) {
+          setIsInitializing(false);
+          router.replace("/choose");
+        }
         return;
       }
 
-      // If user is not yet in state, perform authoritative session verification
-      const isValid = await verifyOrRestoreSession();
-
-      if (isValid && isMounted) {
-        setIsInitializing(false);
-        return;
-      }
-
-      // Session genuinely unauthenticated -> redirect to /sign-in
-      if (isMounted) {
-        setIsInitializing(false);
-        logout().catch(() => {});
-        router.replace("/sign-in");
-      }
+      if (isMounted) setIsInitializing(false);
     }
 
     evaluateAuth();

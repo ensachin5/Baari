@@ -4,13 +4,14 @@ import {
   Text,
   StyleSheet,
   TouchableOpacity,
+  TextInput,
+  ActivityIndicator,
   KeyboardAvoidingView,
   Platform,
+  ScrollView,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
-import { Input } from '../../components/ui/Input';
-import { Button } from '../../components/ui/Button';
-import { Colors, Typography, Spacing, BorderRadius } from '../../lib/theme';
 import { api } from '../../lib/api';
 import { useSession } from '../../store/session';
 import { ArrowLeft, Building2, Hotel } from 'lucide-react-native';
@@ -89,154 +90,266 @@ export default function CreateFlatScreen() {
   };
 
   return (
-    <KeyboardAvoidingView
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-      style={styles.container}
-    >
-      <TouchableOpacity
-        onPress={() => router.back()}
-        style={styles.backButton}
-        hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+    <SafeAreaView edges={['top', 'bottom']} style={styles.safeArea}>
+      <KeyboardAvoidingView
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        style={styles.keyboardView}
       >
-        <ArrowLeft size={24} color={Colors.navy} />
-      </TouchableOpacity>
+        <ScrollView
+          contentContainerStyle={styles.scrollContent}
+          bounces={false}
+          showsVerticalScrollIndicator={false}
+        >
+          {/* Back button */}
+          <TouchableOpacity
+            onPress={() => router.back()}
+            style={styles.backButton}
+            hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+          >
+            <ArrowLeft size={24} color="#071A4B" strokeWidth={2.4} />
+          </TouchableOpacity>
 
-      <View style={styles.content}>
-        <View style={styles.header}>
-          <Text style={Typography.H1}>Create a Place</Text>
-          <Text style={[Typography.BodySmall, styles.subtitle]}>
-            Choose your space type and give it a recognizable name.
-          </Text>
-        </View>
+          {/* Heading */}
+          <View style={styles.header}>
+            <Text style={styles.title}>
+              Create a <Text style={styles.titleBlue}>Place</Text>
+            </Text>
+            <Text style={styles.subtitle}>
+              Choose your space type and give it a recognizable name.
+            </Text>
+          </View>
 
-        {/* Place Type Selector */}
-        <View style={styles.typeSection}>
-          <Text style={[Typography.BodySmallMedium, styles.typeSectionLabel]}>Place Type</Text>
-          <View style={styles.segmentedControl}>
-            {PLACE_TYPES.map((item) => {
-              const Icon = item.icon;
-              const isSelected = placeType === item.id;
-              return (
-                <TouchableOpacity
-                  key={item.id}
-                  activeOpacity={0.8}
-                  onPress={() => setPlaceType(item.id)}
-                  style={[
-                    styles.segmentButton,
-                    isSelected && styles.segmentButtonSelected,
-                  ]}
-                >
-                  <Icon
-                    size={18}
-                    color={isSelected ? Colors.navy : Colors.grayBlack}
-                    strokeWidth={isSelected ? 2.5 : 2}
-                  />
-                  <Text
+          {/* Error Banner */}
+          {error ? (
+            <View style={styles.errorBox}>
+              <Text style={styles.errorText}>{error}</Text>
+            </View>
+          ) : null}
+
+          {/* Form */}
+          <View style={styles.formSection}>
+            {/* Place Type */}
+            <Text style={styles.sectionLabel}>Place Type</Text>
+            <View style={styles.segmentedContainer}>
+              {PLACE_TYPES.map((item) => {
+                const Icon = item.icon;
+                const isSelected = placeType === item.id;
+                return (
+                  <TouchableOpacity
+                    key={item.id}
+                    activeOpacity={0.8}
+                    onPress={() => {
+                      setPlaceType(item.id);
+                      if (error) setError('');
+                    }}
                     style={[
-                      styles.segmentText,
-                      isSelected ? styles.segmentTextSelected : styles.segmentTextUnselected,
+                      styles.segmentButton,
+                      isSelected && styles.segmentButtonSelected,
                     ]}
                   >
-                    {item.label}
-                  </Text>
-                </TouchableOpacity>
-              );
-            })}
+                    <Icon
+                      size={18}
+                      color={isSelected ? '#0866F5' : '#727D98'}
+                      strokeWidth={isSelected ? 2.4 : 2}
+                    />
+                    <Text
+                      style={[
+                        styles.segmentText,
+                        isSelected ? styles.segmentTextSelected : styles.segmentTextUnselected,
+                      ]}
+                    >
+                      {item.label}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+
+            {/* Flat Name */}
+            <Text style={[styles.sectionLabel, { marginTop: 22 }]}>{getLabel()}</Text>
+            <View style={styles.inputContainer}>
+              <HomeIcon size={20} color="#94A3B8" strokeWidth={2} />
+              <View style={styles.inputDivider} />
+              <TextInput
+                value={name}
+                onChangeText={(text) => {
+                  setName(text);
+                  if (error) setError('');
+                }}
+                placeholder={getPlaceholder()}
+                placeholderTextColor="#94A3B8"
+                style={styles.inputField}
+                autoFocus
+              />
+            </View>
+
+            {/* Submit Button */}
+            <TouchableOpacity
+              activeOpacity={0.88}
+              onPress={handleCreate}
+              disabled={loading}
+              style={styles.submitButton}
+            >
+              {loading ? (
+                <View style={styles.loadingRow}>
+                  <ActivityIndicator color="#FFFFFF" size="small" />
+                  <Text style={styles.submitButtonText}>Creating Place...</Text>
+                </View>
+              ) : (
+                <Text style={styles.submitButtonText}>Create & Generate Invite Code</Text>
+              )}
+            </TouchableOpacity>
           </View>
-        </View>
-
-        {/* Name Input */}
-        <Input
-          label={getLabel()}
-          placeholder={getPlaceholder()}
-          value={name}
-          onChangeText={(text) => {
-            setName(text);
-            if (error) setError('');
-          }}
-          error={error}
-          autoFocus
-        />
-
-        <Button
-          title="Create & Generate Invite Code"
-          onPress={handleCreate}
-          loading={loading}
-          style={styles.submitBtn}
-        />
-      </View>
-    </KeyboardAvoidingView>
+        </ScrollView>
+      </KeyboardAvoidingView>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
+  safeArea: {
     flex: 1,
-    backgroundColor: Colors.white,
-    paddingHorizontal: Spacing.xl,
-    paddingTop: Spacing.xxxl + Spacing.lg,
+    backgroundColor: '#FFFFFF',
+  },
+  keyboardView: {
+    flex: 1,
+  },
+  scrollContent: {
+    paddingHorizontal: 22,
+    paddingTop: 8,
+    paddingBottom: 32,
   },
   backButton: {
-    marginBottom: Spacing.xl,
-    alignSelf: 'flex-start',
-  },
-  content: {
-    flex: 1,
+    width: 40,
+    height: 40,
+    justifyContent: 'center',
+    marginBottom: 16,
   },
   header: {
-    marginBottom: Spacing.xl,
+    marginBottom: 26,
+  },
+  title: {
+    fontSize: 28,
+    fontWeight: '800',
+    color: '#071A4B',
+    letterSpacing: -0.5,
+  },
+  titleBlue: {
+    color: '#0866F5',
   },
   subtitle: {
-    marginTop: Spacing.xs,
+    fontSize: 14,
+    color: '#727D98',
+    marginTop: 6,
     lineHeight: 20,
   },
-  typeSection: {
-    marginBottom: Spacing.lg,
+  formSection: {
+    width: '100%',
   },
-  typeSectionLabel: {
-    marginBottom: Spacing.xs,
-    color: Colors.black,
+  sectionLabel: {
+    fontSize: 13.5,
+    fontWeight: '700',
+    color: '#071A4B',
+    marginBottom: 10,
   },
-  segmentedControl: {
+  segmentedContainer: {
     flexDirection: 'row',
-    backgroundColor: Colors.offWhite,
-    borderRadius: BorderRadius.md,
-    padding: 4,
+    gap: 8,
+    backgroundColor: '#F6FAFE',
     borderWidth: 1,
-    borderColor: Colors.border,
-    gap: 4,
+    borderColor: '#DCEBFA',
+    borderRadius: 18,
+    padding: 6,
   },
   segmentButton: {
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 10,
-    borderRadius: BorderRadius.sm,
     gap: 6,
+    paddingVertical: 12,
+    borderRadius: 14,
   },
   segmentButtonSelected: {
-    backgroundColor: Colors.white,
+    backgroundColor: '#FFFFFF',
     borderWidth: 1,
-    borderColor: Colors.navy,
-    shadowColor: Colors.deepNavy,
-    shadowOffset: { width: 0, height: 1 },
+    borderColor: '#0866F5',
+    shadowColor: '#0866F5',
+    shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.08,
-    shadowRadius: 3,
+    shadowRadius: 4,
     elevation: 2,
   },
   segmentText: {
     fontSize: 14,
+    fontWeight: '500',
   },
   segmentTextSelected: {
-    fontFamily: 'Inter_600SemiBold',
-    color: Colors.navy,
+    color: '#0866F5',
+    fontWeight: '700',
   },
   segmentTextUnselected: {
-    fontFamily: 'Inter_500Medium',
-    color: Colors.grayBlack,
+    color: '#727D98',
   },
-  submitBtn: {
-    marginTop: Spacing.md,
+  inputContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    height: 54,
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: '#DCEBFA',
+    backgroundColor: '#FFFFFF',
+    paddingHorizontal: 16,
+  },
+  inputDivider: {
+    width: 1,
+    height: 20,
+    backgroundColor: '#E2E8F0',
+    marginHorizontal: 12,
+  },
+  inputField: {
+    flex: 1,
+    height: '100%',
+    fontSize: 15,
+    fontWeight: '500',
+    color: '#071A4B',
+  },
+  submitButton: {
+    width: '100%',
+    height: 54,
+    backgroundColor: '#0866F5',
+    borderRadius: 18,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginTop: 26,
+    shadowColor: '#0866F5',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.32,
+    shadowRadius: 18,
+    elevation: 6,
+  },
+  submitButtonText: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  loadingRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  errorBox: {
+    backgroundColor: '#FEF2F2',
+    borderWidth: 1,
+    borderColor: '#FECACA',
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    marginBottom: 16,
+  },
+  errorText: {
+    fontSize: 13,
+    color: '#DC2626',
+    fontWeight: '500',
   },
 });
