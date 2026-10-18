@@ -216,8 +216,8 @@ export default function IndexScreen() {
     if (!isHydrated) return;
 
     if (!token) {
-      console.log('[WakeUp] No stored session token. Redirecting to /(auth)/sign-in...');
-      router.replace('/(auth)/sign-in');
+      console.log('[WakeUp] No stored session token. Redirecting to /splash...');
+      router.replace('/splash');
       return;
     }
 

@@ -8,7 +8,7 @@ import { useSession } from "@/store/session";
 import { GoogleIcon } from "@/components/icons/GoogleIcon";
 import Image from "next/image";
 import Link from "next/link";
-import { ArrowRight } from "lucide-react";
+import { ArrowLeft, ArrowRight } from "lucide-react";
 
 export default function SignInPage() {
   const router = useRouter();
@@ -96,27 +96,36 @@ export default function SignInPage() {
       {/* Main Mobile Screen Container */}
       <div className="relative w-full sm:max-w-[430px] min-h-screen sm:min-h-0 sm:my-auto bg-white border-0 sm:border sm:border-[#DCEBFA] sm:rounded-[36px] sm:shadow-[0_20px_50px_rgba(7,26,75,0.08)] flex flex-col justify-between overflow-hidden">
         
+        {/* Top-Left Circular Blue Back Arrow Button (Directly overlaps the hero artwork) */}
+        <Link
+          href="/"
+          className="absolute top-4 left-4 z-30 w-10 h-10 rounded-full bg-[#0866F5] hover:bg-[#0757D1] active:scale-95 flex items-center justify-center text-white shadow-[0_4px_12px_rgba(8,102,245,0.35)] transition-all"
+          aria-label="Back to home"
+        >
+          <ArrowLeft size={20} strokeWidth={2.6} />
+        </Link>
+
         {/* Global Error Banner */}
         {error && (
-          <div className="absolute top-4 left-4 right-4 z-30 bg-red-50/95 backdrop-blur-xs border border-red-200 text-red-700 px-3.5 py-2.5 rounded-xl text-xs font-medium text-center shadow-md animate-in fade-in slide-in-from-top-2">
+          <div className="absolute top-16 left-4 right-4 z-30 bg-red-50/95 backdrop-blur-xs border border-red-200 text-red-700 px-3.5 py-2.5 rounded-xl text-xs font-medium text-center shadow-md animate-in fade-in slide-in-from-top-2">
             {error}
           </div>
         )}
 
-        {/* Top: Authentic Baari Logo & Household Scene Artwork */}
-        <div className="relative w-full aspect-[493/592] bg-[#F0F6FE] shrink-0">
+        {/* Top: Authentic Baari Logo & Household Scene Artwork (Full-bleed 100% width) */}
+        <div className="relative w-full aspect-[493/592] bg-[#FFFFFF] shrink-0">
           <Image
             src="/signin-hero.png"
             alt="Baari - Har Kaam Ki Apni Baari"
             fill
             priority
             sizes="(max-width: 640px) 100vw, 430px"
-            className="object-cover object-top select-none pointer-events-none"
+            className="object-cover object-bottom select-none pointer-events-none"
           />
         </div>
 
         {/* Bottom Half: Real Crisp Typography, Feature Badges, CTA, and Footer */}
-        <div className="flex-1 flex flex-col justify-between px-5 sm:px-6 pt-2 pb-6 bg-white gap-4">
+        <div className="flex flex-col justify-start px-6 pt-3 pb-6 bg-white gap-3.5 sm:gap-4">
           
           {/* Main Headline */}
           <div className="text-center pt-1">
