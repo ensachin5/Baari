@@ -167,8 +167,9 @@ export default function AppLayout({
     }
   };
 
-  // Render branded loading screen while verifying session
-  if (isInitializing || !isHydrated || sessionLoading) {
+  // Render branded loading screen ONLY if there is no local session data to display immediately
+  const hasCachedSession = Boolean(user && activeFlat);
+  if (!hasCachedSession && (isInitializing || !isHydrated || sessionLoading)) {
     return (
       <div className="min-h-screen bg-white flex items-center justify-center">
         <div className="flex flex-col items-center gap-3">
@@ -180,7 +181,7 @@ export default function AppLayout({
             className="w-12 h-12 rounded-xl animate-pulse object-contain"
             priority
           />
-          <p className="text-grayBlack text-sm font-medium">Verifying session...</p>
+          <p className="text-grayBlack text-sm font-medium">Loading Baari...</p>
         </div>
       </div>
     );
@@ -283,6 +284,7 @@ export default function AppLayout({
               <Link
                 key={tab.name}
                 href={tab.href}
+                prefetch={true}
                 className={`flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-[14px] leading-[20px] transition-all ${
                   isActive
                     ? "bg-sky-light text-navy font-semibold shadow-2xs"
@@ -299,6 +301,7 @@ export default function AppLayout({
         <div className="p-3 border-t border-[#E5E9F0]">
           <Link
             href="/profile"
+            prefetch={true}
             className={`flex items-center gap-3 p-2 rounded-xl transition-all ${
               pathname.startsWith("/profile")
                 ? "bg-sky-light/60"
@@ -343,6 +346,7 @@ export default function AppLayout({
             <Link
               key={tab.name}
               href={tab.href}
+              prefetch={true}
               className={`flex flex-col items-center justify-center flex-1 py-1 active:opacity-75 transition-opacity ${
                 isActive ? "text-navy" : "text-grayBlack"
               }`}

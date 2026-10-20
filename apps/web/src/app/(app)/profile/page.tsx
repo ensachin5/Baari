@@ -40,6 +40,12 @@ interface MemberItem {
   role: "admin" | "member";
 }
 
+// Global cache for instant 0ms profile rendering
+let globalProfileMembers: MemberItem[] = [];
+let globalProfileFlatId: string | null = null;
+let globalProfileStats: any = null;
+let globalProfileFetchedAt = 0;
+
 /**
  * Mirrors baari-app/app/(tabs)/profile.tsx exactly.
  */
@@ -50,7 +56,8 @@ export default function ProfilePage() {
   const setActiveFlat = useSession((state) => state.setActiveFlat);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const [members, setMembers] = useState<MemberItem[]>([]);
+  const hasCache = globalProfileFlatId === activeFlat?.id;
+  const [members, setMembers] = useState<MemberItem[]>(hasCache ? globalProfileMembers : []);
   const [copied, setCopied] = useState(false);
   const [loading, setLoading] = useState(false);
   const [notificationsEnabled, setNotificationsEnabled] = useState(true);
@@ -63,13 +70,17 @@ export default function ProfilePage() {
 
   const isAdmin = activeFlat?.role === "admin";
 
-  const [profileStats, setProfileStats] = useState({
-    kaamCompletedThisMonth: 0,
-    currentStreak: 0,
-    longestStreak: 0,
-    settlementsCountThisMonth: 0,
-    amountSettledThisMonth: 0,
-  });
+  const [profileStats, setProfileStats] = useState(
+    hasCache && globalProfileStats
+      ? globalProfileStats
+      : {
+          kaamCompletedThisMonth: 0,
+          currentStreak: 0,
+          longestStreak: 0,
+          settlementsCountThisMonth: 0,
+          amountSettledThisMonth: 0,
+        }
+  );
 
   const loadMembers = async () => {
     if (activeFlat?.id) {
@@ -77,7 +88,11 @@ export default function ProfilePage() {
         const res = await api.get<{ members: MemberItem[] }>(
           `/api/flats/${activeFlat.id}/members`
         );
-        setMembers(res.members || []);
+        if (res.members) {
+          globalProfileMembers = res.members;
+          globalProfileFlatId = activeFlat.id;
+          setMembers(res.members);
+        }
       } catch (_) {}
     }
   };
@@ -86,14 +101,20 @@ export default function ProfilePage() {
     try {
       const res = await api.get<{ stats: any }>("/api/profile/stats");
       if (res?.stats) {
+        globalProfileStats = res.stats;
         setProfileStats(res.stats);
       }
     } catch (_) {}
   };
 
   useEffect(() => {
-    loadMembers();
-    loadStats();
+    const isStale = Date.now() - globalProfileFetchedAt > 30000;
+    const isDifferentFlat = globalProfileFlatId !== activeFlat?.id;
+    if (isDifferentFlat || isStale) {
+      globalProfileFetchedAt = Date.now();
+      loadMembers();
+      loadStats();
+    }
   }, [activeFlat?.id]);
 
   // Copy Invite Code

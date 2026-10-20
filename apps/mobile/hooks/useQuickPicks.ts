@@ -23,21 +23,38 @@ export const FALLBACK_QUICK_PICKS: QuickPickPreset[] = [
   { id: 'groceries', flatId: '', label: 'Groceries', title: 'Groceries', category: 'custom', icon: 'ShoppingCart', sortOrder: 6, createdAt: '' },
 ];
 
+// Global in-memory cache for instant 0ms access
+let globalCachedQuickPicks: QuickPickPreset[] = [];
+let globalCachedQuickPicksFlatId: string | null = null;
+let globalQuickPicksFetchedAt = 0;
+
 export function useQuickPicks(flatId?: string | null) {
   const token = useSession((state) => state.token);
   const currentUser = useSession((state) => state.user);
-  const [presets, setPresets] = useState<QuickPickPreset[]>(FALLBACK_QUICK_PICKS);
-  const [loading, setLoading] = useState(false);
 
-  const fetchPresets = useCallback(async () => {
+  const hasCache =
+    globalCachedQuickPicksFlatId === flatId &&
+    globalCachedQuickPicks.length > 0;
+
+  const [presets, setPresets] = useState<QuickPickPreset[]>(
+    hasCache ? globalCachedQuickPicks : FALLBACK_QUICK_PICKS
+  );
+  const [loading, setLoading] = useState(!hasCache);
+
+  const fetchPresets = useCallback(async (isSilent = false) => {
     if (!token || !currentUser || !flatId) {
       setLoading(false);
       return;
     }
-    try {
+    if (!isSilent && globalCachedQuickPicks.length === 0) {
       setLoading(true);
+    }
+    try {
       const res = await api.get<{ presets: QuickPickPreset[] }>(`/api/quick-picks?flatId=${flatId}`);
       if (res.presets && res.presets.length > 0) {
+        globalCachedQuickPicks = res.presets;
+        globalCachedQuickPicksFlatId = flatId;
+        globalQuickPicksFetchedAt = Date.now();
         setPresets(res.presets);
       }
     } catch (err: any) {
@@ -50,8 +67,15 @@ export function useQuickPicks(flatId?: string | null) {
 
   useEffect(() => {
     if (!token || !currentUser || !flatId) return;
-    fetchPresets();
-  }, [fetchPresets, token, currentUser, flatId]);
+    const isStale = Date.now() - globalQuickPicksFetchedAt > 60000;
+    const isDifferentFlat = globalCachedQuickPicksFlatId !== flatId;
+
+    if (isDifferentFlat || !hasCache) {
+      fetchPresets(false);
+    } else if (isStale) {
+      fetchPresets(true);
+    }
+  }, [fetchPresets, token, currentUser, flatId, hasCache]);
 
   const addPreset = async (data: {
     label: string;

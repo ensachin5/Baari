@@ -40,29 +40,48 @@ export interface PendingSettlement {
   payerImage?: string | null;
 }
 
+// Global in-memory cache for instant 0ms tab switching
+let globalCachedExpenses: ExpenseItem[] = [];
+let globalCachedBalances: BalanceData = {
+  summary: { youAreOwed: 0, youOwe: 0, netBalance: 0 },
+  memberBalances: [],
+  simplifiedDebts: [],
+};
+let globalCachedPending: PendingSettlement[] = [];
+let globalCachedMembers: FlatMember[] = [];
+let globalCachedExpensesFlatId: string | null = null;
+let globalExpensesFetchedAt = 0;
+
 /**
- * Mirrors baari-app/hooks/useExpenses.ts exactly.
+ * Mirrors baari-app/hooks/useExpenses.ts with instant SWR caching.
  */
 export const useExpenses = () => {
   const activeFlat = useSession((state) => state.activeFlat);
   const currentUser = useSession((state) => state.user);
 
-  const [expenses, setExpenses] = useState<ExpenseItem[]>([]);
-  const [balances, setBalances] = useState<BalanceData>({
+  const hasCache =
+    globalCachedExpensesFlatId === activeFlat?.id &&
+    (globalCachedExpenses.length > 0 || globalCachedBalances.memberBalances.length > 0);
+
+  const [expenses, setExpenses] = useState<ExpenseItem[]>(hasCache ? globalCachedExpenses : []);
+  const [balances, setBalances] = useState<BalanceData>(hasCache ? globalCachedBalances : {
     summary: { youAreOwed: 0, youOwe: 0, netBalance: 0 },
     memberBalances: [],
     simplifiedDebts: [],
   });
-  const [pendingSettlements, setPendingSettlements] = useState<PendingSettlement[]>([]);
-  const [members, setMembers] = useState<FlatMember[]>([]);
+  const [pendingSettlements, setPendingSettlements] = useState<PendingSettlement[]>(hasCache ? globalCachedPending : []);
+  const [members, setMembers] = useState<FlatMember[]>(hasCache ? globalCachedMembers : []);
   const [search, setSearch] = useState("");
   const [category, setCategory] = useState("All");
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(!hasCache);
   const [refreshing, setRefreshing] = useState(false);
 
   const fetchExpensesData = useCallback(
-    async (customSearch?: string, customCategory?: string) => {
+    async (customSearch?: string, customCategory?: string, isSilent = false) => {
       if (!activeFlat?.id) return;
+      if (!isSilent && globalCachedExpensesFlatId !== activeFlat.id) {
+        setLoading(true);
+      }
       try {
         const activeSearch = customSearch !== undefined ? customSearch : search;
         const activeCat = customCategory !== undefined ? customCategory : category;
@@ -81,22 +100,32 @@ export const useExpenses = () => {
           ),
         ]);
 
-        setExpenses(expData.expenses || []);
-        setBalances(
-          balData || {
-            summary: { youAreOwed: 0, youOwe: 0, netBalance: 0 },
-            memberBalances: [],
-            simplifiedDebts: [],
-          }
-        );
-        setPendingSettlements(pendingData.pendingSettlements || []);
-        setMembers(
-          (memData.members || []).map((m: any) => ({
-            userId: m.userId,
-            name: m.name || "Member",
-            image: m.image,
-          }))
-        );
+        const newExpenses = expData.expenses || [];
+        const newBalances = balData || {
+          summary: { youAreOwed: 0, youOwe: 0, netBalance: 0 },
+          memberBalances: [],
+          simplifiedDebts: [],
+        };
+        const newPending = pendingData.pendingSettlements || [];
+        const newMembers = (memData.members || []).map((m: any) => ({
+          userId: m.userId,
+          name: m.name || "Member",
+          image: m.image,
+        }));
+
+        if (!activeSearch && (!activeCat || activeCat === "All")) {
+          globalCachedExpenses = newExpenses;
+          globalCachedBalances = newBalances;
+          globalCachedPending = newPending;
+          globalCachedMembers = newMembers;
+          globalCachedExpensesFlatId = activeFlat.id;
+          globalExpensesFetchedAt = Date.now();
+        }
+
+        setExpenses(newExpenses);
+        setBalances(newBalances);
+        setPendingSettlements(newPending);
+        setMembers(newMembers);
       } catch (error) {
         console.error("Error fetching expenses:", error);
       } finally {
@@ -108,8 +137,17 @@ export const useExpenses = () => {
   );
 
   useEffect(() => {
-    fetchExpensesData();
-  }, [fetchExpensesData]);
+    if (!activeFlat?.id) return;
+
+    const isStale = Date.now() - globalExpensesFetchedAt > 15000;
+    const isDifferentFlat = globalCachedExpensesFlatId !== activeFlat.id;
+
+    if (isDifferentFlat || !hasCache) {
+      fetchExpensesData(undefined, undefined, false);
+    } else if (isStale) {
+      fetchExpensesData(undefined, undefined, true);
+    }
+  }, [fetchExpensesData, activeFlat?.id]);
 
   const addExpense = async (payload: {
     title: string;

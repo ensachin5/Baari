@@ -2,6 +2,7 @@
 
 import React from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import Image from "next/image";
 import { useSession } from "@/store/session";
 import { ArrowRight, Users } from "lucide-react";
@@ -47,9 +48,9 @@ export default function ChooseFlatPage() {
           {/* Action Cards Container */}
           <div className="flex flex-col gap-3.5 w-full">
             {/* Option 1: Create a new Place */}
-            <button
-              type="button"
-              onClick={() => router.push("/create-flat")}
+            <Link
+              href="/create-flat"
+              prefetch={true}
               className="w-full p-4 rounded-2xl bg-white border border-[#DCEBFA] hover:border-[#0866F5] hover:shadow-[0_4px_16px_rgba(8,102,245,0.08)] active:scale-[0.99] transition-all cursor-pointer flex items-center gap-3.5 text-left group"
             >
               <div className="w-12 h-12 rounded-[14px] bg-[#E8F4FF] flex items-center justify-center text-[#0866F5] shrink-0 group-hover:scale-105 transition-transform">
@@ -64,12 +65,12 @@ export default function ChooseFlatPage() {
                 </p>
               </div>
               <ArrowRight size={20} className="text-[#071A4B] group-hover:text-[#0866F5] group-hover:translate-x-0.5 transition-all shrink-0" />
-            </button>
+            </Link>
 
             {/* Option 2: Join an existing Place */}
-            <button
-              type="button"
-              onClick={() => router.push("/join-flat")}
+            <Link
+              href="/join-flat"
+              prefetch={true}
               className="w-full p-4 rounded-2xl bg-white border border-[#DCEBFA] hover:border-[#0866F5] hover:shadow-[0_4px_16px_rgba(8,102,245,0.08)] active:scale-[0.99] transition-all cursor-pointer flex items-center gap-3.5 text-left group"
             >
               <div className="w-12 h-12 rounded-[14px] bg-[#E8F4FF] flex items-center justify-center text-[#0866F5] shrink-0 group-hover:scale-105 transition-transform">
@@ -84,7 +85,7 @@ export default function ChooseFlatPage() {
                 </p>
               </div>
               <ArrowRight size={20} className="text-[#071A4B] group-hover:text-[#0866F5] group-hover:translate-x-0.5 transition-all shrink-0" />
-            </button>
+            </Link>
           </div>
         </div>
 

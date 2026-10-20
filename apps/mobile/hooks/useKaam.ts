@@ -1,31 +1,46 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { api } from '../lib/api';
 import { useSession } from '../store/session';
 import { getSocket } from '../lib/socket';
 import { KaamTask } from '../components/kaam/KaamCard';
 
+// Global in-memory cache for instant 0ms tab switching
+let globalCachedTasks: KaamTask[] = [];
+let globalCachedFlatId: string | null = null;
+let globalLastFetchedAt = 0;
+
 export const useKaam = () => {
   const token = useSession((state) => state.token);
   const activeFlat = useSession((state) => state.activeFlat);
   const currentUser = useSession((state) => state.user);
-  const [tasks, setTasks] = useState<KaamTask[]>([]);
-  const [loading, setLoading] = useState(true);
+
+  const hasCache =
+    globalCachedTasks.length > 0 &&
+    globalCachedFlatId === activeFlat?.id;
+
+  const [tasks, setTasks] = useState<KaamTask[]>(hasCache ? globalCachedTasks : []);
+  const [loading, setLoading] = useState(!hasCache);
   const [refreshing, setRefreshing] = useState(false);
   const [completingId, setCompletingId] = useState<string | null>(null);
 
-  const fetchTasks = useCallback(async () => {
+  const fetchTasks = useCallback(async (isSilent = false) => {
     if (!token || !currentUser || !activeFlat?.id) {
       setLoading(false);
       setRefreshing(false);
       return;
     }
+    if (!isSilent && globalCachedTasks.length === 0) {
+      setLoading(true);
+    }
     try {
-      console.log('[useKaam] GET /api/tasks requesting for flatId:', activeFlat.id);
       const data = await api.get<{ tasks: KaamTask[] }>('/api/tasks', {
         flatId: activeFlat.id,
       });
-      console.log('[useKaam] GET /api/tasks response: received', data.tasks?.length || 0, 'tasks');
-      setTasks(data.tasks || []);
+      const newTasks = data.tasks || [];
+      globalCachedTasks = newTasks;
+      globalCachedFlatId = activeFlat.id;
+      globalLastFetchedAt = Date.now();
+      setTasks(newTasks);
     } catch (error: any) {
       if (error?.status === 401) return;
       console.error('[useKaam] Error fetching Kaam tasks:', error);
@@ -37,7 +52,16 @@ export const useKaam = () => {
 
   useEffect(() => {
     if (!token || !currentUser || !activeFlat?.id) return;
-    fetchTasks();
+
+    const isStale = Date.now() - globalLastFetchedAt > 15000;
+    const isDifferentFlat = globalCachedFlatId !== activeFlat.id;
+
+    if (isDifferentFlat || globalCachedTasks.length === 0) {
+      fetchTasks(false);
+    } else if (isStale) {
+      // Revalidate in background without blocking UI
+      fetchTasks(true);
+    }
   }, [fetchTasks, token, currentUser, activeFlat?.id]);
 
   // Socket.io Realtime Listener

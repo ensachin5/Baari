@@ -92,14 +92,21 @@ async function ensureHydrated(timeoutMs = 1500): Promise<void> {
  * Resolves the active session token and cookie through all available channels.
  */
 async function resolveAuthCredentials(): Promise<{ token: string | null; cookie: string | null }> {
-  // 1. Check in-memory Zustand store
+  // 1. FAST PATH: Check in-memory Zustand store (0ms, no I/O)
   let token = cleanAuthToken(useSession.getState().token);
+  if (token) {
+    return { token, cookie: null };
+  }
 
   // 2. Fallback: check SecureStore dedicated session key
-  if (!token && Platform.OS !== 'web') {
+  if (Platform.OS !== 'web') {
     try {
       const stored = await SecureStore.getItemAsync('baari_session_token');
       token = cleanAuthToken(stored);
+      if (token) {
+        useSession.getState().setToken(token).catch(() => {});
+        return { token, cookie: null };
+      }
     } catch (_) {}
   }
 

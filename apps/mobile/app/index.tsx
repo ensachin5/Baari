@@ -110,125 +110,99 @@ export default function IndexScreen() {
     }
   };
 
-  // 3. Main wake-up and routing sequence
+  // 3. Fast direct routing sequence
   const startWakeUpAndResolve = useCallback(async () => {
     if (isRunningRef.current) return;
     isRunningRef.current = true;
 
-    if (abortControllerRef.current) {
-      abortControllerRef.current.abort();
-    }
-    const overallController = new AbortController();
-    abortControllerRef.current = overallController;
-
-    setStatus('waking');
+    setStatus('resolving');
     setErrorMessage(null);
 
-    const totalStartTime = Date.now();
-    let isServerReady = false;
-
-    console.log(
-      `[WakeUp] Starting backend wake-up cycle (max timeout: ${
-        MAX_TOTAL_WAIT_MS / 1000
-      }s, max attempts: ${MAX_ATTEMPTS})`
-    );
-
-    for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
-      if (overallController.signal.aborted) break;
-
-      setAttemptCount(attempt);
-      const success = await pingBackend(
-        attempt,
-        totalStartTime,
-        overallController.signal
-      );
-
-      if (success) {
-        isServerReady = true;
-        break;
-      }
-
-      const totalElapsed = Date.now() - totalStartTime;
-      if (totalElapsed >= MAX_TOTAL_WAIT_MS || attempt === MAX_ATTEMPTS) {
-        console.error(
-          `[WakeUp] Exceeded budget (total elapsed: ${Math.round(
-            totalElapsed / 1000
-          )}s, attempts: ${attempt}). Stopping retries.`
-        );
-        break;
-      }
-
-      const backoffDelay = Math.min(1000 * attempt, 4000);
-      console.log(`[WakeUp] Waiting ${backoffDelay}ms before retry ${attempt + 1}...`);
-      await new Promise((resolve) => setTimeout(resolve, backoffDelay));
-    }
-
-    if (!isServerReady) {
-      isRunningRef.current = false;
-      setStatus('error');
-      setErrorMessage(
-        "We're having trouble reaching the server. It may still be starting up or your connection was interrupted."
-      );
-      return;
-    }
-
-    // 4. Server is ready -> resolve active flat
-    setStatus('resolving');
-    console.log('[WakeUp] Server is awake. Resolving user flat via GET /api/flats/me...');
-
+    // Fast check: Try fetching flat directly first before any slow ping loop
     try {
       const res = await api.get<{ flat: any }>('/api/flats/me');
       if (res?.flat) {
-        console.log(
-          `[WakeUp] Active flat resolved: "${res.flat.name}" (id: ${res.flat.id}). Redirecting to /(tabs)/home...`
-        );
         setActiveFlat(res.flat);
         router.replace('/(tabs)/home');
+        return;
       } else {
-        console.log('[WakeUp] No active flat found. Redirecting to /(onboarding)/choose...');
         setActiveFlat(null);
         router.replace('/(onboarding)/choose');
+        return;
       }
     } catch (apiErr: any) {
-      console.error(
-        `[WakeUp] Failed to resolve flat via /api/flats/me: [${apiErr?.status}] ${apiErr?.message}`
-      );
       if (apiErr?.status === 401) {
-        console.log('[WakeUp] 401 Unauthorized — Redirecting to /(auth)/sign-in...');
         await logout();
         router.replace('/(auth)/sign-in');
-      } else if (apiErr?.status === 404) {
-        console.log('[WakeUp] 404 Not Found — Redirecting to /(onboarding)/choose...');
+        return;
+      }
+      if (apiErr?.status === 404) {
         setActiveFlat(null);
         router.replace('/(onboarding)/choose');
-      } else {
-        setStatus('error');
-        setErrorMessage(
-          apiErr?.message || 'Failed to load flat space. Please try again.'
-        );
+        return;
       }
+      console.warn('[WakeUp] Direct /api/flats/me failed, falling back to retry check:', apiErr?.message);
     } finally {
       isRunningRef.current = false;
     }
+
+    // Fallback: If direct attempt failed (e.g. cold start), run quick retry
+    setStatus('waking');
+    const totalStartTime = Date.now();
+    let isServerReady = false;
+
+    for (let attempt = 1; attempt <= 3; attempt++) {
+      setAttemptCount(attempt);
+      try {
+        const res = await api.get<{ flat: any }>('/api/flats/me');
+        if (res?.flat) {
+          setActiveFlat(res.flat);
+          router.replace('/(tabs)/home');
+          return;
+        } else {
+          setActiveFlat(null);
+          router.replace('/(onboarding)/choose');
+          return;
+        }
+      } catch (err: any) {
+        if (err?.status === 401) {
+          await logout();
+          router.replace('/(auth)/sign-in');
+          return;
+        }
+        await new Promise((r) => setTimeout(r, 1000 * attempt));
+      }
+    }
+
+    setStatus('error');
+    setErrorMessage(
+      "We're having trouble reaching the server. Please check your internet connection or try again."
+    );
   }, [router, setActiveFlat, logout]);
 
   useEffect(() => {
     if (!isHydrated) return;
 
     if (!token) {
-      console.log('[WakeUp] No stored session token. Redirecting to /splash...');
       router.replace('/splash');
       return;
     }
 
-    startWakeUpAndResolve();
+    // INSTANT FAST PATH: If user already has an active flat cached in local store, navigate immediately!
+    const cachedFlat = useSession.getState().activeFlat;
+    if (cachedFlat?.id) {
+      router.replace('/(tabs)/home');
+      // Background revalidation
+      api.get<{ flat: any }>('/api/flats/me')
+        .then((res) => {
+          if (res?.flat) setActiveFlat(res.flat);
+        })
+        .catch(() => {});
+      return;
+    }
 
-    return () => {
-      if (abortControllerRef.current) {
-        abortControllerRef.current.abort();
-      }
-    };
-  }, [isHydrated, token, startWakeUpAndResolve, router]);
+    startWakeUpAndResolve();
+  }, [isHydrated, token, startWakeUpAndResolve, router, setActiveFlat]);
 
   const handleRetry = () => {
     startWakeUpAndResolve();

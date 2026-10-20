@@ -128,7 +128,7 @@ export default function SignInScreen() {
             source={require('../../assets/signin-hero.png')}
             style={styles.heroImage}
             contentFit="cover"
-            contentPosition="bottom center"
+            contentPosition="top center"
             priority="high"
           />
         </View>
@@ -295,7 +295,7 @@ const styles = StyleSheet.create({
     flex: 1,
     width: '100%',
     minHeight: 220,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: '#EEF7FD',
     overflow: 'hidden',
   },
   heroImage: {

@@ -113,14 +113,14 @@ export default function SignInPage() {
         )}
 
         {/* Top: Authentic Baari Logo & Household Scene Artwork (Full-bleed 100% width) */}
-        <div className="relative w-full aspect-[493/592] bg-[#FFFFFF] shrink-0">
+        <div className="relative w-full aspect-[493/650] bg-[#EEF7FD] shrink-0">
           <Image
             src="/signin-hero.png"
             alt="Baari - Har Kaam Ki Apni Baari"
             fill
             priority
             sizes="(max-width: 640px) 100vw, 430px"
-            className="object-cover object-bottom select-none pointer-events-none"
+            className="object-cover object-top select-none pointer-events-none"
           />
         </div>
 

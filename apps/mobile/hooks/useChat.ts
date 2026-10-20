@@ -9,12 +9,22 @@ export interface TypingUser {
   userName: string;
 }
 
+// Global in-memory cache for instant 0ms tab switching
+let globalCachedMessages: ChatMessage[] = [];
+let globalCachedChatFlatId: string | null = null;
+let globalChatFetchedAt = 0;
+
 export const useChat = () => {
   const token = useSession((state) => state.token);
   const activeFlat = useSession((state) => state.activeFlat);
   const currentUser = useSession((state) => state.user);
-  const [messages, setMessages] = useState<ChatMessage[]>([]);
-  const [loading, setLoading] = useState(true);
+
+  const hasCache =
+    globalCachedChatFlatId === activeFlat?.id &&
+    globalCachedMessages.length > 0;
+
+  const [messages, setMessages] = useState<ChatMessage[]>(hasCache ? globalCachedMessages : []);
+  const [loading, setLoading] = useState(!hasCache);
   const [loadingMore, setLoadingMore] = useState(false);
   const [nextCursor, setNextCursor] = useState<string | null>(null);
   const [typingUsers, setTypingUsers] = useState<TypingUser[]>([]);
@@ -67,18 +77,23 @@ export const useChat = () => {
     [activeFlat?.id, token, currentUser]
   );
 
-  // Fetch initial message history
-  const fetchMessages = useCallback(async () => {
+  // Fetch message history
+  const fetchMessages = useCallback(async (isSilent = false) => {
     if (!token || !currentUser || !activeFlat?.id) {
       setLoading(false);
       return;
     }
-    try {
+    if (!isSilent && globalCachedMessages.length === 0) {
       setLoading(true);
+    }
+    try {
       const data = await api.get<{ messages: ChatMessage[]; nextCursor: string | null }>('/api/messages', {
         flatId: activeFlat.id,
       });
       const fetched = (data.messages || []).map((m) => ({ ...m, status: 'sent' as const })).reverse();
+      globalCachedMessages = fetched;
+      globalCachedChatFlatId = activeFlat.id;
+      globalChatFetchedAt = Date.now();
       setMessages(fetched);
       setNextCursor(data.nextCursor);
 
@@ -99,12 +114,26 @@ export const useChat = () => {
 
   useEffect(() => {
     if (!token || !currentUser || !activeFlat?.id) return;
-    fetchMessages();
+
+    const isStale = Date.now() - globalChatFetchedAt > 15000;
+    const isDifferentFlat = globalCachedChatFlatId !== activeFlat.id;
+
+    if (isDifferentFlat || !hasCache) {
+      fetchMessages(false);
+    } else if (isStale) {
+      // Background revalidation without spinner
+      fetchMessages(true);
+    }
+
+    // Fallback sync: if socket is disconnected, poll every 15s silently.
     const interval = setInterval(() => {
-      fetchMessages();
-    }, 4000);
+      const socket = getSocket();
+      if (!socket.connected) {
+        fetchMessages(true);
+      }
+    }, 15000);
     return () => clearInterval(interval);
-  }, [fetchMessages, token, currentUser, activeFlat?.id]);
+  }, [fetchMessages, token, currentUser, activeFlat?.id, hasCache]);
 
   // Socket.io Realtime Listeners for new_message, user_typing, message_read
   useEffect(() => {

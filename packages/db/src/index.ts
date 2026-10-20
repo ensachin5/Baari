@@ -22,9 +22,9 @@ export const pool =
   new Pool({
     connectionString,
     ssl: isLocal ? false : { rejectUnauthorized: false },
-    max: 5,
+    max: process.env.DB_POOL_MAX ? parseInt(process.env.DB_POOL_MAX, 10) : 20,
     idleTimeoutMillis: 30000,
-    connectionTimeoutMillis: 30000,
+    connectionTimeoutMillis: 5000,
     keepAlive: true,
     keepAliveInitialDelayMillis: 10000,
   });
